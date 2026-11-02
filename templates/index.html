@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>나의 캘린더</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='24' rx='5' fill='%232347C8'/%3E%3Crect x='3' y='5' width='26' height='7' rx='3' fill='%231A2130'/%3E%3Ccircle cx='16' cy='21' r='4' fill='%23fff'/%3E%3C/svg%3E">
+
+  <!-- 휴대폰 홈 화면에 추가했을 때 앱처럼 열리도록 -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <meta name="theme-color" content="#F4F6F9">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="캘린더">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body data-view="month">
+  <header class="topbar">
+    <div class="nav">
+      <button class="icon-btn" id="btn-prev" type="button" aria-label="이전 달">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <h1 class="month-title" id="month-title" aria-live="polite"></h1>
+      <button class="icon-btn" id="btn-next" type="button" aria-label="다음 달">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+      <button class="text-btn" id="btn-today" type="button">오늘</button>
+    </div>
+    <div class="actions">
+      <div class="seg view-switch" role="group" aria-label="보기">
+        <button class="seg-btn" id="btn-view-month" type="button" aria-pressed="true">월간</button>
+        <button class="seg-btn" id="btn-view-week" type="button" aria-pressed="false">이번 주</button>
+      </div>
+      <button class="text-btn" id="btn-undated" type="button" aria-controls="undated-panel" aria-expanded="false">
+        기한 미정 <span class="count" id="undated-count" hidden>0</span>
+      </button>
+      <button class="text-btn" id="btn-categories" type="button">카테고리</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main class="calendar-wrap" id="calendar-wrap">
+      <div id="calendar"></div>
+      <section class="week" id="week" aria-label="주간 일정" hidden></section>
+    </main>
+
+    <!-- 기한 미정 패널 (넓은 화면에서만 보임). 카드를 달력의 날짜로 끌어다 놓을 수 있다. -->
+    <aside class="panel" id="undated-panel" aria-labelledby="panel-title" hidden>
+      <header class="panel-head">
+        <h2 id="panel-title">기한 미정</h2>
+        <button class="icon-btn sm panel-close" type="button" aria-label="기한 미정 패널 닫기">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <p class="panel-hint">카드를 달력의 날짜로 끌어다 놓으면 그 날짜에 들어가요.</p>
+      <ul class="panel-list"></ul>
+      <button class="btn wide panel-add" type="button">할 일 추가</button>
+    </aside>
+  </div>
+
+  <!-- 모든 편집 화면(하루 목록 / 일정 편집 / 기한 미정 / 카테고리)은 이 창 하나에서 바뀌며 표시된다. -->
+  <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
+    <div class="sheet-inner">
+      <header class="sheet-head">
+        <button class="icon-btn" id="sheet-back" type="button" aria-label="뒤로" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <div class="sheet-heading">
+          <h2 id="sheet-title" tabindex="-1"></h2>
+          <p class="sheet-sub" id="sheet-sub"></p>
+        </div>
+        <button class="icon-btn" id="sheet-close" type="button" aria-label="닫기">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="sheet-body" id="sheet-body"></div>
+      <footer class="sheet-foot" id="sheet-foot"></footer>
+    </div>
+  </dialog>
+
+  <!-- 확인/선택 질문 창 ("이 날만 / 모든 날짜" 등) -->
+  <dialog class="ask" id="ask" aria-labelledby="ask-message">
+    <p id="ask-message"></p>
+    <div class="ask-buttons" id="ask-buttons"></div>
+  </dialog>
+
+  <!-- popover: 열려 있는 창(dialog)보다 위에 보이도록 브라우저 최상위 층에 띄운다 -->
+  <div class="toast" id="toast" popover="manual" role="status" aria-live="polite"></div>
+
+  <!-- 오픈소스: FullCalendar v6.1.22 (MIT) — static/vendor/fullcalendar/LICENSE.md -->
+  <script src="{{ url_for('static', filename='vendor/fullcalendar/fullcalendar.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/fullcalendar/ko.min.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
