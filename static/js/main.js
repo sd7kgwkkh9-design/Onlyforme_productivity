@@ -49,9 +49,10 @@ function toEvent(o, index) {
     extendedProps: {
       itemId: o.id,
       date: o.date,
-      time: o.start_time,
+      // 칸이 좁으므로 시작 시간만 (끝 시간만 있으면 '~18:00')
+      time: o.start_time || (o.end_time ? `~${o.end_time}` : null),
       color: o.category.color,
-      order: index, // 서버가 정렬해 준 순서(시간 없는 것 → 시간순) 그대로
+      order: index, // 서버가 정렬해 준 순서(올린 순서 또는 하루 창에서 바꾼 순서) 그대로
     },
   };
 }

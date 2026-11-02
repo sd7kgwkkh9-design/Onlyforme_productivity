@@ -14,6 +14,7 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   POST   /api/items                       일정 추가
   PUT    /api/items/<id>                  일정 수정 (scope = all | single)
   DELETE /api/items/<id>?scope=&date=     일정 삭제 (scope = all | single)
+  PUT    /api/days/<date>/order           그 날짜 안의 일정 순서 바꾸기
 
 공휴일
   GET    /api/holidays?start=&end=        기간 안의 한국 공휴일 (python-holidays 사용)
@@ -112,12 +113,11 @@ def parse_item_payload(data, db):
     if len(memo) > MAX_MEMO:
         raise ApiError(f"메모는 {MAX_MEMO}자 이하로 적어 주세요.")
 
-    # 시간은 선택 사항: 비어 있으면 '시간 없는 할 일'
-    start_time = data.get("start_time")
-    if start_time in (None, ""):
-        start_time = None
-    elif not isinstance(start_time, str) or not TIME_RE.match(start_time):
-        raise ApiError("시간 형식이 올바르지 않아요. (HH:MM)")
+    # 시간은 선택 사항: 시작·끝 중 하나만 있어도 되고, 둘 다 없으면 '시간 없는 할 일'
+    start_time = parse_time(data.get("start_time"), "시작 시간")
+    end_time = parse_time(data.get("end_time"), "끝 시간")
+    if start_time and end_time and end_time <= start_time:
+        raise ApiError("끝 시간은 시작 시간보다 늦어야 해요.")
 
     # 카테고리를 안 보내면 미분류로
     category_id = data.get("category_id")
@@ -143,9 +143,19 @@ def parse_item_payload(data, db):
         "title": title,
         "memo": memo,
         "start_time": start_time,
+        "end_time": end_time,
         "category_id": category_id,
         "dates": dates,
     }
+
+
+def parse_time(value, field):
+    """'HH:MM'(24시간) 또는 빈 값 → 문자열 또는 None. 'HH:MM' 문자열은 그대로 크기 비교가 된다."""
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str) or not TIME_RE.match(value):
+        raise ApiError(f"{field} 형식이 올바르지 않아요. (00:00 ~ 23:59)")
+    return value
 
 
 def parse_category_payload(data, db, exclude_id=None):
@@ -206,6 +216,7 @@ def item_dict(db, row):
         "title": row["title"],
         "memo": row["memo"],
         "start_time": row["start_time"],
+        "end_time": row["end_time"],
         "category": {
             "id": row["category_id"],
             "name": row["c_name"],
@@ -216,17 +227,32 @@ def item_dict(db, row):
     }
 
 
-def insert_item(db, fields):
+def insert_item(db, fields, keep_positions=None):
     cur = db.execute(
-        "INSERT INTO items (title, memo, category_id, start_time) VALUES (?, ?, ?, ?)",
-        (fields["title"], fields["memo"], fields["category_id"], fields["start_time"]),
+        "INSERT INTO items (title, memo, category_id, start_time, end_time) VALUES (?, ?, ?, ?, ?)",
+        (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"]),
     )
     item_id = cur.lastrowid
-    db.executemany(
-        "INSERT INTO item_dates (item_id, date) VALUES (?, ?)",
-        [(item_id, d) for d in fields["dates"]],
-    )
+    add_item_dates(db, item_id, fields["dates"], keep_positions)
     return item_id
+
+
+def add_item_dates(db, item_id, dates, keep_positions=None):
+    """
+    일정을 날짜들에 넣는다. 새로 들어가는 날짜에서는 그날 목록의 맨 아래(= 올린 순서)에 붙는다.
+    keep_positions={'2026-11-05': 3} 처럼 주면 그 날짜에서는 원래 자리를 그대로 쓴다.
+    """
+    keep_positions = keep_positions or {}
+    for d in dates:
+        if d in keep_positions:
+            position = keep_positions[d]
+        else:
+            position = db.execute(
+                "SELECT COALESCE(MAX(position), 0) + 1 AS p FROM item_dates WHERE date = ?", (d,)
+            ).fetchone()["p"]
+        db.execute(
+            "INSERT INTO item_dates (item_id, date, position) VALUES (?, ?, ?)", (item_id, d, position)
+        )
 
 
 def item_date_count(db, item_id):
@@ -333,15 +359,15 @@ def list_occurrences():
 
     rows = db.execute(
         """
-        SELECT d.date, i.id, i.title, i.memo, i.start_time,
+        SELECT d.date, i.id, i.title, i.memo, i.start_time, i.end_time,
                c.id AS c_id, c.name AS c_name, c.color AS c_color,
                (SELECT COUNT(*) FROM item_dates d2 WHERE d2.item_id = i.id) AS date_count
         FROM item_dates d
         JOIN items i      ON i.id = d.item_id
         JOIN categories c ON c.id = i.category_id
         WHERE d.date >= ? AND d.date < ?
-        -- 같은 날 안에서는: 시간 없는 것 먼저, 그다음 시간순
-        ORDER BY d.date, i.start_time IS NOT NULL, i.start_time, i.id
+        -- 같은 날 안에서는 position 순서 (기본은 올린 순서, 하루 창에서 끌어서 바꿀 수 있음)
+        ORDER BY d.date, d.position, i.id
         """,
         (start, end),
     ).fetchall()
@@ -354,6 +380,7 @@ def list_occurrences():
                 "title": r["title"],
                 "memo": r["memo"],
                 "start_time": r["start_time"],
+                "end_time": r["end_time"],
                 "category": {"id": r["c_id"], "name": r["c_name"], "color": r["c_color"]},
                 "date_count": r["date_count"],
             }
@@ -404,23 +431,31 @@ def update_item(item_id):
         ctx_date = require_item_date(db, item_id, data.get("date"))
         if item_date_count(db, item_id) > 1:
             # 이 날짜만 원래 일정에서 떼어 내고, 수정된 내용으로 새 일정을 만든다.
+            # 새 일정은 그날 목록에서 원래 일정이 있던 자리를 그대로 이어받는다.
+            old_position = db.execute(
+                "SELECT position FROM item_dates WHERE item_id = ? AND date = ?", (item_id, ctx_date)
+            ).fetchone()["position"]
             db.execute(
                 "DELETE FROM item_dates WHERE item_id = ? AND date = ?", (item_id, ctx_date)
             )
-            new_id = insert_item(db, fields)
+            new_id = insert_item(db, fields, keep_positions={ctx_date: old_position})
             db.commit()
             return jsonify(item_dict(db, get_item_or_404(db, new_id)))
         # 날짜가 하나뿐이면 '이 날만'과 '전체'가 같으므로 아래로 진행
 
     db.execute(
-        "UPDATE items SET title = ?, memo = ?, category_id = ?, start_time = ? WHERE id = ?",
-        (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], item_id),
+        "UPDATE items SET title = ?, memo = ?, category_id = ?, start_time = ?, end_time = ? WHERE id = ?",
+        (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"], item_id),
     )
-    db.execute("DELETE FROM item_dates WHERE item_id = ?", (item_id,))
+    # 날짜는 바뀐 부분만 반영한다: 그대로 남는 날짜는 그날의 순서(position)를 유지해야 하므로
+    # 전부 지우고 다시 넣지 않는다.
+    current = {r["date"] for r in db.execute("SELECT date FROM item_dates WHERE item_id = ?", (item_id,))}
+    wanted = set(fields["dates"])
     db.executemany(
-        "INSERT INTO item_dates (item_id, date) VALUES (?, ?)",
-        [(item_id, d) for d in fields["dates"]],
+        "DELETE FROM item_dates WHERE item_id = ? AND date = ?",
+        [(item_id, d) for d in current - wanted],
     )
+    add_item_dates(db, item_id, sorted(wanted - current))
     db.commit()
     return jsonify(item_dict(db, get_item_or_404(db, item_id)))
 
@@ -444,6 +479,31 @@ def delete_item(item_id):
     db.execute("DELETE FROM items WHERE id = ?", (item_id,))
     db.commit()
     return jsonify(deleted=item_id, scope="all")
+
+
+@bp.put("/days/<day>/order")
+def reorder_day(day):
+    """
+    하루 창에서 끌어서 바꾼 순서를 저장한다.
+    본문: {"item_ids": [3, 1, 7]}  ← 그날 일정 전부를 위에서부터 순서대로
+    """
+    db = get_db()
+    day = parse_date(day)
+    ids = json_body().get("item_ids")
+    if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids):
+        raise ApiError("item_ids는 일정 번호(정수)의 목록이어야 해요.")
+
+    on_day = {r["item_id"] for r in db.execute("SELECT item_id FROM item_dates WHERE date = ?", (day,))}
+    if len(ids) != len(set(ids)) or set(ids) != on_day:
+        # 그 사이 다른 기기에서 일정이 추가/삭제된 경우 등
+        raise ApiError("그날 일정 목록이 바뀌었어요. 창을 닫았다가 다시 열어 주세요.", 409)
+
+    db.executemany(
+        "UPDATE item_dates SET position = ? WHERE item_id = ? AND date = ?",
+        [(index + 1, item_id, day) for index, item_id in enumerate(ids)],
+    )
+    db.commit()
+    return jsonify(date=day, item_ids=ids)
 
 
 # ---------------------------------------------------------------------------

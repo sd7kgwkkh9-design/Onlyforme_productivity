@@ -15,7 +15,8 @@ Python(Flask) 서버와 브라우저 화면으로 동작하며, PC와 휴대폰 
 
 | 기존 캘린더에서 불편했던 점 | 이 프로젝트의 해결 방법 |
 |---|---|
-| 일정은 꼭 시간을 정해야 하고, 시간 없는 할 일은 다른 앱에 따로 적어야 함 | 일정마다 **시간 지정을 켜고 끌 수 있음**. 시간 없는 할 일도 같은 달력에 표시 |
+| 일정은 꼭 시작·끝 시간을 다 정해야 하고, 시간 없는 할 일은 다른 앱에 따로 적어야 함 | **시작 시간만, 끝 시간만, 둘 다, 또는 시간 없이** 저장할 수 있음 |
+| 하루 일정이 시간순으로만 정렬돼서, 내가 중요하게 생각하는 순서로 볼 수 없음 | 기본은 올린 순서, **하루 창에서 끌어서 순서를 바꾸면** 월간·주간 화면에도 그대로 반영 |
 | 날짜를 아직 못 정한 일을 적어 둘 곳이 없음 | **기한 미정 목록**에 모아 두었다가, 날짜가 정해지면 달력으로 **끌어다 놓기** |
 | 띄엄띄엄 반복되는 일정(화·목 수업, 불규칙한 알바)을 날마다 따로 입력해야 함 | 일정 하나에 **날짜를 여러 개** 지정 ('하루씩' 또는 '기간'으로 선택) |
 | 여러 날짜에 걸친 일정 중 하루만 바꾸기가 번거로움 | 수정·삭제할 때 **"이 날만 / 모든 날짜"** 중에서 선택 |
@@ -34,7 +35,12 @@ Python(Flask) 서버와 브라우저 화면으로 동작하며, PC와 휴대폰 
 
 ### 일정
 - **날짜 편집 창**: 월간·주간 화면 어디서든 날짜(또는 그 날의 일정, `+n`)를 누르면 그 날의 일정 목록이 열리고, 여기서 추가·수정·삭제합니다.
-- **시간 선택**: 시작 시각을 지정하거나, 시간 없이 할 일로 저장합니다. 같은 날 안에서는 시간 없는 것이 먼저, 그다음 시간순으로 정렬돼요.
+- **시간 선택 (24시간 표기)**: `시간 지정`을 켜면 시작·끝 시간을 고를 수 있어요. 둘 중 하나만 골라도 되고, 끄면 시간 없는 할 일이 됩니다.
+  - 표시 예: `09:00–10:30`(둘 다), `09:00`(시작만), `~23:59`(끝만, 마감 같은 일정)
+  - 맥·아이폰 설정과 관계없이 항상 0~23시로 나오도록 시간 고르는 칸을 직접 만들었어요.
+- **하루 안의 순서**: 같은 날의 일정은 올린 순서대로 나옵니다. 하루 창에서 각 줄 오른쪽 `≡`를 잡고 위아래로 끌면 순서가 바뀌고, 월간·주간 화면에도 같은 순서로 보여요.
+  - 마우스, 손가락 모두 되고, 키보드로는 `≡`에 포커스를 두고 `↑` `↓`
+  - 순서는 날짜마다 따로 저장돼요. 여러 날짜에 들어간 일정이라도 11/5의 순서를 바꾸면 11/5만 바뀝니다.
 - **여러 날짜 선택**: 직접 만든 미니 달력에서 날짜를 고릅니다.
   - `하루씩`: 누를 때마다 넣었다 뺐다 (불연속 날짜)
   - `기간`: 시작과 끝을 차례로 누르면 그 사이가 모두 들어감 (연속 날짜)
@@ -88,17 +94,21 @@ python app.py
 |---|---|
 | ![주간 화면](docs/screenshots/10_week.png) | ![공휴일](docs/screenshots/13_chuseok_month.png) |
 
-| 날짜 편집 창 | 이 날만 / 모든 날짜 |
+| 날짜 편집 창 (≡로 순서 바꾸기) | 이 날만 / 모든 날짜 |
 |---|---|
 | ![날짜 편집 창](docs/screenshots/02_day.png) | ![범위 선택](docs/screenshots/03_ask.png) |
 
-| 일정 편집 ('기간'으로 날짜 선택) | 카테고리 관리 |
+| 일정 편집 (시작·끝 시간) | 일정 편집 ('기간'으로 날짜 선택) |
 |---|---|
-| ![일정 편집](docs/screenshots/05_form_new_range.png) | ![카테고리](docs/screenshots/06_categories.png) |
+| ![시간 선택](docs/screenshots/05_form_time.png) | ![일정 편집](docs/screenshots/05_form_new_range.png) |
 
-| 휴대폰: 월간 | 휴대폰: 주간 | 휴대폰: 기한 미정 |
+| 카테고리 관리 | 기한 미정 패널 |
+|---|---|
+| ![카테고리](docs/screenshots/06_categories.png) | ![기한 미정](docs/screenshots/11_panel.png) |
+
+| 휴대폰: 월간 | 휴대폰: 주간 | 휴대폰: 하루 창 |
 |---|---|---|
-| ![휴대폰 월간](docs/screenshots/08_mobile_month.png) | ![휴대폰 주간](docs/screenshots/14_mobile_week.png) | ![휴대폰 기한 미정](docs/screenshots/09_mobile_undated.png) |
+| ![휴대폰 월간](docs/screenshots/08_mobile_month.png) | ![휴대폰 주간](docs/screenshots/14_mobile_week.png) | ![휴대폰 하루 창](docs/screenshots/16_mobile_day.png) |
 
 ## 5. 구조
 
@@ -117,12 +127,15 @@ my-calendar/
 │   │   ├── sheet.js       # 편집 창 (날짜 목록 / 일정 편집 / 기한 미정 / 카테고리)
 │   │   ├── panel.js       # 기한 미정 사이드 패널
 │   │   ├── datepicker.js  # 여러 날짜 선택 미니 달력
+│   │   ├── reorder.js     # 끌어서 순서 바꾸기 (마우스·터치·키보드)
 │   │   ├── gestures.js    # 스와이프·트랙패드 넘기기
 │   │   ├── holidays.js    # 공휴일 불러오기와 캐시
 │   │   ├── api.js         # 서버 API 호출
 │   │   └── utils.js       # 날짜 계산, 화면 요소 생성, 알림, 질문 창
 │   ├── manifest.webmanifest, icons/   # 홈 화면 설치용
-│   └── vendor/fullcalendar/           # 외부 오픈소스 (수정하지 않음)
+│   └── vendor/                        # 외부 오픈소스 (수정하지 않음)
+│       ├── fullcalendar/
+│       └── pretendard/                # 글꼴
 ├── tests/test_api.py      # API 자동 테스트
 └── docs/screenshots/      # README 스크린샷
 ```
@@ -131,11 +144,13 @@ my-calendar/
 
 ```
 categories (id, name, color, is_default)
-items      (id, title, memo, category_id, start_time, created_at)
-item_dates (item_id, date)          ← 일정 하나에 날짜가 여러 줄
+items      (id, title, memo, category_id, start_time, end_time, created_at)
+item_dates (item_id, date, position) ← 일정 하나에 날짜가 여러 줄, position = 그날 안의 순서
 ```
 
-- `start_time`이 비어 있으면 시간 없는 할 일입니다.
+- `start_time`, `end_time`이 둘 다 비어 있으면 시간 없는 할 일입니다.
+- 순서(`position`)를 일정이 아니라 `item_dates`(일정×날짜)에 두었기 때문에, 같은 일정이라도 날짜마다 순서를 따로 정할 수 있습니다.
+- 예전 버전으로 만든 데이터 파일은 실행할 때 새 칸이 자동으로 추가됩니다 (`db.py`의 `migrate`). 입력해 둔 일정은 그대로 남아요.
 - `item_dates`에 줄이 하나도 없는 일정이 **기한 미정** 일정입니다.
 - 일정과 날짜를 별도 테이블로 나눴기 때문에 불연속 날짜와 연속 기간을 같은 방식으로 저장할 수 있고,
   "이 날만 수정"은 `item_dates`에서 그 날짜 한 줄을 떼어 새 일정으로 옮기는 것으로 구현됩니다.
@@ -154,6 +169,7 @@ item_dates (item_id, date)          ← 일정 하나에 날짜가 여러 줄
 | POST | `/api/items` | 일정 추가 |
 | PUT | `/api/items/<id>` | 일정 수정. `scope=single`, `date=YYYY-MM-DD`이면 그 날짜만 분리해서 수정 |
 | DELETE | `/api/items/<id>?scope=&date=` | 일정 삭제. `scope=single`이면 그 날짜만 삭제 |
+| PUT | `/api/days/<date>/order` | 그 날짜 안의 일정 순서 저장 (`{"item_ids": [3, 1, 7]}`) |
 | GET | `/api/holidays?start=&end=` | 기간 안의 한국 공휴일 |
 
 ## 6. 직접 구현한 부분과 사용한 오픈소스
@@ -164,6 +180,8 @@ item_dates (item_id, date)          ← 일정 하나에 날짜가 여러 줄
 - **좌우 넘기기 제스처** (`gestures.js`): 터치 스와이프, 트랙패드 가로 쓸기(관성 이벤트 처리 포함)
 - **끌어다 놓기** (`panel.js`, `main.js`): 브라우저 기본 Drag and Drop API로 월간·주간 화면 모두에 놓을 수 있게 구현
 - **여러 날짜 선택 미니 달력** (`datepicker.js`): 외부 라이브러리 없이 구현
+- **끌어서 순서 바꾸기** (`reorder.js`): Pointer Events로 마우스·터치를 한 번에 처리, 키보드 조작 지원
+- **24시간 시간 고르기** (`sheet.js`의 `timeSelect`): 운영체제 설정에 따라 오전/오후로 바뀌는 기본 입력 대신 직접 구현
 - **편집 창** (`sheet.js`): 날짜 목록, 일정 편집 폼, 카테고리 관리, 기한 미정 목록
 - **디자인 전체** (`style.css`): FullCalendar 기본 모양을 덮어쓴 부분 포함
 - **API 테스트** (`tests/test_api.py`)
@@ -178,10 +196,10 @@ FullCalendar는 **월간 화면의 달력 칸을 그리는 데에만** 사용했
 | [Flask](https://github.com/pallets/flask) | 3.x | 웹 서버 | BSD-3-Clause |
 | [python-holidays](https://github.com/vacanza/holidays) | 0.50 이상 | 한국 공휴일 계산 (음력 명절, 대체 공휴일 포함) | MIT |
 | [SQLite](https://sqlite.org) (Python 내장 `sqlite3`) | — | 데이터 저장 | Public Domain |
-| [IBM Plex Sans KR](https://github.com/IBM/plex) (Google Fonts) | — | 글꼴 | SIL OFL 1.1 |
+| [Pretendard](https://github.com/orioncactus/pretendard) | 1.3.9 | 글꼴 (필요한 글자 조각만 내려받는 dynamic subset 방식) | SIL OFL 1.1 |
 | [pytest](https://github.com/pytest-dev/pytest) | — | 테스트 (개발용) | MIT |
 
-- FullCalendar는 `static/vendor/fullcalendar/`에 배포 파일을 그대로 넣었고 수정하지 않았습니다. 라이선스 전문은 같은 폴더의 `LICENSE.md`에 있습니다.
+- FullCalendar와 Pretendard는 `static/vendor/` 아래에 배포 파일을 그대로 넣었고 수정하지 않았습니다. 라이선스 전문은 각 폴더의 `LICENSE` 파일에 있습니다. 인터넷이 없어도 화면과 글꼴이 그대로 나옵니다.
 - 공휴일은 python-holidays가 계산한 결과를 그대로 보여 주므로, 정부가 나중에 지정하는 임시 공휴일은 라이브러리가 업데이트되어야 반영됩니다.
 
 ### AI 도구 사용
@@ -194,7 +212,7 @@ pip install pytest
 python -m pytest
 ```
 
-카테고리 보호 규칙, 일정 추가·수정·삭제, 여러 날짜 일정의 "이 날만 / 모든 날짜" 처리, 기한 미정 목록, 공휴일, 입력값 검사 등 13가지를 확인합니다.
+카테고리 보호 규칙, 일정 추가·수정·삭제, 시작·끝 시간 규칙, 여러 날짜 일정의 "이 날만 / 모든 날짜" 처리, 하루 안의 순서 바꾸기, 기한 미정 목록, 공휴일, 예전 데이터 파일 자동 변환, 입력값 검사 등 18가지를 확인합니다.
 
 ## 8. 앞으로 해 볼 것
 

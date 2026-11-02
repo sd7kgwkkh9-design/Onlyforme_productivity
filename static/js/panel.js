@@ -8,7 +8,7 @@
 // (휴대폰처럼 좁은 화면에서는 이 패널 대신 편집 창의 기한 미정 목록을 쓴다.)
 
 import { api } from './api.js';
-import { el } from './utils.js';
+import { el, formatTimeRange } from './utils.js';
 
 export const dragState = { itemId: null };
 
@@ -62,7 +62,9 @@ export class UndatedPanel {
       el('span', { class: 'panel-card-title' }, item.title),
       el('span', { class: 'panel-card-meta' },
         el('span', {}, item.category.name),
-        item.start_time ? el('span', { class: 'panel-card-time' }, item.start_time) : null,
+        item.start_time || item.end_time
+          ? el('span', { class: 'panel-card-time' }, formatTimeRange(item.start_time, item.end_time))
+          : null,
       ),
     );
 

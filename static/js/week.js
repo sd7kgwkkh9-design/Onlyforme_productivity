@@ -6,7 +6,7 @@
 import { api } from './api.js';
 import { slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
-import { WEEKDAYS, addDays, el, formatLong, parseDateStr, toDateStr, todayStr } from './utils.js';
+import { WEEKDAYS, addDays, el, formatLong, formatTimeRange, parseDateStr, toDateStr, todayStr } from './utils.js';
 
 // 그 날짜가 속한 주의 일요일
 export function startOfWeek(dateStr) {
@@ -57,7 +57,7 @@ export class WeekView {
     const itemsOf = new Map();
     for (const o of items) {
       if (!itemsOf.has(o.date)) itemsOf.set(o.date, []);
-      itemsOf.get(o.date).push(o); // 서버가 이미 '시간 없는 것 → 시간순'으로 정렬해 줌
+      itemsOf.get(o.date).push(o); // 서버가 이미 그날의 순서대로 정렬해 줌
     }
 
     const today = todayStr();
@@ -94,7 +94,7 @@ export class WeekView {
         items.length
           ? items.map((o) =>
               el('span', { class: 'wk-item', style: { '--cat': o.category.color } },
-                el('span', { class: 'wk-time' }, o.start_time || ''),
+                el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)),
                 el('span', { class: 'wk-title' }, o.title),
                 o.memo ? el('span', { class: 'wk-memo' }, o.memo.split('\n')[0]) : null,
               ))

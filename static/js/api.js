@@ -30,6 +30,7 @@ export const api = {
   updateItem: (id, payload) => request('PUT', `/api/items/${id}`, payload),
   deleteItem: (id, scope = 'all', date = '') =>
     request('DELETE', `/api/items/${id}?${q({ scope, date })}`),
+  reorderDay: (date, itemIds) => request('PUT', `/api/days/${date}/order`, { item_ids: itemIds }),
 
   // 공휴일
   holidays: (start, end) => request('GET', `/api/holidays?${q({ start, end })}`),

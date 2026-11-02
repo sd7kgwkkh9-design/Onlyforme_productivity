@@ -56,16 +56,30 @@ def test_deleting_category_moves_items_to_default(client):
 
 
 # ---------------------------------------------------------------- 일정
-def test_create_item_with_and_without_time(client):
-    timed = make_item(client, title="컴구 수업", start_time="09:00")
-    untimed = make_item(client, title="장보기")
-    assert timed["start_time"] == "09:00"
-    assert untimed["start_time"] is None
-    assert untimed["category"]["name"] == "미분류"
+def test_create_item_with_start_end_or_no_time(client):
+    both = make_item(client, title="컴구 수업", start_time="09:00", end_time="10:30")
+    start_only = make_item(client, title="회의", start_time="14:00")
+    end_only = make_item(client, title="과제 마감", end_time="23:59")
+    none = make_item(client, title="장보기")
 
+    assert (both["start_time"], both["end_time"]) == ("09:00", "10:30")
+    assert (start_only["start_time"], start_only["end_time"]) == ("14:00", None)
+    assert (end_only["start_time"], end_only["end_time"]) == (None, "23:59")
+    assert (none["start_time"], none["end_time"]) == (None, None)
+    assert none["category"]["name"] == "미분류"
+
+    # 같은 날 안에서는 '올린 순서' 그대로
     day = occurrences(client, "2026-11-05", "2026-11-06")
-    # 시간 없는 일정이 먼저, 그다음 시간순
-    assert [o["title"] for o in day] == ["장보기", "컴구 수업"]
+    assert [o["title"] for o in day] == ["컴구 수업", "회의", "과제 마감", "장보기"]
+    assert day[0]["end_time"] == "10:30"
+
+
+def test_end_time_must_be_after_start(client):
+    res = client.post("/api/items", json={"title": "a", "start_time": "10:00", "end_time": "09:00"})
+    assert res.status_code == 400
+    res = client.post("/api/items", json={"title": "a", "start_time": "10:00", "end_time": "10:00"})
+    assert res.status_code == 400
+    assert client.post("/api/items", json={"title": "a", "end_time": "24:00"}).status_code == 400
 
 
 def test_item_validation(client):
@@ -169,3 +183,87 @@ def test_holidays(client):
     res = client.get("/api/holidays?start=2026-12-20&end=2027-01-10")
     dates = [h["date"] for h in res.get_json()]
     assert "2026-12-25" in dates and "2027-01-01" in dates
+
+
+# ---------------------------------------------------------------- 하루 안의 순서
+def titles_on(client, day):
+    nxt = f"{day[:8]}{int(day[8:]) + 1:02d}"
+    return [o["title"] for o in occurrences(client, day, nxt)]
+
+
+def test_reorder_day(client):
+    a = make_item(client, title="A")
+    b = make_item(client, title="B")
+    c = make_item(client, title="C")
+    assert titles_on(client, "2026-11-05") == ["A", "B", "C"]
+
+    res = client.put("/api/days/2026-11-05/order", json={"item_ids": [c["id"], a["id"], b["id"]]})
+    assert res.status_code == 200
+    assert titles_on(client, "2026-11-05") == ["C", "A", "B"]
+
+    # 새로 추가한 일정은 맨 아래로
+    make_item(client, title="D")
+    assert titles_on(client, "2026-11-05") == ["C", "A", "B", "D"]
+
+
+def test_reorder_rejects_wrong_list(client):
+    a = make_item(client, title="A")
+    make_item(client, title="B")
+    res = client.put("/api/days/2026-11-05/order", json={"item_ids": [a["id"]]})  # B가 빠짐
+    assert res.status_code == 409
+    res = client.put("/api/days/2026-11-05/order", json={"item_ids": "x"})
+    assert res.status_code == 400
+
+
+def test_order_is_per_day_and_kept_on_edit(client):
+    multi = make_item(client, title="알바", dates=["2026-11-05", "2026-11-12"])
+    other = make_item(client, title="수업", dates=["2026-11-05", "2026-11-12"])
+    client.put("/api/days/2026-11-05/order", json={"item_ids": [other["id"], multi["id"]]})
+
+    # 11/5만 순서가 바뀌고 11/12는 그대로
+    assert titles_on(client, "2026-11-05") == ["수업", "알바"]
+    assert titles_on(client, "2026-11-12") == ["알바", "수업"]
+
+    # '모든 날짜' 수정: 날짜가 그대로면 순서도 그대로
+    client.put(f"/api/items/{multi['id']}", json={
+        "title": "알바(수정)", "dates": ["2026-11-05", "2026-11-12"], "scope": "all"})
+    assert titles_on(client, "2026-11-05") == ["수업", "알바(수정)"]
+
+    # '이 날만' 수정: 떼어 낸 새 일정이 원래 자리를 이어받음
+    client.put(f"/api/items/{multi['id']}", json={
+        "title": "알바 대타", "dates": ["2026-11-12"], "scope": "single", "date": "2026-11-12"})
+    assert titles_on(client, "2026-11-12") == ["알바 대타", "수업"]
+
+
+# ---------------------------------------------------------------- 예전 DB 변환
+def test_old_database_is_migrated(tmp_path):
+    """1차 버전(end_time, position 칸이 없던 때)으로 만든 DB도 그대로 열리고 데이터가 남아야 한다."""
+    import sqlite3
+
+    from app import create_app
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript("""
+        CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+                                 color TEXT NOT NULL, is_default INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
+                            memo TEXT NOT NULL DEFAULT '', category_id INTEGER NOT NULL,
+                            start_time TEXT, created_at TEXT NOT NULL DEFAULT '');
+        CREATE TABLE item_dates (item_id INTEGER NOT NULL, date TEXT NOT NULL, PRIMARY KEY (item_id, date));
+        INSERT INTO categories (name, color, is_default) VALUES ('미분류', '#9AA0AA', 1);
+        INSERT INTO items (title, category_id, start_time) VALUES ('먼저 올린 것', 1, '15:00');
+        INSERT INTO items (title, category_id, start_time) VALUES ('나중에 올린 것', 1, NULL);
+        INSERT INTO item_dates VALUES (1, '2026-11-05'), (2, '2026-11-05');
+    """)
+    conn.commit()
+    conn.close()
+
+    client = create_app(str(path)).test_client()
+    day = occurrences(client, "2026-11-05", "2026-11-06")
+    assert [o["title"] for o in day] == ["먼저 올린 것", "나중에 올린 것"]
+    assert day[0]["start_time"] == "15:00" and day[0]["end_time"] is None
+
+    # 새 기능도 바로 동작
+    make_item(client, title="새 일정", end_time="18:00")
+    assert titles_on(client, "2026-11-05")[-1] == "새 일정"

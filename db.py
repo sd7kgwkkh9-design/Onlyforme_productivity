@@ -4,8 +4,9 @@
 테이블 구조
 -----------
 categories  : 카테고리 (이름, 색상, 기본 카테고리 여부)
-items       : 일정/할 일 본체 (제목, 메모, 카테고리, 시작 시각)
+items       : 일정/할 일 본체 (제목, 메모, 카테고리, 시작·끝 시각)
 item_dates  : 일정이 들어간 날짜들 (일정 하나에 날짜 여러 개 가능)
+              + 그 날짜 안에서의 표시 순서(position)
 
 item_dates에 줄이 하나도 없는 일정 = "기한 미정" 일정이다.
 """
@@ -30,13 +31,15 @@ CREATE TABLE IF NOT EXISTS items (
     title       TEXT    NOT NULL,
     memo        TEXT    NOT NULL DEFAULT '',
     category_id INTEGER NOT NULL REFERENCES categories(id),
-    start_time  TEXT,                         -- 'HH:MM', 시간 없는 할 일이면 NULL
+    start_time  TEXT,                         -- 'HH:MM' 또는 NULL
+    end_time    TEXT,                         -- 'HH:MM' 또는 NULL (둘 다 NULL이면 시간 없는 할 일)
     created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS item_dates (
     item_id     INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
     date        TEXT    NOT NULL,             -- 'YYYY-MM-DD'
+    position    INTEGER NOT NULL DEFAULT 0,   -- 같은 날 안에서의 순서 (작을수록 위)
     PRIMARY KEY (item_id, date)
 );
 
@@ -53,11 +56,30 @@ def connect(path):
     return conn
 
 
+def column_names(conn, table):
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def migrate(conn):
+    """
+    예전 버전으로 만든 DB 파일에 새 칸을 추가한다 (입력해 둔 일정은 그대로 유지).
+      - items.end_time       : 끝 시간 (2차 수정에서 추가)
+      - item_dates.position  : 하루 안의 표시 순서 (2차 수정에서 추가)
+    """
+    if "end_time" not in column_names(conn, "items"):
+        conn.execute("ALTER TABLE items ADD COLUMN end_time TEXT")
+    if "position" not in column_names(conn, "item_dates"):
+        conn.execute("ALTER TABLE item_dates ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+        # 기존 일정은 '올린 순서'(id 순)로 줄 세운다.
+        conn.execute("UPDATE item_dates SET position = item_id")
+
+
 def init_db(path):
     """테이블이 없으면 만들고, 기본 카테고리 '미분류'가 없으면 넣는다."""
     conn = connect(path)
     try:
         conn.executescript(SCHEMA)
+        migrate(conn)
         conn.execute(
             """
             INSERT INTO categories (name, color, is_default)

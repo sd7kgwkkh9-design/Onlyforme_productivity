@@ -16,7 +16,7 @@
   --danger:  #C9372C;
 
   --radius: 10px;
-  --font: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --font: 'Pretendard Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
 
   /* FullCalendar가 쓰는 변수 덮어쓰기 */
   --fc-border-color: var(--line);
@@ -228,16 +228,44 @@ dialog.sheet::backdrop { background: rgba(18, 24, 38, .36); }
 
 /* 일정 목록 */
 .item-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.item-row {
-  display: grid; grid-template-columns: 52px 1fr auto; align-items: start; gap: 12px;
-  width: 100%; padding: 11px 12px 11px 15px;
-  border: 0; border-radius: var(--radius); text-align: left;
+.item-li {
+  display: flex; align-items: stretch;
+  border-radius: var(--radius);
   background: color-mix(in srgb, var(--cat) 8%, var(--surface));
   box-shadow: inset 3px 0 0 var(--cat);
 }
-.item-row:hover { background: color-mix(in srgb, var(--cat) 15%, var(--surface)); }
+.item-li:hover { background: color-mix(in srgb, var(--cat) 15%, var(--surface)); }
+.item-row {
+  flex: 1; min-width: 0;
+  display: grid; grid-template-columns: 52px 1fr auto; align-items: start; gap: 12px;
+  width: 100%; padding: 11px 12px 11px 15px;
+  border: 0; border-radius: var(--radius); text-align: left;
+  background: transparent;
+}
 .item-row.no-time { grid-template-columns: 1fr auto; }
-.item-time { font-weight: 600; font-variant-numeric: tabular-nums; padding-top: 1px; }
+.item-time { display: grid; padding-top: 1px; font-variant-numeric: tabular-nums; line-height: 1.35; }
+.item-time .t-start { font-weight: 600; }
+.item-time .t-end { font-size: 12px; color: var(--muted); }
+
+/* 순서 바꾸기 손잡이 */
+.drag-handle {
+  flex: none; display: grid; place-items: center;
+  width: 44px; padding: 0;
+  border: 0; border-radius: 0 var(--radius) var(--radius) 0; background: none;
+  color: #A3A9B6; cursor: grab;
+  touch-action: none; /* 손가락으로 끌 때 화면이 스크롤되지 않게 */
+}
+.drag-handle:hover { color: var(--ink); }
+.drag-handle svg { width: 18px; height: 18px; }
+.item-list.is-sorting { user-select: none; cursor: grabbing; }
+.item-list.is-sorting .item-row { pointer-events: none; }
+.item-li.is-dragging {
+  position: relative; z-index: 1;
+  background: color-mix(in srgb, var(--cat) 18%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--cat), 0 10px 24px -10px rgba(16, 24, 44, .45);
+}
+.item-li.is-dragging .drag-handle { color: var(--ink); cursor: grabbing; }
+.list-hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 .item-main { display: grid; min-width: 0; }
 .item-title { font-weight: 500; overflow-wrap: anywhere; }
 .item-meta { display: flex; gap: 8px; min-width: 0; font-size: 13px; color: var(--muted); }
@@ -301,6 +329,20 @@ textarea.input { resize: vertical; min-height: 72px; }
 .switch input:checked + .switch-ui { background: var(--accent); }
 .switch input:checked + .switch-ui::after { transform: translateX(16px); }
 .switch input:focus-visible + .switch-ui { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 24시간 시간 고르기 */
+.time-row { flex-wrap: wrap; row-gap: 10px; }
+.time-fields { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.time-field { display: inline-flex; align-items: center; gap: 4px; }
+.time-label { margin-right: 4px; font-size: 13px; color: var(--muted); }
+.time-colon, .time-tilde { color: var(--muted); }
+.input.sel {
+  width: auto; padding: 7px 26px 7px 10px;
+  font-variant-numeric: tabular-nums;
+  -webkit-appearance: none; appearance: none;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23697186' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center / 14px;
+}
+.input.sel:disabled { color: #B4B9C4; background-color: var(--paper); }
 
 /* ------------------------------------------------------------------ 여러 날짜 선택 달력 */
 .picker {
@@ -424,6 +466,7 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
   .ev { padding: 0 3px 0 5px; font-size: 11px; }
   .ev-time { display: none; }
   .ev-title { text-overflow: clip; } /* 좁은 칸에서는 '…' 대신 한 글자라도 더 보이게 */
+  .input { font-size: 16px; } /* 아이폰은 16px보다 작은 입력칸을 누르면 화면을 확대해 버린다 */
 
   /* 편집 창은 아래에서 올라오는 시트 형태 */
   dialog.sheet {
@@ -490,7 +533,7 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
 .wk-body { display: grid; gap: 4px; min-width: 0; padding-top: 4px; }
 .wk-holiday { font-size: 12px; font-weight: 500; color: var(--sun); }
 .wk-item {
-  display: grid; grid-template-columns: 44px minmax(0, auto) 1fr; align-items: baseline; gap: 8px;
+  display: grid; grid-template-columns: 92px minmax(0, auto) 1fr; align-items: baseline; gap: 8px;
   padding: 5px 10px 5px 11px; border-radius: 6px;
   background: color-mix(in srgb, var(--cat) 10%, var(--surface));
   box-shadow: inset 3px 0 0 var(--cat);
@@ -504,7 +547,8 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
 @media (max-width: 640px) {
   .wk-day { grid-template-columns: 52px 1fr; gap: 8px; padding: 10px 12px 10px 8px; }
   .wk-num { font-size: 18px; min-width: 30px; height: 30px; }
-  .wk-item { grid-template-columns: 40px 1fr; font-size: 13px; }
+  .wk-item { grid-template-columns: 46px 1fr; font-size: 13px; }
+  .wk-time { font-size: 12px; }
   .wk-memo { display: none; }
 }
 

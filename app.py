@@ -11,7 +11,7 @@ import argparse
 import mimetypes
 import os
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 import db
 from api import bp as api_bp
@@ -45,6 +45,14 @@ def create_app(database_path=None):
     @app.get("/")
     def index():
         return render_template("index.html")
+
+    @app.after_request
+    def revalidate_static(response):
+        # 코드를 새 버전으로 바꿨는데 브라우저가 예전 JS/CSS를 계속 쓰는 일을 막는다.
+        # no-cache = "쓰기 전에 바뀌었는지 서버에 물어보기". 안 바뀌었으면 304로 바로 끝나서 느려지지 않는다.
+        if request.path == "/" or request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     return app
 

@@ -15,9 +15,8 @@
   <meta name="apple-mobile-web-app-title" content="캘린더">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- 오픈소스 글꼴: Pretendard (SIL OFL 1.1) — 필요한 글자 조각만 내려받는 방식이라 가볍다 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/pretendard/pretendard.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body data-view="month">

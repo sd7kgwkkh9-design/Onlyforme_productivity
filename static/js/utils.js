@@ -34,6 +34,14 @@ export function formatShort(s) {
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 
+// 시간 표시 (24시간): '09:00–10:30', '09:00', '~18:00', ''
+export function formatTimeRange(start, end) {
+  if (start && end) return `${start}–${end}`;
+  if (start) return start;
+  if (end) return `~${end}`;
+  return '';
+}
+
 // 두 날짜 사이(양 끝 포함)의 모든 날짜. 순서가 거꾸로 들어와도 된다.
 export function datesBetween(a, b) {
   const [from, to] = a <= b ? [a, b] : [b, a];

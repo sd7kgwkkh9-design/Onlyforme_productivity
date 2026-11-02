@@ -7,7 +7,8 @@
 
 import { api } from './api.js';
 import { MultiDatePicker } from './datepicker.js';
-import { addDays, ask, el, formatLong, formatShort, todayStr, toast } from './utils.js';
+import { makeSortable } from './reorder.js';
+import { addDays, ask, el, formatLong, formatShort, formatTimeRange, icon, todayStr, toast } from './utils.js';
 
 export const PALETTE = ['#E5534B', '#F08C2E', '#D9A514', '#3FA66B', '#2BA5B5', '#3D6FD9', '#7C5CD6', '#D45A9A'];
 
@@ -75,11 +76,12 @@ function failed(err) {
 }
 
 // 일정 한 줄 (day / undated 목록에서 공통으로 사용)
-// showTime=false면 시간 칸을 아예 빼서 제목을 왼쪽에 붙인다 (시간 있는 일정이 하나도 없는 목록용)
-function itemRow({ title, memo, start_time, category, badge, onclick, showTime = true }) {
-  return el('li', {},
-    el('button', { type: 'button', class: showTime ? 'item-row' : 'item-row no-time', style: { '--cat': category.color }, onclick },
-      showTime ? el('span', { class: 'item-time' }, start_time || '') : null, // 시간 없는 일정은 비워 둔다
+//   showTime=false : 시간 칸을 아예 빼서 제목을 왼쪽에 붙인다 (시간 있는 일정이 하나도 없는 목록용)
+//   sortable=true  : 오른쪽에 순서 바꾸기 손잡이(≡)를 붙인다 (하루 목록용)
+function itemRow({ id, title, memo, start_time, end_time, category, badge, onclick, showTime = true, sortable = false }) {
+  return el('li', { class: 'item-li', dataset: { id: String(id) }, style: { '--cat': category.color } },
+    el('button', { type: 'button', class: showTime ? 'item-row' : 'item-row no-time', onclick },
+      showTime ? timeCell(start_time, end_time) : null,
       el('span', { class: 'item-main' },
         el('span', { class: 'item-title' }, title),
         el('span', { class: 'item-meta' },
@@ -89,6 +91,22 @@ function itemRow({ title, memo, start_time, category, badge, onclick, showTime =
       ),
       badge ? el('span', { class: 'item-badge' }, badge) : null,
     ),
+    sortable
+      ? el('button', {
+          type: 'button',
+          class: 'drag-handle',
+          'aria-label': `순서 바꾸기: ${title} (위아래 화살표로 이동)`,
+          title: '끌어서 순서 바꾸기',
+        }, icon('M5 9h14M5 15h14'))
+      : null,
+  );
+}
+
+// 시간 칸: 시작 시간을 크게, 끝 시간을 그 아래 작게 (시간 없는 일정은 빈칸)
+function timeCell(start, end) {
+  return el('span', { class: 'item-time' },
+    start ? el('span', { class: 't-start' }, start) : null,
+    end ? el('span', { class: 't-end' }, `~${end}`) : null,
   );
 }
 
@@ -111,20 +129,34 @@ async function renderDay() {
   } catch (e) { return failed(e); }
   if (state.view !== 'day' || state.day !== date) return; // 그 사이 다른 화면으로 바뀌었으면 무시
 
-  setBody(
-    list.length
-      ? el('ul', { class: 'item-list' },
-          list.map((o) => itemRow({
-            ...o,
-            badge: o.date_count > 1 ? `${o.date_count}일` : null,
-            onclick: () => editFromDay(o),
-          })))
-      : el('p', { class: 'empty' }, '이 날은 아직 비어 있어요.'),
-  );
+  if (!list.length) {
+    setBody(el('p', { class: 'empty' }, '이 날은 아직 비어 있어요.'));
+  } else {
+    const sortable = list.length > 1;
+    const ul = el('ul', { class: 'item-list' },
+      list.map((o) => itemRow({
+        ...o,
+        sortable,
+        badge: o.date_count > 1 ? `${o.date_count}일` : null,
+        onclick: () => editFromDay(o),
+      })));
+    if (sortable) makeSortable(ul, { scroller: bodyEl, onChange: (ids) => saveOrder(date, ids) });
+    setBody(ul, sortable ? el('p', { class: 'list-hint' }, '오른쪽 ≡를 끌어서 순서를 바꿀 수 있어요.') : null);
+  }
   setFoot(
     el('button', { type: 'button', class: 'btn primary wide', onclick: () =>
       openForm({ mode: 'create', ctxDate: date, returnTo: 'day' }) }, '일정 추가'),
   );
+}
+
+async function saveOrder(date, ids) {
+  try {
+    await api.reorderDay(date, ids);
+    await dataChanged(); // 월간·주간 화면에도 같은 순서로 반영
+  } catch (e) {
+    toast(e.message, 'error');
+    if (state.view === 'day' && state.day === date) renderDay(); // 서버 기준 순서로 되돌리기
+  }
 }
 
 async function editFromDay(occ) {
@@ -167,7 +199,7 @@ async function renderUndated() {
       ? el('ul', { class: 'item-list' },
           list.map((item) => itemRow({
             ...item,
-            showTime: list.some((i) => i.start_time),
+            showTime: list.some((i) => i.start_time || i.end_time),
             onclick: () => openForm({ mode: 'edit', item, scope: 'all', ctxDate: null, returnTo: 'undated' }),
           })))
       : el('p', { class: 'empty' }, '날짜를 아직 못 정한 일은 여기에 모아 두세요.'),
@@ -238,15 +270,19 @@ function renderForm() {
       )),
   );
 
-  // --- 시간 (선택)
-  const hasTime = el('input', { type: 'checkbox', id: 'f-has-time', checked: Boolean(item?.start_time) });
-  const timeInput = el('input', {
-    type: 'time', id: 'f-time', class: 'input time', step: '300', value: item?.start_time ?? '09:00',
-  });
-  timeInput.hidden = !hasTime.checked;
+  // --- 시간 (선택): 시작·끝 중 하나만 골라도 된다. 24시간 표기.
+  const hadTime = Boolean(item?.start_time || item?.end_time);
+  const hasTime = el('input', { type: 'checkbox', id: 'f-has-time', checked: hadTime });
+  const startField = timeSelect('시작', 'f-start', item?.start_time);
+  const endField = timeSelect('끝', 'f-end', item?.end_time);
+  const timeFields = el('div', { class: 'time-fields' }, startField.node, el('span', { class: 'time-tilde' }, '~'), endField.node);
+  timeFields.hidden = !hasTime.checked;
   hasTime.addEventListener('change', () => {
-    timeInput.hidden = !hasTime.checked;
-    if (hasTime.checked) timeInput.focus();
+    timeFields.hidden = !hasTime.checked;
+    if (hasTime.checked) {
+      if (!startField.value && !endField.value) startField.set('09:00'); // 처음 켜면 9시로 시작
+      startField.focus();
+    }
   });
 
   // --- 날짜 (여러 개)
@@ -265,7 +301,7 @@ function renderForm() {
     el('div', { class: 'field' },
       el('div', { class: 'time-row' },
         el('label', { class: 'switch', for: 'f-has-time' }, hasTime, el('span', { class: 'switch-ui' }), '시간 지정'),
-        timeInput,
+        timeFields,
       ),
     ),
     fieldset('날짜', picker.root),
@@ -279,11 +315,17 @@ function renderForm() {
       title: titleInput.value.trim(),
       memo: memoInput.value.trim(),
       category_id: Number(form.elements.category.value),
-      start_time: hasTime.checked ? timeInput.value || null : null,
+      start_time: hasTime.checked ? startField.value : null,
+      end_time: hasTime.checked ? endField.value : null,
       dates: picker.dates,
     };
     if (!payload.title) return showError(errorEl, '제목을 입력해 주세요.', titleInput);
-    if (hasTime.checked && !payload.start_time) return showError(errorEl, '시간을 입력하거나 시간 지정을 꺼 주세요.', timeInput);
+    if (hasTime.checked && !payload.start_time && !payload.end_time) {
+      return showError(errorEl, '시작이나 끝 시간 중 하나는 골라 주세요. 시간이 필요 없으면 시간 지정을 꺼 주세요.', startField.hourEl);
+    }
+    if (payload.start_time && payload.end_time && payload.end_time <= payload.start_time) {
+      return showError(errorEl, '끝 시간은 시작 시간보다 늦어야 해요.', endField.hourEl);
+    }
 
     saveBtn.disabled = true;
     try {
@@ -333,6 +375,43 @@ async function deleteItem(errorEl) {
     await dataChanged();
     goBack();
   } catch (e) { showError(errorEl, e.message); }
+}
+
+// 24시간 시간 고르기: [시 ▾] : [분 ▾]
+// 브라우저 기본 시간 입력(<input type=time>)은 맥·아이폰 설정에 따라 오전/오후로 나와서 직접 만든다.
+function timeSelect(label, id, initial) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const [h0, m0] = initial ? initial.split(':') : ['', '00'];
+
+  const minutes = Array.from({ length: 12 }, (_, i) => pad(i * 5)); // 00, 05, … 55
+  if (!minutes.includes(m0)) minutes.push(m0); // 예전에 5분 단위가 아닌 시간을 넣었던 경우
+  minutes.sort();
+
+  const hourEl = el('select', { id, class: 'input sel', 'aria-label': `${label} 시` },
+    el('option', { value: '' }, '--'),
+    Array.from({ length: 24 }, (_, i) => el('option', { value: pad(i) }, pad(i))),
+  );
+  const minuteEl = el('select', { class: 'input sel', 'aria-label': `${label} 분` },
+    minutes.map((m) => el('option', { value: m }, m)),
+  );
+
+  const set = (value) => {
+    const [h, m] = value ? value.split(':') : ['', '00'];
+    hourEl.value = h;
+    minuteEl.value = m;
+    minuteEl.disabled = !h; // 시를 안 고르면 분은 의미가 없으므로 잠금
+  };
+  set(initial);
+  hourEl.addEventListener('change', () => { minuteEl.disabled = !hourEl.value; });
+
+  return {
+    node: el('div', { class: 'time-field' },
+      el('span', { class: 'time-label' }, label), hourEl, el('span', { class: 'time-colon' }, ':'), minuteEl),
+    hourEl,
+    get value() { return hourEl.value ? `${hourEl.value}:${minuteEl.value}` : null; },
+    set,
+    focus: () => hourEl.focus(),
+  };
 }
 
 function field(label, input, id) {
