@@ -1,18 +1,26 @@
 """
 나의 캘린더 — 실행 파일
 
+내 컴퓨터에서 실행:
     python app.py                 # http://127.0.0.1:8000 에서 실행
     python app.py --host 0.0.0.0  # 같은 와이파이의 휴대폰에서도 접속 가능
+    python app.py --set-password  # 로그인 비밀번호 정하기/바꾸기
+
+인터넷 서버(PythonAnywhere 등)에서는 wsgi.py가 이 파일의 create_app()을 불러 쓴다.
 
 (맥에서는 5000번 포트를 AirPlay가 쓰는 경우가 많아서 기본 포트를 8000으로 정했다.)
 """
 
 import argparse
+import getpass
 import mimetypes
 import os
+import sys
 
 from flask import Flask, render_template, request
+from werkzeug.middleware.proxy_fix import ProxyFix
 
+import auth
 import db
 from api import bp as api_bp
 
@@ -22,39 +30,77 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 
-def create_app(database_path=None):
+def default_database_path():
+    return os.environ.get("CALENDAR_DB") or os.path.join(BASE_DIR, "instance", "calendar.db")
+
+
+def create_app(database_path=None, production=False):
     """
-    앱 팩토리: 테스트에서는 임시 DB 경로를 넘겨서 실제 데이터와 분리한다.
-    DB 경로 우선순위: 인자 → 환경변수 CALENDAR_DB → instance/calendar.db
+    앱 팩토리.
+      database_path : 일정 데이터 파일. 테스트에서는 임시 경로를 넘겨 실제 데이터와 분리한다.
+                      (우선순위: 인자 → 환경변수 CALENDAR_DB → instance/calendar.db)
+      production    : 인터넷 서버용이면 True. 비밀번호가 없으면 열리지 않고, 쿠키는 https 전용.
+    비밀번호(auth.json)와 쿠키 서명 키(secret_key)는 데이터 파일과 같은 폴더에 저장된다.
     """
     app = Flask(__name__)
     app.json.ensure_ascii = False  # 응답 JSON의 한글을 그대로 보이게
 
-    if database_path is None:
-        database_path = os.environ.get("CALENDAR_DB") or os.path.join(
-            BASE_DIR, "instance", "calendar.db"
-        )
-    folder = os.path.dirname(os.path.abspath(database_path))
-    os.makedirs(folder, exist_ok=True)
+    database_path = database_path or default_database_path()
+    data_dir = os.path.dirname(os.path.abspath(database_path))
+    os.makedirs(data_dir, exist_ok=True)
     app.config["DATABASE"] = database_path
+
+    if production:
+        # 서버 앞단(프록시)을 거쳐 들어오므로, 실제 접속한 기기의 IP와 https 여부를 헤더에서 읽는다.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     db.init_db(database_path)
     app.teardown_appcontext(db.close_db)
+    auth.init_auth(app, data_dir, production)
     app.register_blueprint(api_bp)
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        return render_template("index.html", login_enabled=auth.login_required())
 
     @app.after_request
-    def revalidate_static(response):
-        # 코드를 새 버전으로 바꿨는데 브라우저가 예전 JS/CSS를 계속 쓰는 일을 막는다.
-        # no-cache = "쓰기 전에 바뀌었는지 서버에 물어보기". 안 바뀌었으면 304로 바로 끝나서 느려지지 않는다.
+    def after(response):
+        # 1) 일정·카테고리가 바뀌면 변경 번호를 올린다 → 다른 기기가 알아채고 새로 불러온다.
+        if (
+            request.path.startswith("/api/")
+            and request.method in ("POST", "PUT", "DELETE")
+            and response.status_code < 400
+        ):
+            db.bump_version(db.get_db())
+
+        # 2) 코드를 새 버전으로 바꿨는데 브라우저가 예전 JS/CSS를 계속 쓰는 일을 막는다.
+        #    no-cache = "쓰기 전에 바뀌었는지 서버에 물어보기". 안 바뀌었으면 304로 바로 끝나서 느려지지 않는다.
         if request.path == "/" or request.path.startswith("/static/"):
             response.headers["Cache-Control"] = "no-cache"
+        # API 응답은 저장해 두지 말 것 (동기화가 항상 최신 값을 보도록)
+        if request.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     return app
+
+
+def set_password_interactive(database_path=None):
+    data_dir = os.path.dirname(os.path.abspath(database_path or default_database_path()))
+    print("로그인 비밀번호를 정해요. (입력해도 화면에 보이지 않는 게 정상이에요)")
+    first = getpass.getpass("새 비밀번호: ")
+    second = getpass.getpass("한 번 더: ")
+    if first != second:
+        print("두 비밀번호가 달라요. 다시 실행해 주세요.")
+        return 1
+    try:
+        auth.save_password(data_dir, first)
+    except ValueError as e:
+        print(e)
+        return 1
+    print(f"저장했어요. ({os.path.join(data_dir, 'auth.json')})")
+    print("인터넷 서버라면 Web 탭에서 Reload를 눌러 주세요. 이미 로그인한 기기는 그대로 유지돼요.")
+    return 0
 
 
 def main():
@@ -62,7 +108,11 @@ def main():
     parser.add_argument("--host", default="127.0.0.1", help="기본값 127.0.0.1 (내 컴퓨터만)")
     parser.add_argument("--port", type=int, default=8000, help="기본값 8000")
     parser.add_argument("--debug", action="store_true", help="코드 수정 시 자동 재시작")
+    parser.add_argument("--set-password", action="store_true", help="로그인 비밀번호 정하기/바꾸기")
     args = parser.parse_args()
+
+    if args.set_password:
+        sys.exit(set_password_interactive())
 
     app = create_app()
     print(f"\n  나의 캘린더: http://localhost:{args.port}")

@@ -5,12 +5,14 @@
 //   주간 화면    ─ week.js (직접 구현)
 //   편집 창      ─ sheet.js
 //   기한 미정 패널 ─ panel.js (넓은 화면), 카드를 달력으로 끌어다 놓기
+//   동기화       ─ sync.js (다른 기기에서 바꾼 내용을 몇 초 안에 반영)
 
 import { api } from './api.js';
 import { onSwipe, slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
 import { UndatedPanel, dragState } from './panel.js';
-import { initSheet, openCategories, openDay, openItemForm, openNewItem, openUndated } from './sheet.js';
+import { initSheet, openCategories, openDay, openItemForm, openNewItem, openUndated, refreshOpenSheet } from './sheet.js';
+import { acknowledge, startSync } from './sync.js';
 import { addDays, el, formatShort, toDateStr, toast, todayStr } from './utils.js';
 import { WeekView, startOfWeek, weekTitle } from './week.js';
 
@@ -290,14 +292,26 @@ async function assignDate(itemId, date) {
 
 // ============================================================ 새로 고침과 연결
 
-// 무언가 저장/삭제되면 보이는 화면을 모두 새로 고친다.
-async function refreshAll() {
+// 보이는 화면(월간·주간·기한 미정)을 모두 새로 불러온다.
+async function reloadViews() {
   calendar.refetchEvents();
   if (state.view === 'week') await weekView.refresh();
   await refreshUndated();
 }
 
-initSheet({ onDataChanged: refreshAll });
+// 이 기기에서 저장/삭제했을 때
+async function refreshAll() {
+  await acknowledge(); // 내 변경은 이미 반영하니 동기화가 한 번 더 불러오지 않게
+  await reloadViews();
+}
+
+// 다른 기기에서 바뀐 것이 감지됐을 때 (sync.js)
+async function onRemoteChange() {
+  await reloadViews();
+  refreshOpenSheet(); // 열려 있는 하루 창·기한 미정 목록도
+}
+
+initSheet({ onDataChanged: refreshAll, loginEnabled: document.body.dataset.login === '1' });
 
 prevBtn.addEventListener('click', () => navigate(-1));
 nextBtn.addEventListener('click', () => navigate(1));
@@ -328,3 +342,4 @@ try { panelPref = localStorage.getItem(PANEL_KEY) === '1'; } catch { /* 무시 *
 if (wideScreen.matches && panelPref) setPanel(true);
 
 refreshUndated().catch((e) => toast(e.message, 'error'));
+startSync(onRemoteChange);

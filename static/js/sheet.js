@@ -30,8 +30,9 @@ const state = {
 };
 
 // ======================================================================= 공통
-export function initSheet({ onDataChanged }) {
+export function initSheet({ onDataChanged, loginEnabled = false }) {
   state.onDataChanged = onDataChanged;
+  state.loginEnabled = loginEnabled;
   $('sheet-close').addEventListener('click', () => sheet.close());
   backBtn.addEventListener('click', () => goBack());
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); }); // 배경 클릭
@@ -63,6 +64,14 @@ function setFoot(...nodes) {
 async function loadCategories() {
   state.categories = await api.categories();
   return state.categories;
+}
+
+// 다른 기기에서 바뀐 내용이 들어왔을 때: 목록 화면이면 다시 그린다.
+// (일정을 입력하는 중이거나 순서를 끌고 있을 때는 방해하지 않도록 건드리지 않는다)
+export function refreshOpenSheet() {
+  if (!sheet.open || document.querySelector('.item-list.is-sorting')) return;
+  if (state.view === 'day') renderDay();
+  else if (state.view === 'undated') renderUndated();
 }
 
 async function dataChanged() {
@@ -464,7 +473,13 @@ async function renderCategories(editingId = null) {
     } catch (err) { showError(errorEl, err.message, nameInput); }
   });
 
-  setBody(el('ul', { class: 'cat-list' }, rows), addForm);
+  // 로그인을 쓰는 경우에만 로그아웃 버튼 (자주 쓰지 않으므로 카테고리 화면 맨 아래에 둔다)
+  const logout = state.loginEnabled
+    ? el('form', { class: 'logout-form', method: 'post', action: '/logout' },
+        el('button', { type: 'submit', class: 'btn ghost sm' }, '이 기기에서 로그아웃'))
+    : null;
+
+  setBody(el('ul', { class: 'cat-list' }, rows), addForm, logout);
   setFoot();
 }
 

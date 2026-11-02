@@ -1,7 +1,8 @@
 # 나의 캘린더
 
 시간이 정해진 일정, 시간 없는 할 일, 날짜를 아직 못 정한 일까지 한곳에서 관리하는 웹 캘린더입니다.
-Python(Flask) 서버와 브라우저 화면으로 동작하며, PC와 휴대폰 브라우저에서 모두 쓸 수 있고 휴대폰 홈 화면에 앱처럼 추가할 수도 있습니다.
+Python(Flask) 서버와 브라우저 화면으로 동작합니다. 인터넷 서버에 올려 두면 맥·아이패드·아이폰 어디서든 같은 일정을 보고 고칠 수 있고,
+한 기기에서 바꾼 내용이 몇 초 안에 다른 기기에도 나타납니다. 비밀번호로 나만 쓸 수 있게 잠가 둡니다.
 
 > 오픈소스소프트웨어 텀프로젝트 (2026년 2학기)
 
@@ -21,6 +22,7 @@ Python(Flask) 서버와 브라우저 화면으로 동작하며, PC와 휴대폰 
 | 띄엄띄엄 반복되는 일정(화·목 수업, 불규칙한 알바)을 날마다 따로 입력해야 함 | 일정 하나에 **날짜를 여러 개** 지정 ('하루씩' 또는 '기간'으로 선택) |
 | 여러 날짜에 걸친 일정 중 하루만 바꾸기가 번거로움 | 수정·삭제할 때 **"이 날만 / 모든 날짜"** 중에서 선택 |
 | 월간 화면은 칸이 좁아 하루 일정을 다 보기 어려움 | **주간 화면**: 이번 주 7일을 위에서 아래로 펼쳐 보고, 좌우로 넘겨 다른 주로 이동 |
+| 맥에서 적은 일정을 휴대폰에서 바로 보고 싶음 | 인터넷 서버에 올려 **맥·아이패드·아이폰 자동 동기화** (몇 초 안에 반영) |
 
 ## 2. 기능
 
@@ -57,9 +59,25 @@ Python(Flask) 서버와 브라우저 화면으로 동작하며, PC와 휴대폰 
 
 ### 휴대폰
 - 좁은 화면에서는 편집 창이 아래에서 올라오는 시트 형태로 바뀝니다.
-- 홈 화면에 추가하면 주소창 없이 앱처럼 열립니다. ([실행 방법](#3-실행-방법) 참고)
+- 홈 화면에 추가하면 주소창 없이 앱처럼 열립니다.
+
+### 로그인과 기기 간 동기화
+- **비밀번호 하나**로 잠급니다. 한 번 로그인하면 그 기기에서는 1년 동안 유지돼요.
+  - 비밀번호는 해시(되돌릴 수 없는 값)로만 저장되고, 5번 연속으로 틀리면 1분 동안 로그인이 막힙니다.
+  - 인터넷 서버에서는 비밀번호를 정하지 않으면 캘린더가 아예 열리지 않아요 (실수로 공개되는 것 방지).
+  - 로그아웃은 `카테고리` 화면 맨 아래에 있어요. 그 기기에서만 로그아웃됩니다.
+- **자동 동기화**: 다른 기기에서 바꾼 내용이 몇 초 안에 나타납니다. 열어 둔 하루 창·기한 미정 목록도 같이 바뀌어요.
+  - 서버는 저장·삭제할 때마다 '변경 번호'를 1씩 올리고, 화면은 그 번호만 가볍게 확인하다가 바뀌었을 때만 일정을 다시 불러와요.
+  - 화면이 켜져 있는 동안 4초마다 확인하고, 앱으로 돌아오는 순간 바로 확인합니다. 다른 앱을 쓰는 동안에는 확인하지 않아요.
+  - 일정을 입력하는 중이거나 순서를 끌고 있을 때는 화면을 바꾸지 않아서 입력이 끊기지 않습니다.
 
 ## 3. 실행 방법
+
+쓰는 방법은 두 가지입니다.
+- **인터넷 서버에 올려서 쓰기 (평소 사용)**: 아래 3-2
+- **내 컴퓨터에서 실행 (개발·채점용)**: 바로 아래 3-1
+
+### 3-1. 내 컴퓨터에서 실행
 
 Python 3.9 이상이 필요합니다.
 
@@ -84,9 +102,64 @@ python app.py
 | `python app.py --debug` | 코드를 고치면 서버가 자동으로 다시 시작 |
 | `CALENDAR_DB=경로 python app.py` | 데이터 파일 위치 변경 |
 
-**휴대폰 홈 화면에 추가하기**: `--host 0.0.0.0`으로 실행한 뒤 휴대폰 브라우저로 접속하고,
-아이폰은 Safari의 `공유 → 홈 화면에 추가`, 안드로이드는 Chrome 메뉴의 `홈 화면에 추가`를 누릅니다.
-(컴퓨터의 서버가 켜져 있어야 열립니다.)
+| `python app.py --set-password` | 로그인 비밀번호 정하기/바꾸기 |
+
+내 컴퓨터에서는 비밀번호를 정해 둔 경우에만 로그인을 물어봐요. 정하지 않으면 바로 열립니다.
+
+### 3-2. 인터넷 서버에 올려서 쓰기 (PythonAnywhere)
+
+[PythonAnywhere](https://www.pythonanywhere.com) 무료 계정으로 24시간 켜져 있는 서버에 올립니다.
+아래에서 `아이디`는 PythonAnywhere 아이디, 저장소 주소는 이 GitHub 저장소 주소로 바꿔 주세요.
+
+**① 가입**: PythonAnywhere에서 무료(Beginner) 계정을 만듭니다. 아이디가 곧 주소가 돼요 → `https://아이디.pythonanywhere.com`
+
+**② 코드 받기**: `Dashboard` → `New console`의 **`$ Bash`** 를 열고 한 줄씩 입력합니다.
+
+```bash
+git clone https://github.com/<GitHub아이디>/<저장소이름>.git calendar
+cd calendar
+python3 --version                       # 나온 버전(예: 3.12)을 ③에서 고릅니다
+python3 -m venv ~/calendar-venv
+source ~/calendar-venv/bin/activate
+pip install -r requirements.txt
+python app.py --set-password            # 로그인 비밀번호 정하기
+```
+
+**③ 웹 앱 만들기**: 위쪽 메뉴 `Web` → `Add a new web app` → `Next` → **`Manual configuration`**(Flask 말고) → ②에서 확인한 파이썬 버전 선택
+
+**④ 설정** (`Web` 탭 같은 화면에서)
+- `Virtualenv`: `/home/아이디/calendar-venv`
+- `Source code`: `/home/아이디/calendar`
+- `WSGI configuration file` 링크를 눌러 **내용을 모두 지우고** 아래로 바꾼 뒤 `Save`:
+  ```python
+  import sys
+  path = '/home/아이디/calendar'
+  if path not in sys.path:
+      sys.path.insert(0, path)
+
+  from wsgi import application
+  ```
+- `Security` → **`Force HTTPS`** 켜기
+
+**⑤ 실행**: 맨 위 초록색 **`Reload`** → `https://아이디.pythonanywhere.com` 접속 → 비밀번호 입력
+
+**⑥ 기존 일정 옮기기 (선택)**: 내 컴퓨터의 `instance/calendar.db`를
+`Files` 탭 → `calendar/instance/` 폴더에서 `Upload a file`로 올리고(같은 이름 파일 덮어쓰기) `Reload`
+
+**⑦ 기기마다 바로가기 만들기**
+- 아이폰·아이패드: Safari로 접속 → 공유 버튼 → `홈 화면에 추가` (홈 화면 아이콘으로 처음 열 때 한 번 더 로그인할 수 있어요)
+- 맥: Safari로 접속 → 메뉴 `파일` → `Dock에 추가` (macOS Sonoma 이상), 또는 북마크
+
+**업데이트할 때**: 내 컴퓨터에서 GitHub에 push한 뒤, PythonAnywhere `Bash`에서
+```bash
+cd ~/calendar && git pull
+source ~/calendar-venv/bin/activate && pip install -r requirements.txt   # 필요한 라이브러리가 바뀌었을 때만
+```
+→ `Web` 탭에서 `Reload`. 일정 데이터와 비밀번호(`instance/` 폴더)는 GitHub에 올라가지 않으므로 그대로 남아요.
+
+**알아 둘 점**
+- 무료 계정의 웹 앱은 한동안 쓰지 않으면 만료돼요. `Web` 탭의 만료 날짜 옆 버튼으로 연장할 수 있어요.
+- 비밀번호를 바꾸려면 `Bash`에서 `cd ~/calendar && source ~/calendar-venv/bin/activate && python app.py --set-password` → `Reload`
 
 ## 4. 화면
 
@@ -106,19 +179,25 @@ python app.py
 |---|---|
 | ![카테고리](docs/screenshots/06_categories.png) | ![기한 미정](docs/screenshots/11_panel.png) |
 
-| 휴대폰: 월간 | 휴대폰: 주간 | 휴대폰: 하루 창 |
-|---|---|---|
-| ![휴대폰 월간](docs/screenshots/08_mobile_month.png) | ![휴대폰 주간](docs/screenshots/14_mobile_week.png) | ![휴대폰 하루 창](docs/screenshots/16_mobile_day.png) |
+| 휴대폰: 월간 | 휴대폰: 주간 | 휴대폰: 하루 창 | 로그인 |
+|---|---|---|---|
+| ![휴대폰 월간](docs/screenshots/08_mobile_month.png) | ![휴대폰 주간](docs/screenshots/14_mobile_week.png) | ![휴대폰 하루 창](docs/screenshots/16_mobile_day.png) | ![로그인](docs/screenshots/21_login_mobile.png) |
 
 ## 5. 구조
 
 ```
 my-calendar/
-├── app.py                 # 실행 파일, Flask 앱 생성
-├── api.py                 # REST API (카테고리·일정 CRUD, 공휴일, 입력 검사)
-├── db.py                  # SQLite 테이블 생성과 연결 관리
+├── app.py                 # 실행 파일, Flask 앱 생성, --set-password
+├── wsgi.py                # 인터넷 서버(PythonAnywhere)용 진입점
+├── auth.py                # 로그인 (비밀번호 해시, 세션, 연속 실패 제한)
+├── api.py                 # REST API (카테고리·일정 CRUD, 공휴일, 변경 번호, 입력 검사)
+├── db.py                  # SQLite 테이블 생성, 예전 DB 변환, 변경 번호
 ├── requirements.txt
-├── templates/index.html   # 화면 뼈대
+├── templates/
+│   ├── index.html         # 캘린더 화면 뼈대
+│   ├── login.html         # 로그인 화면
+│   ├── setup_needed.html  # 서버에 비밀번호가 없을 때 안내
+│   └── _head.html         # 모든 화면 공통 (아이콘, 글꼴, 디자인)
 ├── static/
 │   ├── css/style.css      # 디자인 전체
 │   ├── js/
@@ -129,6 +208,7 @@ my-calendar/
 │   │   ├── datepicker.js  # 여러 날짜 선택 미니 달력
 │   │   ├── reorder.js     # 끌어서 순서 바꾸기 (마우스·터치·키보드)
 │   │   ├── gestures.js    # 스와이프·트랙패드 넘기기
+│   │   ├── sync.js        # 기기 간 자동 동기화
 │   │   ├── holidays.js    # 공휴일 불러오기와 캐시
 │   │   ├── api.js         # 서버 API 호출
 │   │   └── utils.js       # 날짜 계산, 화면 요소 생성, 알림, 질문 창
@@ -136,8 +216,9 @@ my-calendar/
 │   └── vendor/                        # 외부 오픈소스 (수정하지 않음)
 │       ├── fullcalendar/
 │       └── pretendard/                # 글꼴
-├── tests/test_api.py      # API 자동 테스트
-└── docs/screenshots/      # README 스크린샷
+├── tests/                 # 자동 테스트 (API, 로그인, 동기화)
+├── docs/screenshots/      # README 스크린샷
+└── instance/              # (자동 생성, GitHub에 안 올라감) 일정 데이터, 비밀번호 해시, 쿠키 서명 키
 ```
 
 ### 데이터 구조
@@ -146,6 +227,7 @@ my-calendar/
 categories (id, name, color, is_default)
 items      (id, title, memo, category_id, start_time, end_time, created_at)
 item_dates (item_id, date, position) ← 일정 하나에 날짜가 여러 줄, position = 그날 안의 순서
+meta       (key, value)              ← 'version' = 변경 번호 (동기화용)
 ```
 
 - `start_time`, `end_time`이 둘 다 비어 있으면 시간 없는 할 일입니다.
@@ -171,6 +253,8 @@ item_dates (item_id, date, position) ← 일정 하나에 날짜가 여러 줄, 
 | DELETE | `/api/items/<id>?scope=&date=` | 일정 삭제. `scope=single`이면 그 날짜만 삭제 |
 | PUT | `/api/days/<date>/order` | 그 날짜 안의 일정 순서 저장 (`{"item_ids": [3, 1, 7]}`) |
 | GET | `/api/holidays?start=&end=` | 기간 안의 한국 공휴일 |
+| GET | `/api/version` | 변경 번호 (저장·삭제할 때마다 1씩 커짐, 동기화용) |
+| GET·POST | `/login`, POST `/logout` | 로그인·로그아웃 (비밀번호를 정했을 때 모든 API는 로그인 필요) |
 
 ## 6. 직접 구현한 부분과 사용한 오픈소스
 
@@ -182,9 +266,11 @@ item_dates (item_id, date, position) ← 일정 하나에 날짜가 여러 줄, 
 - **여러 날짜 선택 미니 달력** (`datepicker.js`): 외부 라이브러리 없이 구현
 - **끌어서 순서 바꾸기** (`reorder.js`): Pointer Events로 마우스·터치를 한 번에 처리, 키보드 조작 지원
 - **24시간 시간 고르기** (`sheet.js`의 `timeSelect`): 운영체제 설정에 따라 오전/오후로 바뀌는 기본 입력 대신 직접 구현
+- **로그인** (`auth.py`): 비밀번호 해시 저장, 1년 유지 세션, 연속 실패 제한, 서버에서 비밀번호 미설정 시 차단
+- **기기 간 동기화** (`sync.js`, `db.py`): 변경 번호 방식. 무료 서버에서 쓸 수 없는 실시간 연결(WebSocket) 대신 가벼운 확인 요청으로 구현
 - **편집 창** (`sheet.js`): 날짜 목록, 일정 편집 폼, 카테고리 관리, 기한 미정 목록
 - **디자인 전체** (`style.css`): FullCalendar 기본 모양을 덮어쓴 부분 포함
-- **API 테스트** (`tests/test_api.py`)
+- **자동 테스트** (`tests/`)
 
 FullCalendar는 **월간 화면의 달력 칸을 그리는 데에만** 사용했습니다.
 
@@ -212,7 +298,7 @@ pip install pytest
 python -m pytest
 ```
 
-카테고리 보호 규칙, 일정 추가·수정·삭제, 시작·끝 시간 규칙, 여러 날짜 일정의 "이 날만 / 모든 날짜" 처리, 하루 안의 순서 바꾸기, 기한 미정 목록, 공휴일, 예전 데이터 파일 자동 변환, 입력값 검사 등 18가지를 확인합니다.
+카테고리 보호 규칙, 일정 추가·수정·삭제, 시작·끝 시간 규칙, 여러 날짜 일정의 "이 날만 / 모든 날짜" 처리, 하루 안의 순서 바꾸기, 기한 미정 목록, 공휴일, 예전 데이터 파일 자동 변환, 로그인(잠금·쿠키·비밀번호 해시), 변경 번호, 입력값 검사 등 27가지를 확인합니다.
 
 ## 8. 앞으로 해 볼 것
 
@@ -224,6 +310,38 @@ python -m pytest
 - [ ] 검색
 - [ ] 지난 미완료 일정 모아 보기
 
-## 9. 라이선스
+## 9. 업데이트 기록
+
+최근 것이 위에 있습니다.
+
+### 3차 수정 (2026-11-02)
+- **인터넷 서버에 올려서 쓰기**: PythonAnywhere용 진입점(`wsgi.py`)과 단계별 배포 방법 추가. 터미널 없이 맥·아이패드·아이폰 브라우저에서 바로 열림
+- **로그인**: 비밀번호 하나로 잠금, 기기마다 1년 유지, 5번 틀리면 1분 잠금, 로그아웃 버튼(카테고리 화면 맨 아래)
+- **기기 간 자동 동기화**: 다른 기기에서 바꾼 내용이 몇 초 안에 반영됨. 앱으로 돌아오면 즉시 확인
+- 비밀번호 정하기 명령 추가: `python app.py --set-password`
+- 테스트 18개 → 27개
+
+### 2차 수정 (2026-11-02)
+- **글꼴 변경**: IBM Plex Sans KR → Pretendard. 프로젝트 안에 넣어서 인터넷이 없어도 같은 글꼴로 보이게 함
+- **끝 시간 추가**: 시작 시간만, 끝 시간만, 둘 다, 또는 시간 없이 저장 가능. 끝 시간이 시작보다 빠르면 저장되지 않음
+- **24시간 표기**: 시간 입력을 오전/오후 없는 `시 : 분` 선택으로 바꿈 (분은 5분 단위)
+- **하루 안의 순서**: 정렬 기준을 '시간 없는 것 먼저 → 시간순'에서 **올린 순서**로 바꾸고, 하루 창에서 `≡`를 끌어 순서를 바꿀 수 있게 함 (날짜마다 따로 저장)
+- **예전 데이터 자동 변환**: 1차 버전으로 만든 데이터 파일에 끝 시간·순서 칸을 자동으로 추가. 기존 일정은 올린 순서로 정렬됨
+- **새로고침 문제 해결**: 새 버전으로 바꿔도 브라우저가 예전 화면 파일을 쓰던 문제 수정
+- **아이폰 입력 개선**: 입력칸을 누를 때 화면이 확대되던 문제 수정
+- 테스트 13개 → 18개
+
+### 1차 (첫 버전, 2026-11-02)
+- 월간 화면 (FullCalendar), 일요일·토요일·오늘 표시
+- 주간 화면: `이번 주` 버튼, 7일 세로 나열, 스와이프·트랙패드·키보드로 넘기기
+- 날짜 편집 창: 날짜를 누르면 그날 일정 목록, 추가·수정·삭제
+- 여러 날짜 선택 ('하루씩' / '기간'), 여러 날짜 일정의 '이 날만 / 모든 날짜' 수정·삭제
+- 카테고리 (색상, 삭제할 수 없는 '미분류')
+- 기한 미정 목록, 넓은 화면에서는 패널에서 달력으로 끌어다 놓기
+- 한국 공휴일 표시 (python-holidays)
+- 휴대폰 화면 대응, 홈 화면에 추가 지원
+- API 테스트 13개
+
+## 10. 라이선스
 
 [MIT License](LICENSE)

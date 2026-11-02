@@ -1,0 +1,15 @@
+{# 모든 화면이 함께 쓰는 <head> 내용: 아이콘, 홈 화면 설치, 글꼴, 디자인 #}
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='24' rx='5' fill='%232347C8'/%3E%3Crect x='3' y='5' width='26' height='7' rx='3' fill='%231A2130'/%3E%3Ccircle cx='16' cy='21' r='4' fill='%23fff'/%3E%3C/svg%3E">
+
+  <!-- 휴대폰 홈 화면에 추가했을 때 앱처럼 열리도록 -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <meta name="theme-color" content="#F4F6F9">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="캘린더">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <!-- 오픈소스 글꼴: Pretendard (SIL OFL 1.1) — 필요한 글자 조각만 내려받는 방식이라 가볍다 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/pretendard/pretendard.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">

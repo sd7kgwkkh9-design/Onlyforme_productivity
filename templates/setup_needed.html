@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>비밀번호 설정 필요 - 나의 캘린더</title>
+  {% include "_head.html" %}
+</head>
+<body class="gate">
+  <main class="gate-card">
+    <img class="gate-icon" src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="64" height="64">
+    <h1>비밀번호를 먼저 정해 주세요</h1>
+    <p class="gate-text">
+      인터넷에 올린 캘린더는 비밀번호 없이는 열리지 않아요.
+      서버의 Bash 콘솔에서 프로젝트 폴더로 이동한 뒤 아래 명령을 실행하고, Web 탭에서 Reload를 눌러 주세요.
+    </p>
+    <pre class="gate-code">python app.py --set-password</pre>
+  </main>
+</body>
+</html>

@@ -16,6 +16,9 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   DELETE /api/items/<id>?scope=&date=     일정 삭제 (scope = all | single)
   PUT    /api/days/<date>/order           그 날짜 안의 일정 순서 바꾸기
 
+동기화
+  GET    /api/version                     변경 번호 (저장·삭제할 때마다 1씩 커짐)
+
 공휴일
   GET    /api/holidays?start=&end=        기간 안의 한국 공휴일 (python-holidays 사용)
 
@@ -31,7 +34,7 @@ from functools import lru_cache
 
 from flask import Blueprint, current_app, jsonify, request
 
-from db import default_category_id, get_db
+from db import current_version, default_category_id, get_db
 
 # 공휴일 라이브러리는 없어도 앱이 동작하도록 선택적으로 불러온다.
 try:
@@ -504,6 +507,15 @@ def reorder_day(day):
     )
     db.commit()
     return jsonify(date=day, item_ids=ids)
+
+
+# ---------------------------------------------------------------------------
+# 동기화: 변경 번호
+# ---------------------------------------------------------------------------
+@bp.get("/version")
+def get_version():
+    """화면은 몇 초마다 이 번호만 확인하고, 바뀌었을 때만 일정을 다시 불러온다."""
+    return jsonify(version=current_version(get_db()))
 
 
 # ---------------------------------------------------------------------------

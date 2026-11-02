@@ -8,6 +8,9 @@ items       : 일정/할 일 본체 (제목, 메모, 카테고리, 시작·끝 �
 item_dates  : 일정이 들어간 날짜들 (일정 하나에 날짜 여러 개 가능)
               + 그 날짜 안에서의 표시 순서(position)
 
+meta        : 변경 번호(version) — 일정·카테고리가 바뀔 때마다 1씩 커진다.
+              다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
+
 item_dates에 줄이 하나도 없는 일정 = "기한 미정" 일정이다.
 """
 
@@ -45,6 +48,12 @@ CREATE TABLE IF NOT EXISTS item_dates (
 
 -- 달력은 항상 "날짜 범위"로 일정을 찾으므로 date에 인덱스를 둔다.
 CREATE INDEX IF NOT EXISTS idx_item_dates_date ON item_dates(date);
+
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO meta (key, value) VALUES ('version', 0);
 """
 
 
@@ -110,3 +119,12 @@ def close_db(_exc=None):
 def default_category_id(db):
     row = db.execute("SELECT id FROM categories WHERE is_default = 1").fetchone()
     return row["id"]
+
+
+def current_version(db):
+    return db.execute("SELECT value FROM meta WHERE key = 'version'").fetchone()["value"]
+
+
+def bump_version(db):
+    db.execute("UPDATE meta SET value = value + 1 WHERE key = 'version'")
+    db.commit()

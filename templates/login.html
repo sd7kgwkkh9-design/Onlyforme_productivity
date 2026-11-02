@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>로그인 - 나의 캘린더</title>
+  {% include "_head.html" %}
+</head>
+<body class="gate">
+  <main class="gate-card">
+    <img class="gate-icon" src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="64" height="64">
+    <h1>나의 캘린더</h1>
+    <form method="post" action="{{ url_for('auth.login') }}" class="gate-form">
+      {# 아이폰·맥의 암호 저장(iCloud 키체인)이 이 사이트 비밀번호를 기억하도록 숨은 아이디 칸을 둔다 #}
+      <input type="text" name="username" value="calendar" autocomplete="username" hidden>
+      <label class="label" for="password">비밀번호</label>
+      <input class="input" type="password" id="password" name="password"
+             autocomplete="current-password" required autofocus>
+      {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+      <button class="btn primary wide" type="submit">들어가기</button>
+    </form>
+    <p class="gate-note">한 번 들어가면 이 기기에서는 1년 동안 로그인이 유지돼요.</p>
+  </main>
+</body>
+</html>

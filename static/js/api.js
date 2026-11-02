@@ -11,7 +11,13 @@ async function request(method, url, body) {
   try {
     res = await fetch(url, options);
   } catch {
-    throw new Error('서버에 연결할 수 없어요. 앱(python app.py)이 켜져 있는지 확인해 주세요.');
+    throw new Error('서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.');
+  }
+
+  // 로그인이 풀렸으면(다른 기기에서 비밀번호를 바꾼 경우 등) 로그인 화면으로
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('로그인이 필요해요.');
   }
 
   const data = await res.json().catch(() => ({}));
@@ -31,6 +37,9 @@ export const api = {
   deleteItem: (id, scope = 'all', date = '') =>
     request('DELETE', `/api/items/${id}?${q({ scope, date })}`),
   reorderDay: (date, itemIds) => request('PUT', `/api/days/${date}/order`, { item_ids: itemIds }),
+
+  // 동기화
+  version: () => request('GET', '/api/version'),
 
   // 공휴일
   holidays: (start, end) => request('GET', `/api/holidays?${q({ start, end })}`),
