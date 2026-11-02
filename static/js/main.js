@@ -13,6 +13,7 @@ import { holidaysBetween } from './holidays.js';
 import { UndatedPanel, dragState } from './panel.js';
 import { initSheet, openCategories, openDay, openItemForm, openNewItem, openUndated, refreshOpenSheet } from './sheet.js';
 import { acknowledge, startSync } from './sync.js';
+import { initTheme } from './theme.js';
 import { addDays, el, formatShort, toDateStr, toast, todayStr } from './utils.js';
 import { WeekView, startOfWeek, weekTitle } from './week.js';
 
@@ -333,6 +334,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ============================================================ 시작
+
+initTheme();
 
 calendar.render();
 updateHeader();

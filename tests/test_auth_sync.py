@@ -112,3 +112,32 @@ def test_version_changes_only_when_data_changes(client):
 
 def test_api_responses_are_not_cached(client):
     assert client.get("/api/version").headers["Cache-Control"] == "no-store"
+
+
+# ---------------------------------------------------------------- 시연용 (--demo)
+def test_demo_calendar_is_filled_around_today(tmp_path):
+    from datetime import date, timedelta
+
+    import demo
+
+    demo.reset_demo_folder(str(tmp_path))
+    app = create_app(demo.demo_database_path(str(tmp_path)), demo_mode=True)
+    today = date(2027, 3, 10)
+    demo.seed_demo(app, today=today)
+    c = app.test_client()
+
+    assert [x["name"] for x in c.get("/api/categories").get_json()] == ["미분류", "수업", "과제", "알바", "개인"]
+    # 실행한 날짜가 속한 달에 일정이 보인다
+    month = c.get("/api/occurrences?start=2027-03-01&end=2027-04-01").get_json()
+    assert len(month) > 20
+    titles_today = [o["title"] for o in month if o["date"] == today.isoformat()]
+    assert "오늘 할 일 정리" in titles_today and "스터디" in titles_today
+    assert len(c.get("/api/items/undated").get_json()) == 2
+    assert b"demo-banner" in c.get("/").data
+
+    # 실제 데이터 폴더와 분리돼 있다
+    assert "demo" in demo.demo_database_path(str(tmp_path))
+
+
+def test_normal_app_has_no_demo_banner(client):
+    assert b"demo-banner" not in client.get("/").data

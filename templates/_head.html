@@ -1,10 +1,19 @@
-{# 모든 화면이 함께 쓰는 <head> 내용: 아이콘, 홈 화면 설치, 글꼴, 디자인 #}
+{# 모든 화면이 함께 쓰는 <head> 내용: 테마, 아이콘, 홈 화면 설치, 글꼴, 디자인 #}
+  <script>
+    // 저장해 둔 테마(라이트/다크)를 화면을 그리기 전에 먼저 적용한다.
+    // (나중에 적용하면 다크 모드인데 흰 화면이 잠깐 번쩍인다) — 나머지는 static/js/theme.js
+    try {
+      var t = localStorage.getItem('my-calendar:theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='24' rx='5' fill='%232347C8'/%3E%3Crect x='3' y='5' width='26' height='7' rx='3' fill='%231A2130'/%3E%3Ccircle cx='16' cy='21' r='4' fill='%23fff'/%3E%3C/svg%3E">
 
   <!-- 휴대폰 홈 화면에 추가했을 때 앱처럼 열리도록 -->
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
-  <meta name="theme-color" content="#F4F6F9">
+  <meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111419" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="캘린더">

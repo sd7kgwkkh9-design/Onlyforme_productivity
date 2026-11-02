@@ -3,17 +3,31 @@
    색은 아래 변수(토큰)만 바꾸면 전체에 반영된다.
    ========================================================================== */
 
+/* ---------- 라이트 테마 (기본) ---------- */
 :root {
+  color-scheme: light;   /* 선택 상자·스크롤바 같은 브라우저 기본 부품도 밝게 */
   --paper:   #F4F6F9;   /* 바탕 */
   --surface: #FFFFFF;   /* 달력, 창 */
   --ink:     #1A2130;   /* 본문 글자 */
   --muted:   #697186;   /* 보조 글자 */
+  --faint:   #A3A9B6;   /* 더 옅은 글자 (일정 없음, 손잡이) */
   --line:    #E0E4EB;   /* 선 */
   --hover:   #EEF1F6;
+  --cell-hover: #F7F9FC;
+  --seg-bg:  #E4E8EF;   /* 월간/이번 주 같은 묶음 버튼 바탕 */
   --accent:  #2347C8;   /* 만년필 파랑: 오늘, 주요 버튼 */
-  --sun:     #D2443B;   /* 일요일 */
+  --accent-hover: #1C3BAA;
+  --on-accent: #FFFFFF; /* 파란 바탕 위 글자 */
+  --sun:     #D2443B;   /* 일요일·공휴일 */
   --sat:     #2E66C2;   /* 토요일 */
   --danger:  #C9372C;
+  --danger-bg: #FCEDEC;
+  --switch-off: #CDD3DD;
+  --toast-bg: #1A2130;
+  --toast-fg: #FFFFFF;
+  --shadow:  rgba(16, 24, 44, .45);
+  --shadow-soft: rgba(16, 24, 44, .12);
+  --backdrop: rgba(18, 24, 38, .36);
 
   --radius: 10px;
   --font: 'Pretendard Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
@@ -25,6 +39,63 @@
   --fc-today-bg-color: transparent;
   --fc-event-text-color: var(--ink);
   --fc-small-font-size: 12px;
+}
+
+/* ---------- 다크 테마 ----------
+   ① 테마를 '시스템 설정'으로 두었고 기기가 다크 모드일 때
+   ② 테마를 '다크'로 직접 골랐을 때 (html에 data-theme="dark")
+   카테고리 색 띠는 그대로 두고, 바탕·글자·선만 어둡게 바꾼다. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper:   #111419;
+    --surface: #1A1E25;
+    --ink:     #E8EBF1;
+    --muted:   #9AA2B2;
+    --faint:   #646C7C;
+    --line:    #2C323D;
+    --hover:   #252B35;
+    --cell-hover: #20252D;
+    --seg-bg:  #262C36;
+    --accent:  #5B7BFF;
+    --accent-hover: #7690FF;
+    --on-accent: #FFFFFF;
+    --sun:     #FF6E64;
+    --sat:     #6FA0FF;
+    --danger:  #FF6E64;
+    --danger-bg: #3A1F1F;
+    --switch-off: #3A414D;
+    --toast-bg: #E8EBF1;
+    --toast-fg: #111419;
+    --shadow:  rgba(0, 0, 0, .6);
+    --shadow-soft: rgba(0, 0, 0, .4);
+    --backdrop: rgba(0, 0, 0, .55);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper:   #111419;
+  --surface: #1A1E25;
+  --ink:     #E8EBF1;
+  --muted:   #9AA2B2;
+  --faint:   #646C7C;
+  --line:    #2C323D;
+  --hover:   #252B35;
+  --cell-hover: #20252D;
+  --seg-bg:  #262C36;
+  --accent:  #5B7BFF;
+  --accent-hover: #7690FF;
+  --on-accent: #FFFFFF;
+  --sun:     #FF6E64;
+  --sat:     #6FA0FF;
+  --danger:  #FF6E64;
+  --danger-bg: #3A1F1F;
+  --switch-off: #3A414D;
+  --toast-bg: #E8EBF1;
+  --toast-fg: #111419;
+  --shadow:  rgba(0, 0, 0, .6);
+  --shadow-soft: rgba(0, 0, 0, .4);
+  --backdrop: rgba(0, 0, 0, .55);
 }
 
 * { box-sizing: border-box; }
@@ -77,7 +148,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 
 .count {
   min-width: 20px; padding: 0 6px; border-radius: 999px;
-  background: var(--accent); color: #fff;
+  background: var(--accent); color: var(--on-accent);
   font-size: 12px; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums;
 }
 
@@ -89,11 +160,11 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 }
 .btn:hover:not(:disabled) { background: var(--hover); }
 .btn:disabled { opacity: .5; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: #1C3BAA; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
 .btn.ghost { border-color: transparent; background: transparent; }
 .btn.danger { color: var(--danger); }
-.btn.danger-fill { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.danger-fill { background: var(--danger); border-color: var(--danger); color: var(--on-accent); }
 .btn.wide { width: 100%; }
 .btn.sm { height: 30px; padding: 0 10px; font-size: 13px; }
 
@@ -129,7 +200,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   border: 1px solid var(--line); border-radius: 14px;
   overflow: hidden;
 }
-.view-switch { background: #E4E8EF; }
+.view-switch { background: var(--seg-bg); }
 .view-switch .seg-btn { height: 32px; padding: 0 14px; font-size: 14px; }
 .seg-btn:hover:not([aria-pressed="true"]) { color: var(--ink); }
 
@@ -149,7 +220,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 
 /* 날짜 칸: 숫자를 왼쪽 위에, 칸 전체가 눌리는 곳 */
 .fc .fc-daygrid-day { cursor: pointer; transition: background-color .12s; }
-.fc .fc-daygrid-day:hover { background: #F7F9FC; }
+.fc .fc-daygrid-day:hover { background: var(--cell-hover); }
 .fc .fc-daygrid-day-top { flex-direction: row; padding: 6px 6px 2px; }
 .fc .fc-daygrid-day-number {
   display: grid; place-items: center;
@@ -161,7 +232,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .fc .fc-day-sun .fc-daygrid-day-number { color: var(--sun); }
 .fc .fc-day-sat .fc-daygrid-day-number { color: var(--sat); }
 .fc .fc-day-other .fc-daygrid-day-top { opacity: .38; }
-.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { background: var(--accent); color: #fff; }
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { background: var(--accent); color: var(--on-accent); }
 
 /* 일정 칸: 카테고리 색 띠(왼쪽) + 옅은 바탕 */
 .fc .fc-daygrid-event.fc-h-event {
@@ -193,10 +264,10 @@ dialog.sheet {
   padding: 0;
   border: 0; border-radius: 16px;
   background: var(--surface); color: var(--ink);
-  box-shadow: 0 30px 70px -24px rgba(16, 24, 44, .45);
+  box-shadow: 0 30px 70px -24px var(--shadow);
 }
 dialog.sheet[open] { display: flex; flex-direction: column; animation: sheet-in .18s ease-out; }
-dialog.sheet::backdrop { background: rgba(18, 24, 38, .36); }
+dialog.sheet::backdrop { background: var(--backdrop); }
 
 @keyframes sheet-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -252,7 +323,7 @@ dialog.sheet::backdrop { background: rgba(18, 24, 38, .36); }
   flex: none; display: grid; place-items: center;
   width: 44px; padding: 0;
   border: 0; border-radius: 0 var(--radius) var(--radius) 0; background: none;
-  color: #A3A9B6; cursor: grab;
+  color: var(--faint); cursor: grab;
   touch-action: none; /* 손가락으로 끌 때 화면이 스크롤되지 않게 */
 }
 .drag-handle:hover { color: var(--ink); }
@@ -262,7 +333,7 @@ dialog.sheet::backdrop { background: rgba(18, 24, 38, .36); }
 .item-li.is-dragging {
   position: relative; z-index: 1;
   background: color-mix(in srgb, var(--cat) 18%, var(--surface));
-  box-shadow: inset 3px 0 0 var(--cat), 0 10px 24px -10px rgba(16, 24, 44, .45);
+  box-shadow: inset 3px 0 0 var(--cat), 0 10px 24px -10px var(--shadow);
 }
 .item-li.is-dragging .drag-handle { color: var(--ink); cursor: grabbing; }
 .list-hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
@@ -292,7 +363,7 @@ textarea.input { resize: vertical; min-height: 72px; }
 #f-title { font-size: 17px; font-weight: 500; }
 .input.time { width: auto; padding: 7px 10px; font-variant-numeric: tabular-nums; }
 
-.form-error { margin: 0; padding: 10px 12px; border-radius: 8px; background: #FCEDEC; color: var(--danger); font-size: 14px; }
+.form-error { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--danger-bg); color: var(--danger); font-size: 14px; }
 
 /* 카테고리 칩 */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -319,12 +390,12 @@ textarea.input { resize: vertical; min-height: 72px; }
 .switch input { position: absolute; opacity: 0; pointer-events: none; }
 .switch-ui {
   position: relative; width: 38px; height: 22px; border-radius: 999px;
-  background: #CDD3DD; transition: background-color .15s;
+  background: var(--switch-off); transition: background-color .15s;
 }
 .switch-ui::after {
   content: ''; position: absolute; top: 3px; left: 3px;
   width: 16px; height: 16px; border-radius: 50%; background: #fff;
-  box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s;
+  box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s;
 }
 .switch input:checked + .switch-ui { background: var(--accent); }
 .switch input:checked + .switch-ui::after { transform: translateX(16px); }
@@ -342,7 +413,7 @@ textarea.input { resize: vertical; min-height: 72px; }
   -webkit-appearance: none; appearance: none;
   background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23697186' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center / 14px;
 }
-.input.sel:disabled { color: #B4B9C4; background-color: var(--paper); }
+.input.sel:disabled { color: var(--faint); background-color: var(--paper); }
 
 /* ------------------------------------------------------------------ 여러 날짜 선택 달력 */
 .picker {
@@ -355,7 +426,7 @@ textarea.input { resize: vertical; min-height: 72px; }
 
 .seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--paper); }
 .seg-btn { height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; color: var(--muted); }
-.seg-btn[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(16,24,44,.12); }
+.seg-btn[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px var(--shadow-soft); }
 
 .picker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .picker-wd { padding: 4px 0; text-align: center; font-size: 12px; color: var(--muted); }
@@ -373,8 +444,8 @@ textarea.input { resize: vertical; min-height: 72px; }
 }
 .picker-day.is-anchor { box-shadow: inset 0 0 0 1.5px var(--ink); }
 .picker-day.is-range-start { box-shadow: inset 0 0 0 2px var(--accent); }
-.picker-day[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
-.picker-day[aria-pressed="true"]:hover { background: #1C3BAA; }
+.picker-day[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.picker-day[aria-pressed="true"]:hover { background: var(--accent-hover); }
 
 .picker-summary { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; }
 .picker-summary.empty { color: var(--muted); }
@@ -423,9 +494,9 @@ dialog.ask {
   width: min(380px, calc(100vw - 40px));
   padding: 22px; border: 0; border-radius: 14px;
   background: var(--surface); color: var(--ink);
-  box-shadow: 0 30px 70px -24px rgba(16, 24, 44, .5);
+  box-shadow: 0 30px 70px -24px var(--shadow);
 }
-dialog.ask::backdrop { background: rgba(18, 24, 38, .3); }
+dialog.ask::backdrop { background: var(--backdrop); }
 dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
 .ask-buttons { display: grid; gap: 8px; }
 
@@ -436,7 +507,7 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
   transform: translateX(-50%);
   max-width: calc(100vw - 32px);
   padding: 10px 16px; border-radius: 10px;
-  background: var(--ink); color: #fff; font-size: 14px;
+  background: var(--toast-bg); color: var(--toast-fg); font-size: 14px;
   opacity: 0; pointer-events: none;
 }
 .toast.show { opacity: 1; animation: toast-in .18s ease-out; }
@@ -497,7 +568,7 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
   font-size: 11px; font-weight: 500; color: var(--sun);
 }
 .fc td.fc-daygrid-day:has(.holiday-bg) .fc-daygrid-day-number { color: var(--sun); }
-.fc td.fc-daygrid-day.fc-day-today:has(.holiday-bg) .fc-daygrid-day-number { color: #fff; }
+.fc td.fc-daygrid-day.fc-day-today:has(.holiday-bg) .fc-daygrid-day-number { color: var(--on-accent); }
 
 /* ==========================================================================
    주간 화면 (7일을 위에서 아래로)
@@ -515,7 +586,7 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
   text-align: left; transition: background-color .12s;
 }
 .wk-day:last-child { border-bottom: 0; }
-.wk-day:hover { background: #F7F9FC; }
+.wk-day:hover { background: var(--cell-hover); }
 .wk-day.is-today { background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
 .wk-day.is-past .wk-body { opacity: .6; }
 
@@ -528,7 +599,7 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
 .wk-name { font-size: 12px; color: var(--muted); }
 .wk-day.wd-0 .wk-num, .wk-day.wd-0 .wk-name, .wk-day.is-holiday .wk-num, .wk-day.is-holiday .wk-name { color: var(--sun); }
 .wk-day.wd-6:not(.is-holiday) .wk-num, .wk-day.wd-6:not(.is-holiday) .wk-name { color: var(--sat); }
-.wk-day.is-today .wk-num { background: var(--accent); color: #fff; }
+.wk-day.is-today .wk-num { background: var(--accent); color: var(--on-accent); }
 
 .wk-body { display: grid; gap: 4px; min-width: 0; padding-top: 4px; }
 .wk-holiday { font-size: 12px; font-weight: 500; color: var(--sun); }
@@ -542,7 +613,7 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
 .wk-time { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; }
 .wk-title { font-weight: 500; overflow-wrap: anywhere; }
 .wk-memo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
-.wk-empty { padding-top: 2px; font-size: 13px; color: #A3A9B6; }
+.wk-empty { padding-top: 2px; font-size: 13px; color: var(--faint); }
 
 @media (max-width: 640px) {
   .wk-day { grid-template-columns: 52px 1fr; gap: 8px; padding: 10px 12px 10px 8px; }
@@ -627,3 +698,39 @@ body.gate {
 
 /* 카테고리 화면 아래 로그아웃 */
 .logout-form { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line); text-align: center; }
+
+/* ==========================================================================
+   화면 테마 메뉴
+   ========================================================================== */
+.theme-btn { flex: none; border: 1px solid var(--line); background: var(--surface); }
+.theme-menu {
+  position: fixed; inset: auto; margin: 0;   /* popover 기본 위치(가운데)를 지우고 버튼 아래로 */
+  min-width: 200px; padding: 6px;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); color: var(--ink);
+  box-shadow: 0 16px 40px -16px var(--shadow);
+}
+.theme-menu button {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 10px 12px;
+  border: 0; border-radius: 8px; background: none;
+  font-size: 14px; text-align: left;
+}
+.theme-menu button:hover { background: var(--hover); }
+.theme-menu button::before {
+  content: ''; width: 16px; height: 16px; flex: none;
+  border: 1.5px solid var(--faint); border-radius: 50%;
+}
+.theme-menu button[aria-checked="true"] { font-weight: 600; }
+.theme-menu button[aria-checked="true"]::before {
+  border-color: var(--accent);
+  background: radial-gradient(circle, var(--accent) 0 4px, transparent 4.5px);
+}
+
+/* 시연용(--demo) 안내 띠 */
+.demo-banner {
+  margin: 0; padding: max(8px, env(safe-area-inset-top)) 16px 8px;
+  background: var(--seg-bg); color: var(--muted);
+  font-size: 13px; text-align: center;
+}
+.demo-banner strong { color: var(--ink); }

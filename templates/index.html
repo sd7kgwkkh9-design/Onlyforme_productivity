@@ -7,6 +7,11 @@
   {% include "_head.html" %}
 </head>
 <body data-view="month" data-login="{{ '1' if login_enabled else '0' }}">
+  {% if demo %}
+  <p class="demo-banner" role="note">
+    <strong>시연용 캘린더</strong>예요. 예시 일정이며 실제 데이터와 분리되어 있고, 앱을 다시 실행하면 처음 상태로 돌아가요.
+  </p>
+  {% endif %}
   <header class="topbar">
     <div class="nav">
       <button class="icon-btn" id="btn-prev" type="button" aria-label="이전 달">
@@ -27,8 +32,17 @@
         기한 미정 <span class="count" id="undated-count" hidden>0</span>
       </button>
       <button class="text-btn" id="btn-categories" type="button">카테고리</button>
+      <button class="icon-btn theme-btn" id="btn-theme" type="button" popovertarget="theme-menu"
+              aria-haspopup="true" aria-expanded="false" aria-label="화면 테마"></button>
     </div>
   </header>
+
+  <!-- 화면 테마 메뉴 (popover: 바깥을 누르거나 Esc를 누르면 저절로 닫힌다) -->
+  <div class="theme-menu" id="theme-menu" popover role="menu" aria-label="화면 테마">
+    <button type="button" role="menuitemradio" data-theme-choice="auto">시스템 설정 따라가기</button>
+    <button type="button" role="menuitemradio" data-theme-choice="light">라이트</button>
+    <button type="button" role="menuitemradio" data-theme-choice="dark">다크</button>
+  </div>
 
   <div class="layout">
     <main class="calendar-wrap" id="calendar-wrap">

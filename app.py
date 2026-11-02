@@ -5,6 +5,7 @@
     python app.py                 # http://127.0.0.1:8000 에서 실행
     python app.py --host 0.0.0.0  # 같은 와이파이의 휴대폰에서도 접속 가능
     python app.py --set-password  # 로그인 비밀번호 정하기/바꾸기
+    python app.py --demo          # 예시 일정이 채워진 시연용 캘린더 (실제 데이터와 분리)
 
 인터넷 서버(PythonAnywhere 등)에서는 wsgi.py가 이 파일의 create_app()을 불러 쓴다.
 
@@ -22,6 +23,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import auth
 import db
+import demo
 from api import bp as api_bp
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -34,7 +36,7 @@ def default_database_path():
     return os.environ.get("CALENDAR_DB") or os.path.join(BASE_DIR, "instance", "calendar.db")
 
 
-def create_app(database_path=None, production=False):
+def create_app(database_path=None, production=False, demo_mode=False):
     """
     앱 팩토리.
       database_path : 일정 데이터 파일. 테스트에서는 임시 경로를 넘겨 실제 데이터와 분리한다.
@@ -49,6 +51,7 @@ def create_app(database_path=None, production=False):
     data_dir = os.path.dirname(os.path.abspath(database_path))
     os.makedirs(data_dir, exist_ok=True)
     app.config["DATABASE"] = database_path
+    app.config["DEMO"] = demo_mode
 
     if production:
         # 서버 앞단(프록시)을 거쳐 들어오므로, 실제 접속한 기기의 IP와 https 여부를 헤더에서 읽는다.
@@ -61,7 +64,7 @@ def create_app(database_path=None, production=False):
 
     @app.get("/")
     def index():
-        return render_template("index.html", login_enabled=auth.login_required())
+        return render_template("index.html", login_enabled=auth.login_required(), demo=app.config["DEMO"])
 
     @app.after_request
     def after(response):
@@ -109,12 +112,19 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="기본값 8000")
     parser.add_argument("--debug", action="store_true", help="코드 수정 시 자동 재시작")
     parser.add_argument("--set-password", action="store_true", help="로그인 비밀번호 정하기/바꾸기")
+    parser.add_argument("--demo", action="store_true", help="예시 일정이 채워진 시연용 캘린더로 실행")
     args = parser.parse_args()
 
     if args.set_password:
         sys.exit(set_password_interactive())
 
-    app = create_app()
+    if args.demo:
+        demo.reset_demo_folder(BASE_DIR)  # 실행할 때마다 처음 상태로
+        app = create_app(demo.demo_database_path(BASE_DIR), demo_mode=True)
+        demo.seed_demo(app)
+        print("\n  [시연용] 예시 일정이 들어 있는 캘린더예요. 실제 데이터(instance/calendar.db)와는 분리되어 있어요.")
+    else:
+        app = create_app()
     print(f"\n  나의 캘린더: http://localhost:{args.port}")
     if args.host == "0.0.0.0":
         print(f"  휴대폰에서는 http://<이 컴퓨터의 IP 주소>:{args.port} 로 접속하세요.")
