@@ -34,10 +34,14 @@ export function formatShort(s) {
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 
-// 시간 표시 (24시간): '09:00–10:30', '09:00', '~18:00', ''
+// 시간 표시 (24시간) — 모든 화면이 이 규칙 하나를 쓴다.
+//   둘 다   → '09:00~10:30'
+//   시작만  → '09:00~'
+//   끝만    → '~18:00'
+//   없음    → ''
 export function formatTimeRange(start, end) {
-  if (start && end) return `${start}–${end}`;
-  if (start) return start;
+  if (start && end) return `${start}~${end}`;
+  if (start) return `${start}~`;
   if (end) return `~${end}`;
   return '';
 }

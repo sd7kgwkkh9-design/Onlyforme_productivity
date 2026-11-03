@@ -1,6 +1,6 @@
-// 기한 미정 사이드 패널 (넓은 화면 전용)
+// 기한 미정 목록 — 넓은 화면 오른쪽 칸의 '기한 미정' 탭
 //
-// 달력 오른쪽에 기한 미정 일정을 카드로 보여 준다.
+// 기한 미정 일정을 카드로 보여 준다.
 // 카드를 달력(월간/주간)의 날짜로 끌어다 놓으면 그 날짜가 정해진다.
 // 실제로 날짜를 넣는 일은 main.js의 drop 처리에서 한다. 여기서는
 // "지금 어떤 일정을 끌고 있는지"만 dragState에 기록해 둔다.
@@ -14,18 +14,16 @@ export const dragState = { itemId: null };
 
 export class UndatedPanel {
   /**
-   * @param {HTMLElement} root  <aside> 요소
+   * @param {HTMLElement} root  탭 내용 요소 (.panel-list, .panel-add 포함)
    * @param {object} opts
-   * @param {(item) => void} opts.onOpenItem  카드를 누르면 (편집 창 열기)
+   * @param {(item) => void} opts.onOpenItem  카드를 누르면 (편집 화면 열기)
    * @param {() => void}     opts.onAdd       '할 일 추가'를 누르면
-   * @param {() => void}     opts.onClose     닫기 버튼
    */
-  constructor(root, { onOpenItem, onAdd, onClose }) {
+  constructor(root, { onOpenItem, onAdd }) {
     this.root = root;
     this.onOpenItem = onOpenItem;
     this.list = root.querySelector('.panel-list');
     root.querySelector('.panel-add').addEventListener('click', onAdd);
-    root.querySelector('.panel-close').addEventListener('click', onClose);
   }
 
   get isOpen() {

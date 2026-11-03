@@ -8,7 +8,8 @@ const SWIPE_MAX_MS = 800;     // 너무 느린 움직임은 스크롤로 봄
 const WHEEL_THRESHOLD = 80;   // 트랙패드 가로 이동량 누적 기준
 const WHEEL_IDLE_MS = 220;    // 이 시간 동안 wheel이 멈춰야 다음 제스처를 받음
 
-export function onSwipe(element, { onPrev, onNext }) {
+// enabled: 지금 이 제스처를 쓸지 (가로 배치 주간 화면은 edgepager.js가 따로 처리하므로 끈다)
+export function onSwipe(element, { onPrev, onNext, enabled = () => true }) {
   // ------------------------------------------------------------ 터치
   let startX = 0;
   let startY = 0;
@@ -16,7 +17,7 @@ export function onSwipe(element, { onPrev, onNext }) {
   let tracking = false;
 
   element.addEventListener('touchstart', (e) => {
-    tracking = e.touches.length === 1;
+    tracking = e.touches.length === 1 && enabled();
     if (!tracking) return;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
@@ -44,7 +45,7 @@ export function onSwipe(element, { onPrev, onNext }) {
   let idleTimer;
 
   element.addEventListener('wheel', (e) => {
-    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // 세로 스크롤은 그대로 둔다
+    if (!enabled() || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // 세로 스크롤은 그대로 둔다
     e.preventDefault(); // 브라우저의 '뒤로 가기' 제스처 막기
 
     clearTimeout(idleTimer);
