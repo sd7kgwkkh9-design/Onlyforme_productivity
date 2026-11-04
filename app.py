@@ -21,6 +21,7 @@ import sys
 from flask import Flask, render_template, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import api_tools  # noqa: F401  루틴·마음 노트·D-day·시간 돌아보기·빠른 입력 주소를 같은 /api 묶음에 등록
 import auth
 import db
 import demo
@@ -85,6 +86,8 @@ def create_app(database_path=None, production=False, demo_mode=False):
             and response.status_code < 400
         ):
             db.bump_version(db.get_db())
+            # 이 저장으로 몇 번이 됐는지 알려 준다 → 화면이 '내가 바꾼 것만 있었는지'를 정확히 판단 (sync.js)
+            response.headers["X-Data-Version"] = str(db.current_version(db.get_db()))
 
         # 2) 코드를 새 버전으로 바꿨는데 브라우저가 예전 JS/CSS를 계속 쓰는 일을 막는다.
         #    no-cache = "쓰기 전에 바뀌었는지 서버에 물어보기". 안 바뀌었으면 304로 바로 끝나서 느려지지 않는다.

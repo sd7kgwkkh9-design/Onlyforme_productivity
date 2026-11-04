@@ -110,6 +110,14 @@ def test_version_changes_only_when_data_changes(client):
     assert version(client) == v0 + 2
 
 
+def test_saves_report_new_version(client):
+    """저장 응답에 새 변경 번호가 실려 온다 (화면이 다른 기기의 변경이 끼어 있었는지 판단하는 데 쓴다)"""
+    v0 = version(client)
+    res = client.post("/api/notes", json={"title": "메모"})
+    assert res.headers["X-Data-Version"] == str(v0 + 1)
+    assert "X-Data-Version" not in client.get("/api/notes").headers
+
+
 def test_api_responses_are_not_cached(client):
     assert client.get("/api/version").headers["Cache-Control"] == "no-store"
 

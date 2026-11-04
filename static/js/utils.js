@@ -34,6 +34,36 @@ export function formatShort(s) {
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 
+// 두 날짜 사이 일수 (b - a)
+export function daysBetween(a, b) {
+  return Math.round((parseDateStr(b) - parseDateStr(a)) / 86400000);
+}
+
+// 루틴 버튼의 '마지막으로 한 날' — 보고 있는 날짜(base) 기준
+//   같은 날 → '오늘'(보는 날이 오늘일 때) / '이 날',  하루 전 → '어제' / '전날',  그 외 → 'N일 전'
+export function lastDoneLabel(last, base) {
+  if (!last) return '처음';
+  const n = daysBetween(last, base);
+  const isToday = base === todayStr();
+  if (n <= 0) return isToday ? '오늘' : '이 날';
+  if (n === 1) return isToday ? '어제' : '전날';
+  return `${n}일 전`;
+}
+
+// D-day 표시: 0 → 'D-day', 3 → 'D-3', -2 → 'D+2'
+export function ddayLabel(daysLeft) {
+  if (daysLeft === 0) return 'D-day';
+  return daysLeft > 0 ? `D-${daysLeft}` : `D+${-daysLeft}`;
+}
+
+// 분 → '3시간 20분' / '45분' / '0분'
+export function formatMinutes(total) {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (!h) return `${m}분`;
+  return m ? `${h}시간 ${m}분` : `${h}시간`;
+}
+
 // 시간 표시 (24시간) — 모든 화면이 이 규칙 하나를 쓴다.
 //   둘 다   → '09:00~10:30'
 //   시작만  → '09:00~'
@@ -77,6 +107,25 @@ export function el(tag, props = {}, ...children) {
   return node;
 }
 
+// 카테고리 고르기: 색 점이 붙은 칩 라디오 (일정 입력, 루틴 편집에서 공통으로 사용)
+export function categoryChips(categories, initialId, groupName) {
+  const node = el('div', { class: 'chips', role: 'radiogroup', 'aria-label': '카테고리' },
+    categories.map((c) =>
+      el('label', { class: 'chip', style: { '--cat': c.color } },
+        el('input', { type: 'radio', name: groupName, value: String(c.id), checked: c.id === initialId }),
+        el('span', { class: 'dot' }),
+        c.name,
+      )),
+  );
+  return {
+    node,
+    get value() {
+      const checked = node.querySelector('input:checked');
+      return checked ? Number(checked.value) : null;
+    },
+  };
+}
+
 // 선 아이콘 하나짜리 SVG (예: icon('M6 6l12 12M18 6L6 18') → ×)
 export function icon(path) {
   const NS = 'http://www.w3.org/2000/svg';
@@ -90,10 +139,24 @@ export function icon(path) {
 }
 
 // ------------------------------------------------------------------ 알림
+// toast('옮겼어요', 'info', { action: { label: '되돌리기', run: () => ... } })
+//   action을 주면 알림 안에 버튼이 생기고, 조금 더 오래(5초) 떠 있다.
 let toastTimer;
-export function toast(message, kind = 'info') {
+export function toast(message, kind = 'info', { action = null } = {}) {
   const box = document.getElementById('toast');
-  box.textContent = message;
+  box.replaceChildren(el('span', {}, message));
+  if (action) {
+    box.append(el('button', {
+      type: 'button',
+      class: 'toast-action',
+      onclick: () => {
+        box.classList.remove('show');
+        if (box.hidePopover && box.matches(':popover-open')) box.hidePopover();
+        action.run();
+      },
+    }, action.label));
+  }
+  box.classList.toggle('has-action', Boolean(action));
   box.dataset.kind = kind;
   clearTimeout(toastTimer);
   if (box.showPopover) {
@@ -105,7 +168,7 @@ export function toast(message, kind = 'info') {
   toastTimer = setTimeout(() => {
     box.classList.remove('show');
     if (box.hidePopover && box.matches(':popover-open')) box.hidePopover();
-  }, kind === 'error' ? 4000 : 2000);
+  }, action ? 5000 : kind === 'error' ? 4000 : 2000);
 }
 
 // ------------------------------------------------------------------ 질문 창

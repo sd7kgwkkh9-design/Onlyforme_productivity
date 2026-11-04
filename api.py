@@ -15,6 +15,10 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   PUT    /api/items/<id>                  일정 수정 (scope = all | single)
   DELETE /api/items/<id>?scope=&date=     일정 삭제 (scope = all | single)
   PUT    /api/days/<date>/order           그 날짜 안의 일정 순서 바꾸기
+  POST   /api/items/<id>/move             한 날짜를 다른 날짜로 옮기기 (달력에서 끌어서 놓기)
+  POST   /api/items/<id>/copy             같은 내용으로 새 일정 만들기 (Option/Alt 누르고 끌기)
+
+루틴·마음 노트·D-day·시간 돌아보기·빠른 입력 → api_tools.py
 
 동기화
   GET    /api/version                     변경 번호 (저장·삭제할 때마다 1씩 커짐)
@@ -142,6 +146,21 @@ def parse_item_payload(data, db):
     if len(dates) > MAX_DATES_PER_ITEM:
         raise ApiError(f"날짜는 한 번에 {MAX_DATES_PER_ITEM}개까지 넣을 수 있어요.")
 
+    # D-day 표시, 루틴 연결 (7차) — 요청에 없으면 None = '안 바꿈'(수정할 때는 원래 값 유지)
+    dday = data.get("dday")
+    if dday is not None and not isinstance(dday, bool):
+        raise ApiError("dday는 true/false여야 해요.")
+    routine_id = MISSING
+    if "routine_id" in data:
+        routine_id = data.get("routine_id")
+        if routine_id not in (None, ""):
+            if not isinstance(routine_id, int) or not db.execute(
+                "SELECT 1 FROM routines WHERE id = ?", (routine_id,)
+            ).fetchone():
+                raise ApiError("루틴을 찾을 수 없어요.", 404)
+        else:
+            routine_id = None
+
     return {
         "title": title,
         "memo": memo,
@@ -149,7 +168,21 @@ def parse_item_payload(data, db):
         "end_time": end_time,
         "category_id": category_id,
         "dates": dates,
+        "dday": dday,
+        "routine_id": routine_id,
     }
+
+
+MISSING = object()  # 요청에 아예 없던 값 표시
+
+
+def fill_unchanged(fields, row):
+    """수정 요청에 dday/routine_id가 없으면 원래 일정의 값을 그대로 쓴다."""
+    if fields["dday"] is None:
+        fields["dday"] = bool(row["dday"]) if row is not None else False
+    if fields["routine_id"] is MISSING:
+        fields["routine_id"] = row["routine_id"] if row is not None else None
+    return fields
 
 
 def parse_time(value, field):
@@ -227,13 +260,17 @@ def item_dict(db, row):
             "is_default": bool(row["c_default"]),
         },
         "dates": dates,
+        "dday": bool(row["dday"]),
+        "routine_id": row["routine_id"],
     }
 
 
 def insert_item(db, fields, keep_positions=None):
+    fill_unchanged(fields, None)
     cur = db.execute(
-        "INSERT INTO items (title, memo, category_id, start_time, end_time) VALUES (?, ?, ?, ?, ?)",
-        (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"]),
+        "INSERT INTO items (title, memo, category_id, start_time, end_time, dday, routine_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"],
+         int(fields["dday"]), fields["routine_id"]),
     )
     item_id = cur.lastrowid
     add_item_dates(db, item_id, fields["dates"], keep_positions)
@@ -342,6 +379,9 @@ def delete_category(category_id):
         "UPDATE items SET category_id = ? WHERE category_id = ?",
         (default_category_id(db), category_id),
     ).rowcount
+    db.execute(  # 그 카테고리를 쓰던 루틴도 미분류로
+        "UPDATE routines SET category_id = ? WHERE category_id = ?", (default_category_id(db), category_id)
+    )
     db.execute("DELETE FROM categories WHERE id = ?", (category_id,))
     db.commit()
     return jsonify(deleted=category_id, moved=moved)
@@ -362,7 +402,7 @@ def list_occurrences():
 
     rows = db.execute(
         """
-        SELECT d.date, i.id, i.title, i.memo, i.start_time, i.end_time,
+        SELECT d.date, i.id, i.title, i.memo, i.start_time, i.end_time, i.dday, i.routine_id,
                c.id AS c_id, c.name AS c_name, c.color AS c_color,
                (SELECT COUNT(*) FROM item_dates d2 WHERE d2.item_id = i.id) AS date_count
         FROM item_dates d
@@ -386,6 +426,8 @@ def list_occurrences():
                 "end_time": r["end_time"],
                 "category": {"id": r["c_id"], "name": r["c_name"], "color": r["c_color"]},
                 "date_count": r["date_count"],
+                "dday": bool(r["dday"]),
+                "routine_id": r["routine_id"],
             }
             for r in rows
         ]
@@ -425,10 +467,10 @@ def create_item():
 @bp.put("/items/<int:item_id>")
 def update_item(item_id):
     db = get_db()
-    get_item_or_404(db, item_id)
+    row = get_item_or_404(db, item_id)
     data = json_body()
     scope = parse_scope(data.get("scope"))
-    fields = parse_item_payload(data, db)
+    fields = fill_unchanged(parse_item_payload(data, db), row)
 
     if scope == "single":
         ctx_date = require_item_date(db, item_id, data.get("date"))
@@ -447,8 +489,9 @@ def update_item(item_id):
         # 날짜가 하나뿐이면 '이 날만'과 '전체'가 같으므로 아래로 진행
 
     db.execute(
-        "UPDATE items SET title = ?, memo = ?, category_id = ?, start_time = ?, end_time = ? WHERE id = ?",
-        (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"], item_id),
+        "UPDATE items SET title = ?, memo = ?, category_id = ?, start_time = ?, end_time = ?, dday = ?, routine_id = ? WHERE id = ?",
+        (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"],
+         int(fields["dday"]), fields["routine_id"], item_id),
     )
     # 날짜는 바뀐 부분만 반영한다: 그대로 남는 날짜는 그날의 순서(position)를 유지해야 하므로
     # 전부 지우고 다시 넣지 않는다.
@@ -507,6 +550,49 @@ def reorder_day(day):
     )
     db.commit()
     return jsonify(date=day, item_ids=ids)
+
+
+@bp.post("/items/<int:item_id>/move")
+def move_item_date(item_id):
+    """
+    달력에서 일정을 다른 날짜로 끌어다 놓았을 때: 그 날짜 하나만 옮긴다.
+    본문: {"from": "2026-11-05", "to": "2026-11-07"}
+    여러 날짜에 들어간 일정이면 나머지 날짜는 그대로 두고, 옮긴 날짜에서는 그날 목록 맨 아래에 붙는다.
+    """
+    db = get_db()
+    get_item_or_404(db, item_id)
+    data = json_body()
+    src = require_item_date(db, item_id, data.get("from"))
+    dst = parse_date(data.get("to"), "옮길 날짜")
+    if src != dst:
+        if db.execute("SELECT 1 FROM item_dates WHERE item_id = ? AND date = ?", (item_id, dst)).fetchone():
+            raise ApiError("이 일정은 이미 그 날짜에 들어 있어요.", 409)
+        db.execute("DELETE FROM item_dates WHERE item_id = ? AND date = ?", (item_id, src))
+        add_item_dates(db, item_id, [dst])
+        db.commit()
+    return jsonify(item_dict(db, get_item_or_404(db, item_id)))
+
+
+@bp.post("/items/<int:item_id>/copy")
+def copy_item(item_id):
+    """
+    같은 내용(제목·메모·카테고리·시간·D-day·루틴)으로 새 일정을 만든다.
+    본문: {"dates": ["2026-11-07"]}  ← 비워 두면 기한 미정으로
+    """
+    db = get_db()
+    row = get_item_or_404(db, item_id)
+    dates = json_body().get("dates", [])
+    if not isinstance(dates, list):
+        raise ApiError("dates는 날짜 문자열의 목록이어야 해요.")
+    fields = {
+        "title": row["title"], "memo": row["memo"], "category_id": row["category_id"],
+        "start_time": row["start_time"], "end_time": row["end_time"],
+        "dates": sorted({parse_date(d) for d in dates}),
+        "dday": bool(row["dday"]), "routine_id": row["routine_id"],
+    }
+    new_id = insert_item(db, fields)
+    db.commit()
+    return jsonify(item_dict(db, get_item_or_404(db, new_id))), 201
 
 
 # ---------------------------------------------------------------------------

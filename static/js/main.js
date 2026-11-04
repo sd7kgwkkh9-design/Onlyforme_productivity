@@ -8,6 +8,10 @@
 //   빠른 이동    ─ jump.js
 //   ⚙ 설정       ─ settings.js (화면 테마, 글꼴, 로그아웃)
 //   동기화       ─ sync.js (다른 기기에서 바꾼 내용을 몇 초 안에 반영)
+//   7차 생산성 도구
+//     마음 노트  ─ notes.js (왼쪽 칸/창)        달력 위 띠 ─ strip.js (배너 글귀 + D-day)
+//     빠른 입력  ─ quick.js (+ quickadd.py)      돌아보기   ─ stats.js
+//     루틴       ─ routines.js (하루 화면 아래)  끌어서 옮기기/복사 ─ 아래 '끌어다 놓기'
 //
 // 안전 장치: 달력을 가장 먼저 그리고, 나머지 기능은 하나씩 safely()로 감싸서 켠다.
 // 어느 한 기능에 문제가 생겨도(예: 서버를 새 버전으로 바꿨는데 화면 파일 일부가 예전 것) 달력은 계속 보인다.
@@ -17,10 +21,14 @@ import { attachEdgePager } from './edgepager.js';
 import { onSwipe, slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
 import { initJump } from './jump.js';
+import { NotesPanel } from './notes.js';
 import { UndatedPanel, dragState } from './panel.js';
+import { QuickAdd } from './quick.js';
 import { initSettings } from './settings.js';
 import { Sheet, configureSheets } from './sheet.js';
-import { acknowledge, startSync } from './sync.js';
+import { statsView } from './stats.js';
+import { TopStrip } from './strip.js';
+import { startSync } from './sync.js';
 import { addDays, el, formatShort, formatTimeRange, icon, toDateStr, toast, todayStr } from './utils.js';
 import { WeekView, startOfWeek, weekTitle } from './week.js';
 
@@ -71,6 +79,7 @@ const state = {
   weekStart: startOfWeek(todayStr()),  // 주간 화면이 보여 주는 주의 일요일
   selected: todayStr(),                // 오른쪽 칸에 열려 있는 날짜
   paneTab: 'day',                      // 'day' | 'undated'
+  dragging: false,                     // 월간 화면에서 일정을 끌고 있는 중 (좌우 넘기기와 헷갈리지 않게)
 };
 
 // 아래 기능들은 safely()로 만들기 때문에, 문제가 생기면 null로 남는다. 쓰는 곳에서는 ?.로 확인한다.
@@ -78,6 +87,9 @@ let modalSheet = null;
 let paneSheet = null;
 let panel = null;
 let weekView = null;
+let notes = null;
+let strip = null;
+let quick = null;
 
 // ============================================================ 1. 월간 화면 (FullCalendar) — 가장 먼저
 
@@ -92,6 +104,7 @@ function toEvent(o, index) {
     title: o.title,
     start: o.date,
     allDay: true,
+    classNames: o.dday ? ['is-dday'] : [],
     extendedProps: {
       itemId: o.id,
       date: o.date,
@@ -111,6 +124,17 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
   dayMaxEvents: true,        // 칸에 다 안 들어가면 "+n"으로 접기
   eventDisplay: 'block',
   eventOrder: 'order',
+
+  // 일정을 다른 날짜로 끌어서 옮기기 (Option/Alt를 누른 채 놓으면 복사). 휴대폰은 꾹 누른 뒤 끌기.
+  editable: true,
+  eventDurationEditable: false,
+  eventLongPressDelay: 350,
+  eventDragStart: () => { state.dragging = true; document.body.classList.add('is-dragging-event'); },
+  eventDragStop: () => {
+    document.body.classList.remove('is-dragging-event');
+    setTimeout(() => { state.dragging = false; }, 50); // 손을 뗄 때의 스와이프 판정이 끝난 뒤
+  },
+  eventDrop: (info) => dropEvent(info),
 
   // '5일' → '5'
   dayCellContent: (arg) => arg.dayNumberText.replace('일', ''),
@@ -136,6 +160,7 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
     {
       id: 'holidays',
       display: 'background',
+      editable: false,
       events: async (info, success) => {
         try {
           const list = await holidaysBetween(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
@@ -382,6 +407,16 @@ on(monthBtn, 'click', () => setView('month'));
 on(weekBtn, 'click', () => setView('week'));
 on($('btn-categories'), 'click', () => modalSheet?.showCategories());
 
+// 시간 돌아보기: 지금 보고 있는 주/달을 기준으로 연다
+on($('btn-stats'), 'click', () => {
+  if (!modalSheet) return;
+  const anchor = state.view === 'week'
+    ? (todayStr() >= state.weekStart && todayStr() < addDays(state.weekStart, 7) ? todayStr() : state.weekStart)
+    : (sameMonth(calendar.view.currentStart, new Date()) ? todayStr() : toDateStr(calendar.view.currentStart));
+  modalSheet.showView('stats', statsView({ mode: state.view, anchor }));
+});
+const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+
 // 제목을 눌러 원하는 달·주로
 safely('빠른 이동', () => initJump({
   button: titleEl,
@@ -408,7 +443,7 @@ safely('빠른 이동', () => initJump({
 safely('좌우 넘기기', () => onSwipe(wrapEl, {
   onPrev: () => navigate(-1),
   onNext: () => navigate(1),
-  enabled: () => !isRowWeek(),
+  enabled: () => !isRowWeek() && !state.dragging,
 }));
 
 // 키보드 ← →
@@ -418,7 +453,9 @@ function anyMenuOpen() {
 document.addEventListener('keydown', (e) => {
   if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
   if (document.querySelector('dialog[open]') || anyMenuOpen()) return;
-  if (e.target.closest?.('input, textarea, select, [contenteditable="true"], .pane')) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+  if (e.code === 'KeyN') { e.preventDefault(); quick?.open(); return; } // N = 빠른 입력 (한글 자판이어도)
+  if (e.target.closest?.('.pane, .notes')) return;
   if (e.key === 'ArrowLeft') navigate(-1);
   else if (e.key === 'ArrowRight') navigate(1);
 });
@@ -476,6 +513,43 @@ async function assignDate(itemId, date) {
   }
 }
 
+// 월간 화면에서 일정을 다른 날짜로 끌어다 놓았을 때 (FullCalendar의 eventDrop)
+//   그냥 놓기          → 그 날짜만 옮긴다 (여러 날짜 일정이면 나머지 날짜는 그대로)
+//   Option/Alt + 놓기  → 같은 내용으로 새 일정을 만든다 (복사)
+// 어느 쪽이든 알림의 '되돌리기'로 바로 취소할 수 있다.
+async function dropEvent(info) {
+  const { itemId, date: from } = info.oldEvent.extendedProps;
+  const to = info.event.startStr.slice(0, 10);
+  const copy = Boolean(info.jsEvent?.altKey);
+  if (copy) info.revert(); // 원래 자리는 그대로 두고 새로 만든다
+  try {
+    if (copy) {
+      const created = await api.copyItem(itemId, [to]);
+      await refreshAll();
+      toast(`${formatShort(to)}에 복사했어요`, 'info', {
+        action: { label: '되돌리기', run: () => undo(() => api.deleteItem(created.id)) },
+      });
+    } else {
+      await api.moveItem(itemId, from, to);
+      await refreshAll();
+      toast(`${formatShort(to)}로 옮겼어요`, 'info', {
+        action: { label: '되돌리기', run: () => undo(() => api.moveItem(itemId, to, from)) },
+      });
+    }
+  } catch (e) {
+    if (!copy) info.revert();
+    toast(e.message, 'error');
+  }
+}
+
+async function undo(fn) {
+  try {
+    await fn();
+    await refreshAll();
+    toast('되돌렸어요');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
 // ============================================================ 6. 새로 고침과 동기화
 
 // 보이는 화면(월간·주간·기한 미정·오른쪽 칸 목록)을 모두 새로 불러온다.
@@ -484,11 +558,15 @@ async function reloadViews() {
   if (state.view === 'week') await weekView?.refresh();
   await refreshUndated();
   paneSheet?.refreshList(); // 편집 중이면 건드리지 않는다
+  await refreshStrip();     // D-day가 바뀌었을 수 있다
 }
 
-// 이 기기에서 저장/삭제했을 때
+async function refreshStrip() {
+  try { await strip?.refresh(); } catch { /* 띠는 못 그려도 달력은 그대로 */ }
+}
+
+// 이 기기에서 저장/삭제했을 때 (내 변경은 sync.js가 응답의 변경 번호로 알아채서 한 번 더 불러오지 않는다)
 async function refreshAll() {
-  await acknowledge(); // 내 변경은 이미 반영하니 동기화가 한 번 더 불러오지 않게
   await reloadViews();
 }
 
@@ -496,6 +574,7 @@ async function refreshAll() {
 async function onRemoteChange() {
   await reloadViews();
   modalSheet?.refreshList(); // 열려 있는 팝업의 날짜 일정·기한 미정 목록도
+  await notes?.refresh();    // 마음 노트 (쓰고 있는 칸은 건드리지 않는다)
 }
 
 configureSheets({ onDataChanged: refreshAll });
@@ -503,6 +582,63 @@ configureSheets({ onDataChanged: refreshAll });
 // ============================================================ 7. 나머지 시작
 
 safely('설정', () => initSettings({ loginEnabled: document.body.dataset.login === '1' }));
+
+// ---- 7차: 달력 위 띠, 마음 노트, 빠른 입력
+safely('달력 위 띠', () => {
+  strip = new TopStrip($('top-strip'), {
+    onOpenNote: (noteId) => notes?.open({ noteId }),
+    onOpenDate: (date) => showDate(date),
+  });
+});
+
+safely('마음 노트', () => {
+  notes = new NotesPanel($('notes'), {
+    toggle: $('btn-notes'),
+    backdrop: $('notes-backdrop'),
+    onBannerChanged: refreshStrip,
+    onLayoutChanged: () => requestAnimationFrame(() => calendar.updateSize()),
+  });
+});
+
+safely('빠른 입력', () => {
+  quick = new QuickAdd($('quick'), {
+    onSaved: refreshAll,
+    onOpenDate: (date) => showDate(date),
+    onDetail: ({ ctxDate, prefill }) => {
+      // 채워진 입력 창: 넓은 화면은 오른쪽 칸, 좁은 화면은 팝업
+      if (wide.matches && paneSheet) {
+        if (ctxDate) { select(ctxDate); paneSheet.day = ctxDate; }
+        showPaneTab('day', { render: false });
+        paneSheet.openForm({ mode: 'create', ctxDate, returnTo: 'day', prefill });
+      } else {
+        modalSheet?.openForm({ mode: 'create', ctxDate, returnTo: null, prefill });
+      }
+    },
+  });
+  on($('btn-quick'), 'click', () => quick.open());
+  on($('fab-quick'), 'click', () => quick.open());
+});
+
+// 띠가 나타나거나 마음 노트 칸이 열려서 달력 자리가 바뀌면 달력 크기를 다시 맞춘다
+safely('크기 맞추기', () => {
+  let frame = 0;
+  new ResizeObserver(() => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => calendar.updateSize());
+  }).observe(wrapEl);
+});
+
+// 날짜로 가서 열기 (D-day 칩, 빠른 입력 알림의 '보기')
+function showDate(date) {
+  if (state.view === 'week') {
+    const start = startOfWeek(date);
+    if (start !== state.weekStart) showWeek(start, start > state.weekStart ? 1 : -1, 'start');
+  } else {
+    calendar.gotoDate(date);
+  }
+  openDay(date);
+}
 if (wide.matches) safely('오른쪽 칸', () => showPaneTab('day')); // 오른쪽 칸: 오늘
 refreshUndated().catch((e) => toast(e.message, 'error'));
+refreshStrip();
 safely('동기화', () => startSync(onRemoteChange));

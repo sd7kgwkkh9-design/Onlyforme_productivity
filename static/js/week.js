@@ -133,7 +133,7 @@ export class WeekView {
       el('span', { class: 'wk-col-body' },
         items.length
           ? items.map((o) =>
-              el('span', { class: 'wk-chip', style: { '--cat': o.category.color } },
+              el('span', { class: o.dday ? 'wk-chip is-dday' : 'wk-chip', style: { '--cat': o.category.color } },
                 o.start_time || o.end_time ? el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)) : null,
                 el('span', { class: 'wk-title' }, o.title),
               ))
@@ -159,7 +159,7 @@ export class WeekView {
         holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
         items.length
           ? items.map((o) =>
-              el('span', { class: 'wk-item', style: { '--cat': o.category.color } },
+              el('span', { class: o.dday ? 'wk-item is-dday' : 'wk-item', style: { '--cat': o.category.color } },
                 el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)),
                 el('span', { class: 'wk-title' }, o.title),
                 o.memo ? el('span', { class: 'wk-memo' }, o.memo.split('\n')[0]) : null,

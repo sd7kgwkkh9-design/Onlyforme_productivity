@@ -7,7 +7,7 @@
 //   - 앱/탭으로 돌아오는 순간, 창에 다시 포커스할 때, 인터넷이 다시 연결될 때: 바로 확인
 //   - 화면이 안 보이면(다른 앱 사용 중) 확인하지 않음 → 배터리·데이터 절약
 
-import { api } from './api.js';
+import { api, hooks } from './api.js';
 
 const POLL_MS = 4000;
 
@@ -17,6 +17,7 @@ let onRemoteChange = async () => {};
 
 export function startSync(handler) {
   onRemoteChange = handler;
+  hooks.onVersion = ownChange;
   check();
   setInterval(check, POLL_MS);
   document.addEventListener('visibilitychange', check);
@@ -25,12 +26,12 @@ export function startSync(handler) {
   window.addEventListener('pageshow', check); // 아이폰에서 홈 화면 앱으로 돌아올 때
 }
 
-// 내가 방금 저장했을 때: 지금 번호를 '이미 반영함'으로 기록해서 한 번 더 불러오지 않게 한다.
-// (번호를 먼저 받고 데이터를 나중에 받으므로, 그 사이 다른 기기의 변경을 놓치지 않는다)
-export async function acknowledge() {
-  try {
-    known = (await api.version()).version;
-  } catch { /* 다음 확인 때 처리 */ }
+// 이 기기에서 저장할 때마다 (api.js가 응답의 변경 번호를 알려 준다):
+// 번호가 정확히 1만 늘었으면 그 사이 다른 기기의 변경은 없었던 것 → '이미 반영함'으로 기록.
+// 2 이상 늘었으면 다른 기기의 변경이 끼어 있으므로 그대로 두어, 다음 확인 때 새로 불러오게 한다.
+// (마음 노트 자동 저장처럼 화면 전체를 다시 불러오지 않는 저장에서 다른 기기의 변경을 놓치지 않기 위해)
+function ownChange(version) {
+  if (known !== null && version === known + 1) known = version;
 }
 
 async function check() {

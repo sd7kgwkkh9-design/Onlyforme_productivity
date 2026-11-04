@@ -8,7 +8,10 @@ items       : 일정/할 일 본체 (제목, 메모, 카테고리, 시작·끝 �
 item_dates  : 일정이 들어간 날짜들 (일정 하나에 날짜 여러 개 가능)
               + 그 날짜 안에서의 표시 순서(position)
 
-meta        : 변경 번호(version) — 일정·카테고리가 바뀔 때마다 1씩 커진다.
+routines    : 루틴 — 자주 하는 활동(운동, 독서 …)을 빠르게 추가하는 버튼 (7차)
+notes       : 마음 노트 — 메모 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
+
+meta        : 변경 번호(version) — 일정·카테고리·루틴·메모가 바뀔 때마다 1씩 커진다.
               다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
 
 item_dates에 줄이 하나도 없는 일정 = "기한 미정" 일정이다.
@@ -49,6 +52,23 @@ CREATE TABLE IF NOT EXISTS item_dates (
 -- 달력은 항상 "날짜 범위"로 일정을 찾으므로 date에 인덱스를 둔다.
 CREATE INDEX IF NOT EXISTS idx_item_dates_date ON item_dates(date);
 
+CREATE TABLE IF NOT EXISTS routines (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    category_id INTEGER NOT NULL REFERENCES categories(id),
+    position    INTEGER NOT NULL DEFAULT 0    -- 버튼 순서 (작을수록 앞)
+);
+
+CREATE TABLE IF NOT EXISTS notes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL DEFAULT '',
+    body        TEXT    NOT NULL DEFAULT '',
+    banner      TEXT    NOT NULL DEFAULT '',  -- 배너 글귀 (메인 메모의 것만 화면에 보인다)
+    is_main     INTEGER NOT NULL DEFAULT 0,   -- 1이면 메인 메모 (최대 하나)
+    position    INTEGER NOT NULL DEFAULT 0,
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value INTEGER NOT NULL
@@ -74,6 +94,8 @@ def migrate(conn):
     예전 버전으로 만든 DB 파일에 새 칸을 추가한다 (입력해 둔 일정은 그대로 유지).
       - items.end_time       : 끝 시간 (2차 수정에서 추가)
       - item_dates.position  : 하루 안의 표시 순서 (2차 수정에서 추가)
+      - items.dday           : D-day 표시 여부 (7차 수정에서 추가)
+      - items.routine_id     : 어느 루틴으로 추가한 일정인지 (7차 수정에서 추가)
     """
     if "end_time" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN end_time TEXT")
@@ -81,6 +103,10 @@ def migrate(conn):
         conn.execute("ALTER TABLE item_dates ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
         # 기존 일정은 '올린 순서'(id 순)로 줄 세운다.
         conn.execute("UPDATE item_dates SET position = item_id")
+    if "dday" not in column_names(conn, "items"):
+        conn.execute("ALTER TABLE items ADD COLUMN dday INTEGER NOT NULL DEFAULT 0")
+    if "routine_id" not in column_names(conn, "items"):
+        conn.execute("ALTER TABLE items ADD COLUMN routine_id INTEGER REFERENCES routines(id) ON DELETE SET NULL")
 
 
 def init_db(path):

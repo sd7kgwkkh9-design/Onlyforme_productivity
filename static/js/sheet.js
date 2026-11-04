@@ -8,11 +8,17 @@
 //   undated    : 기한 미정 목록 (팝업만)   ─┼─ 일정을 누르거나 추가 → form
 //   form       : 일정 추가/수정            ─┘   저장/취소하면 원래 화면으로 돌아감
 //   categories : 카테고리 관리 (팝업만)
+//   그 밖      : 다른 파일이 이 창에 그리는 화면 (routines.js의 루틴 편집, stats.js의 시간 돌아보기) → showView()
+//
+// 하루 화면 맨 아래(고정)에는 루틴 버튼 줄이 있다. 누르면 이름·카테고리가 채워진 입력 창이 열린다.
 
 import { api } from './api.js';
 import { MultiDatePicker } from './datepicker.js';
 import { makeSortable } from './reorder.js';
-import { addDays, ask, el, formatLong, formatShort, icon, todayStr, toast } from './utils.js';
+import { routineBar, routineManager } from './routines.js';
+import {
+  addDays, ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
+} from './utils.js';
 
 export const PALETTE = ['#E5534B', '#F08C2E', '#D9A514', '#3FA66B', '#2BA5B5', '#3D6FD9', '#7C5CD6', '#D45A9A'];
 
@@ -56,9 +62,10 @@ export class Sheet {
     this.footEl = root.querySelector('.sheet-foot');
     this.backBtn = root.querySelector('.sheet-back');
 
-    this.view = null;   // 'day' | 'undated' | 'form' | 'categories'
+    this.view = null;   // 'day' | 'undated' | 'form' | 'categories' | showView()로 연 화면 이름
     this.day = todayStr();
-    this.form = null;   // { mode, item, scope, ctxDate, returnTo }
+    this.form = null;   // { mode, item, scope, ctxDate, returnTo, prefill, copy }
+    this.custom = null; // showView()로 연 화면 { render, returnTo }
 
     this.backBtn.addEventListener('click', () => this.goBack());
     if (kind === 'modal') {
@@ -110,9 +117,21 @@ export class Sheet {
   // 다른 기기에서 바뀐 내용이 들어왔을 때 / 다른 곳에서 저장했을 때: 목록 화면이면 다시 그린다.
   // (일정을 입력하는 중이거나 순서를 끌고 있을 때는 방해하지 않도록 건드리지 않는다)
   refreshList() {
-    if (!this.isOpen || this.bodyEl.querySelector('.item-list.is-sorting')) return;
+    if (!this.isOpen || this.bodyEl.querySelector('.is-sorting')) return;
     if (this.view === 'day') this.renderDay();
     else if (this.view === 'undated') this.renderUndated();
+    else if (this.custom?.refresh) this.custom.refresh(this);
+  }
+
+  // 다른 파일이 이 창 안에 그리는 화면 (루틴 편집, 시간 돌아보기)
+  //   render(sheet)   : 화면을 그린다 (sheet.setHead / setBody / setFoot 사용)
+  //   refresh(sheet)  : 다른 기기에서 바뀐 내용이 들어왔을 때 (없으면 그대로 둔다)
+  //   returnTo        : 뒤로(←)를 누르면 돌아갈 곳 ('day' 등). 없으면 창을 닫는다.
+  async showView(name, { render, refresh = null, returnTo = null }) {
+    this.form = null;
+    this.custom = { render, refresh, returnTo };
+    this.open(name);
+    await render(this);
   }
 
   // ---------------------------------------------------------------- day
@@ -131,8 +150,12 @@ export class Sheet {
     if (!keepContent || !this.bodyEl.querySelector('.item-list, .empty')) this.loading();
 
     let list;
+    let routines;
     try {
-      list = await api.occurrences(date, addDays(date, 1));
+      [list, routines] = await Promise.all([
+        api.occurrences(date, addDays(date, 1)),
+        api.routines(date).catch(() => null), // 루틴을 못 불러와도 일정 목록은 보이게
+      ]);
     } catch (e) { return this.failed(e); }
     if (this.view !== 'day' || this.day !== date) return; // 그 사이 다른 화면으로 바뀌었으면 무시
 
@@ -145,15 +168,31 @@ export class Sheet {
           ...o,
           sortable,
           badge: o.date_count > 1 ? `${o.date_count}일` : null,
+          dday: o.dday && o.date >= todayStr() ? ddayLabel(daysBetween(todayStr(), o.date)) : null,
           onclick: () => this.editFromDay(o),
         })));
       if (sortable) makeSortable(ul, { scroller: this.bodyEl, onChange: (ids) => this.saveOrder(date, ids) });
       this.setBody(ul, sortable ? el('p', { class: 'list-hint' }, '오른쪽 ≡를 끌어서 순서를 바꿀 수 있어요.') : null);
     }
     this.setFoot(
-      el('button', { type: 'button', class: 'btn primary wide', onclick: () =>
-        this.openForm({ mode: 'create', ctxDate: date, returnTo: 'day' }) }, '일정 추가'),
+      el('div', { class: 'day-foot' },
+        routines ? routineBar({
+          date,
+          routines,
+          onPick: (r) => this.openForm({
+            mode: 'create', ctxDate: date, returnTo: 'day',
+            prefill: { title: r.name, category_id: r.category.id, routine_id: r.id, routineName: r.name },
+          }),
+          onEdit: () => this.showRoutines(),
+        }) : null,
+        el('button', { type: 'button', class: 'btn primary wide', onclick: () =>
+          this.openForm({ mode: 'create', ctxDate: date, returnTo: 'day' }) }, '일정 추가'),
+      ),
     );
+  }
+
+  async showRoutines() {
+    await this.showView('routines', routineManager({ onChanged: dataChanged, returnTo: 'day' }));
   }
 
   async saveOrder(date, ids) {
@@ -225,8 +264,9 @@ export class Sheet {
   }
 
   goBack() {
-    const to = this.form?.returnTo;
+    const to = this.form ? this.form.returnTo : this.custom?.returnTo;
     this.form = null;
+    this.custom = null;
     if (to === 'day') this.showDay(this.day);
     else if (to === 'undated') {
       if (this.kind === 'modal') this.showUndated();
@@ -235,23 +275,28 @@ export class Sheet {
   }
 
   renderForm() {
-    const { mode, item, scope, ctxDate } = this.form;
+    const { mode, item, scope, ctxDate, prefill = null, copy = false } = this.form;
     const isEdit = mode === 'edit';
     const multi = isEdit && item.dates.length > 1;
+    const pre = prefill || {}; // 새 일정의 처음 값 (루틴 버튼, 복사, 빠른 입력의 '자세히')
 
     let sub = '';
     if (isEdit && scope === 'single') sub = `${formatShort(ctxDate)} 하루만 바뀌어요`;
     else if (multi) sub = `${item.dates.length}개 날짜 모두에 적용돼요`;
-    this.setHead(isEdit ? '일정 수정' : '새 일정', sub, { back: Boolean(this.form.returnTo) || this.kind === 'pane' });
+    else if (copy) sub = '복사본이에요. 날짜를 바꾸고 저장하세요.';
+    else if (pre.routineName) sub = `루틴 '${pre.routineName}'으로 추가해요. 시간·메모는 자유롭게 적으세요.`;
+    this.setHead(isEdit ? '일정 수정' : copy ? '일정 복사' : '새 일정', sub, { back: Boolean(this.form.returnTo) || this.kind === 'pane' });
 
     // 처음 값 정하기
     const cats = shared.categories;
     const defaultCat = cats.find((c) => c.is_default);
-    const initialCat = item?.category.id
+    const preCat = cats.some((c) => c.id === pre.category_id) ? pre.category_id : null;
+    const initialCat = item?.category.id ?? preCat
       ?? (cats.some((c) => c.id === shared.lastCategoryId) ? shared.lastCategoryId : defaultCat.id);
     const initialDates = !isEdit
-      ? (ctxDate ? [ctxDate] : [])
+      ? (pre.dates ?? (ctxDate ? [ctxDate] : []))
       : scope === 'single' ? [ctxDate] : item.dates;
+    const src = isEdit ? item : pre; // 제목·시간·메모·D-day의 처음 값
 
     // 같은 화면에 팝업과 오른쪽 칸이 동시에 있을 수 있으므로 id가 겹치지 않게 앞에 붙인다
     const uid = this.kind;
@@ -263,24 +308,18 @@ export class Sheet {
     // --- 제목
     const titleInput = el('input', {
       type: 'text', id: ids.title, class: 'input f-title', maxlength: '100', required: true,
-      placeholder: '무엇을 해야 하나요?', autocomplete: 'off', value: item?.title ?? '',
+      placeholder: '무엇을 해야 하나요?', autocomplete: 'off', value: src?.title ?? '',
     });
 
     // --- 카테고리 (색 칩 라디오)
-    const catGroup = el('div', { class: 'chips', role: 'radiogroup', 'aria-label': '카테고리' },
-      cats.map((c) =>
-        el('label', { class: 'chip', style: { '--cat': c.color } },
-          el('input', { type: 'radio', name: `${uid}-category`, value: String(c.id), checked: c.id === initialCat }),
-          el('span', { class: 'dot' }),
-          c.name,
-        )),
-    );
+    const catChips = categoryChips(cats, initialCat, `${uid}-category`);
+    const catGroup = catChips.node;
 
     // --- 시간 (선택): 시작·끝 중 하나만 골라도 된다. 24시간 표기.
-    const hadTime = Boolean(item?.start_time || item?.end_time);
+    const hadTime = Boolean(src?.start_time || src?.end_time);
     const hasTime = el('input', { type: 'checkbox', id: ids.hasTime, class: 'f-has-time', checked: hadTime });
-    const startField = timeSelect('시작', ids.start, item?.start_time, 'f-start');
-    const endField = timeSelect('끝', ids.end, item?.end_time, 'f-end');
+    const startField = timeSelect('시작', ids.start, src?.start_time, 'f-start');
+    const endField = timeSelect('끝', ids.end, src?.end_time, 'f-end');
     const timeFields = el('div', { class: 'time-fields' }, startField.node, el('span', { class: 'time-tilde' }, '~'), endField.node);
     timeFields.hidden = !hasTime.checked;
     hasTime.addEventListener('change', () => {
@@ -296,8 +335,11 @@ export class Sheet {
 
     // --- 메모
     const memoInput = el('textarea', {
-      id: ids.memo, class: 'input f-memo', rows: '3', maxlength: '2000', placeholder: '메모 (선택)', value: item?.memo ?? '',
+      id: ids.memo, class: 'input f-memo', rows: '3', maxlength: '2000', placeholder: '메모 (선택)', value: src?.memo ?? '',
     });
+
+    // --- D-day 표시: 켜 두면 달력 위 띠에 'D-3 기말고사'처럼 남은 날이 보인다
+    const ddayInput = el('input', { type: 'checkbox', id: `${uid}-f-dday`, class: 'f-dday', checked: Boolean(src?.dday) });
 
     const errorEl = el('p', { class: 'form-error', role: 'alert', hidden: true });
 
@@ -311,21 +353,26 @@ export class Sheet {
         ),
       ),
       fieldset('날짜', picker.root),
+      el('div', { class: 'field' },
+        el('label', { class: 'switch', for: `${uid}-f-dday` }, ddayInput, el('span', { class: 'switch-ui' }), 'D-day로 표시'),
+        el('p', { class: 'field-hint' }, '달력 위쪽에 남은 날짜가 보여요. 시험·마감처럼 꼭 챙길 일정에 켜 두세요.'),
+      ),
       field('메모', memoInput, ids.memo),
       errorEl,
     );
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const checkedCat = form.querySelector(`input[name="${uid}-category"]:checked`);
       const payload = {
         title: titleInput.value.trim(),
         memo: memoInput.value.trim(),
-        category_id: Number(checkedCat?.value ?? defaultCat.id),
+        category_id: catChips.value ?? defaultCat.id,
         start_time: hasTime.checked ? startField.value : null,
         end_time: hasTime.checked ? endField.value : null,
         dates: picker.dates,
+        dday: ddayInput.checked,
       };
+      if (!isEdit && pre.routine_id) payload.routine_id = pre.routine_id; // 수정할 때는 보내지 않으면 그대로 유지
       if (!payload.title) return showError(errorEl, '제목을 입력해 주세요.', titleInput);
       if (hasTime.checked && !payload.start_time && !payload.end_time) {
         return showError(errorEl, '시작이나 끝 시간 중 하나는 골라 주세요. 시간이 필요 없으면 시간 지정을 꺼 주세요.', startField.hourEl);
@@ -352,10 +399,25 @@ export class Sheet {
     const deleteBtn = isEdit
       ? el('button', { type: 'button', class: 'btn danger', onclick: () => this.deleteItem(errorEl) }, '삭제')
       : null;
+    // 복사: 같은 내용이 채워진 새 일정 화면 (날짜만 바꿔서 저장하면 된다)
+    const copyBtn = isEdit
+      ? el('button', {
+          type: 'button', class: 'btn ghost', title: '같은 내용으로 새 일정 만들기',
+          onclick: () => this.openForm({
+            mode: 'create', ctxDate, returnTo: this.form.returnTo, copy: true,
+            prefill: {
+              title: titleInput.value.trim() || item.title, memo: memoInput.value, category_id: catChips.value,
+              start_time: hasTime.checked ? startField.value : null, end_time: hasTime.checked ? endField.value : null,
+              dday: ddayInput.checked, routine_id: item.routine_id, dates: picker.dates,
+            },
+          }),
+        }, '복사')
+      : null;
 
     this.setBody(form);
     this.setFoot(
       deleteBtn,
+      copyBtn,
       el('span', { class: 'spacer' }),
       el('button', { type: 'button', class: 'btn ghost', onclick: () => this.goBack() }, '취소'),
       saveBtn,
@@ -484,12 +546,12 @@ export class Sheet {
 // 일정 한 줄 (day / undated 목록에서 공통으로 사용)
 //   showTime=false : 시간 칸을 아예 빼서 제목을 왼쪽에 붙인다 (시간 있는 일정이 하나도 없는 목록용)
 //   sortable=true  : 오른쪽에 순서 바꾸기 손잡이(≡)를 붙인다 (하루 목록용)
-function itemRow({ id, title, memo, start_time, end_time, category, badge, onclick, showTime = true, sortable = false }) {
+function itemRow({ id, title, memo, start_time, end_time, category, badge, dday = null, onclick, showTime = true, sortable = false }) {
   return el('li', { class: 'item-li', dataset: { id: String(id) }, style: { '--cat': category.color } },
     el('button', { type: 'button', class: showTime ? 'item-row' : 'item-row no-time', onclick },
       showTime ? timeCell(start_time, end_time) : null,
       el('span', { class: 'item-main' },
-        el('span', { class: 'item-title' }, title),
+        el('span', { class: 'item-title' }, dday ? el('span', { class: 'item-dday' }, dday) : null, title),
         el('span', { class: 'item-meta' },
           el('span', { class: 'item-cat' }, category.name),
           memo ? el('span', { class: 'item-memo' }, memo.split('\n')[0]) : null,
