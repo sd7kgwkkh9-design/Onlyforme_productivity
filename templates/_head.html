@@ -1,11 +1,20 @@
 {# 모든 화면이 함께 쓰는 <head> 내용: 테마, 아이콘, 홈 화면 설치, 글꼴, 디자인 #}
   <script>
-    // 저장해 둔 테마(라이트/다크)를 화면을 그리기 전에 먼저 적용한다.
-    // (나중에 적용하면 다크 모드인데 흰 화면이 잠깐 번쩍인다) — 나머지는 static/js/theme.js
-    try {
-      var t = localStorage.getItem('my-calendar:theme');
-      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-    } catch (e) {}
+    // 저장해 둔 테마(라이트/다크)와 글꼴을 화면을 그리기 전에 먼저 적용한다.
+    // (나중에 적용하면 다크 모드인데 흰 화면이 잠깐 번쩍이거나 글꼴이 바뀌는 게 보인다) — 나머지는 static/js/settings.js
+    (function () {
+      var root = document.documentElement;
+      root.dataset.fontBase = "{{ url_for('static', filename='vendor/fonts/') }}";
+      try {
+        var t = localStorage.getItem('my-calendar:theme');
+        if (t === 'light' || t === 'dark') root.dataset.theme = t;
+        var f = localStorage.getItem('my-calendar:font');
+        if (/^(gowun-dodum|gowun-batang|jua|noto-sans-kr)$/.test(f)) {
+          root.dataset.font = f;
+          document.write('<link rel="stylesheet" id="font-css-' + f + '" href="' + root.dataset.fontBase + f + '/font.css">');
+        }
+      } catch (e) {}
+    })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='24' rx='5' fill='%232347C8'/%3E%3Crect x='3' y='5' width='26' height='7' rx='3' fill='%231A2130'/%3E%3Ccircle cx='16' cy='21' r='4' fill='%23fff'/%3E%3C/svg%3E">
 
@@ -16,9 +25,10 @@
   <meta name="theme-color" content="#111419" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="캘린더">
+  <meta name="apple-mobile-web-app-title" content="{{ app_short_name }}">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-  <!-- 오픈소스 글꼴: Pretendard (SIL OFL 1.1) — 필요한 글자 조각만 내려받는 방식이라 가볍다 -->
+  <!-- 오픈소스 글꼴: Pretendard (기본, SIL OFL 1.1) — 필요한 글자 조각만 내려받는 방식이라 가볍다.
+       다른 글꼴(고운돋움·고운바탕·주아·Noto Sans KR)은 ⚙ 설정에서 고를 때만 불러온다. -->
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/pretendard/pretendard.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">

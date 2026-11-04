@@ -21,12 +21,10 @@ const shared = {
   categories: [],
   lastCategoryId: null, // 새 일정을 만들 때 직전에 고른 카테고리를 기본값으로
   onDataChanged: async () => {},
-  loginEnabled: false,
 };
 
-export function configureSheets({ onDataChanged, loginEnabled = false }) {
+export function configureSheets({ onDataChanged }) {
   shared.onDataChanged = onDataChanged;
-  shared.loginEnabled = loginEnabled;
 }
 
 async function loadCategories() {
@@ -421,13 +419,7 @@ export class Sheet {
       } catch (err) { showError(errorEl, err.message, nameInput); }
     });
 
-    // 로그인을 쓰는 경우에만 로그아웃 버튼 (자주 쓰지 않으므로 카테고리 화면 맨 아래에 둔다)
-    const logout = shared.loginEnabled
-      ? el('form', { class: 'logout-form', method: 'post', action: '/logout' },
-          el('button', { type: 'submit', class: 'btn ghost sm' }, '이 기기에서 로그아웃'))
-      : null;
-
-    this.setBody(el('ul', { class: 'cat-list' }, rows), addForm, logout);
+    this.setBody(el('ul', { class: 'cat-list' }, rows), addForm);
     this.setFoot();
   }
 

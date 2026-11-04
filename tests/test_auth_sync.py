@@ -141,3 +141,31 @@ def test_demo_calendar_is_filled_around_today(tmp_path):
 
 def test_normal_app_has_no_demo_banner(client):
     assert b"demo-banner" not in client.get("/").data
+
+
+# ---------------------------------------------------------------- 앱 이름 / 설정 메뉴 (6차)
+def test_app_name_and_settings_menu(tmp_path):
+    c = make_client(tmp_path)
+    html = c.get("/").get_data(as_text=True)
+    assert "<title>극한캘린더</title>" in html
+    assert 'content="극한캘린더"' in html             # 홈 화면 아이콘 아래 이름 (아이폰)
+    assert 'id="settings-menu"' in html and 'id="btn-settings"' in html
+    assert 'id="boot-error"' in html                  # 화면 코드를 못 불러왔을 때 안내
+
+    manifest = c.get("/static/manifest.webmanifest").get_json()
+    assert manifest["short_name"] == "극한캘린더"
+    assert manifest["name"].startswith("극한 생산성 캘린더")
+
+
+def test_login_page_shows_app_name(tmp_path):
+    c = make_client(tmp_path, password="secret1")
+    html = c.get("/login").get_data(as_text=True)
+    assert "극한 생산성 캘린더" in html and "일정 관리의 종결" in html
+
+
+def test_font_files_are_served(client):
+    for name in ["gowun-dodum", "gowun-batang", "jua", "noto-sans-kr"]:
+        css = client.get(f"/static/vendor/fonts/{name}/font.css")
+        assert css.status_code == 200
+        first = css.get_data(as_text=True).split("url(./files/")[1].split(")")[0]
+        assert client.get(f"/static/vendor/fonts/{name}/files/{first}").status_code == 200

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   나의 캘린더 — 스타일
+   극한 생산성 캘린더 — 스타일
    색은 아래 변수(토큰)만 바꾸면 전체에 반영된다.
    ========================================================================== */
 
@@ -803,36 +803,45 @@ body.gate {
   font-size: 13px; overflow-x: auto;
 }
 
-/* 카테고리 화면 아래 로그아웃 */
-.logout-form { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line); text-align: center; }
-
 /* ==========================================================================
-   화면 테마 메뉴
+   ⚙ 설정 메뉴: 화면 테마 / 글꼴 / 로그아웃
    ========================================================================== */
-.theme-btn { flex: none; border: 1px solid var(--line); background: var(--surface); }
-.theme-menu {
+.settings-btn { flex: none; border: 1px solid var(--line); background: var(--surface); }
+.settings-menu {
   position: fixed; inset: auto; margin: 0;   /* popover 기본 위치(가운데)를 지우고 버튼 아래로 */
-  min-width: 200px; padding: 6px;
+  width: 240px; max-height: calc(100dvh - 90px); overflow-y: auto;
+  padding: 6px;
   border: 1px solid var(--line); border-radius: 12px;
   background: var(--surface); color: var(--ink);
   box-shadow: 0 16px 40px -16px var(--shadow);
 }
-.theme-menu button {
+.menu-label { margin: 8px 12px 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.menu-label:first-child { margin-top: 4px; }
+.menu-choice {
   display: flex; align-items: center; gap: 10px;
-  width: 100%; padding: 10px 12px;
+  width: 100%; padding: 9px 12px;
   border: 0; border-radius: 8px; background: none;
-  font-size: 14px; text-align: left;
+  font-size: 15px; text-align: left;
 }
-.theme-menu button:hover { background: var(--hover); }
-.theme-menu button::before {
+.menu-choice:hover { background: var(--hover); }
+.menu-choice[role="menuitemradio"]::before {
   content: ''; width: 16px; height: 16px; flex: none;
   border: 1.5px solid var(--faint); border-radius: 50%;
 }
-.theme-menu button[aria-checked="true"] { font-weight: 600; }
-.theme-menu button[aria-checked="true"]::before {
+.menu-choice[aria-checked="true"] { font-weight: 600; }
+.menu-choice[aria-checked="true"]::before {
   border-color: var(--accent);
   background: radial-gradient(circle, var(--accent) 0 4px, transparent 4.5px);
 }
+.menu-choice.danger { color: var(--danger); }
+.menu-logout { margin: 6px 0 0; padding-top: 6px; border-top: 1px solid var(--line); }
+
+/* 글꼴 고르기: <html data-font="...">에 따라 --font만 바꾼다 (글꼴에 없는 글자는 Pretendard로) */
+:root { --font-fallback: 'Pretendard Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif; }
+:root[data-font="gowun-dodum"]  { --font: 'Gowun Dodum', var(--font-fallback); }
+:root[data-font="gowun-batang"] { --font: 'Gowun Batang', var(--font-fallback); }
+:root[data-font="jua"]          { --font: 'Jua', var(--font-fallback); }
+:root[data-font="noto-sans-kr"] { --font: 'Noto Sans KR Variable', var(--font-fallback); }
 
 /* 시연용(--demo) 안내 띠 */
 .demo-banner {
@@ -878,3 +887,18 @@ body.gate {
 .jump-day.is-other { opacity: .4; }
 .jump-day.is-now { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .jump-foot { margin-top: 10px; text-align: center; }
+
+/* 로그인 화면 앱 이름: 큰 제목 + 작은 부제 */
+.gate-card h1.gate-title { display: grid; gap: 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+.gate-tagline { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+
+/* main.js가 실행되지 못했을 때의 안내 (index.html) */
+.boot-error {
+  position: fixed; left: 50%; top: 50%; z-index: 20; transform: translate(-50%, -50%);
+  display: grid; gap: 8px; width: min(420px, calc(100vw - 32px));
+  padding: 20px 22px; border-radius: 14px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); box-shadow: 0 20px 50px -20px var(--shadow);
+  font-size: 14px; line-height: 1.6;
+}
+.boot-error strong { font-size: 16px; }
