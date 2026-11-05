@@ -30,5 +30,6 @@
 
   <!-- 오픈소스 글꼴: Pretendard (기본, SIL OFL 1.1) — 필요한 글자 조각만 내려받는 방식이라 가볍다.
        다른 글꼴(고운돋움·고운바탕·주아·Noto Sans KR)은 ⚙ 설정에서 고를 때만 불러온다. -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/pretendard/pretendard.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- asset_url: 파일 내용의 지문(?v=…)을 붙인 주소 → 브라우저가 오래 저장해 두고 다시 묻지 않는다 (assets.py) -->
+  <link rel="stylesheet" href="{{ asset_url('vendor/pretendard/pretendard.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('css/style.css') }}">

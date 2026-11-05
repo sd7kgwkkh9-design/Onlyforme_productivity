@@ -8,7 +8,9 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   DELETE /api/categories/<id>             삭제 → 소속 일정은 미분류로 이동
 
 일정
-  GET    /api/occurrences?start=&end=     기간 안의 "날짜별 일정" (달력 표시용)
+  GET    /api/occurrences?start=&end=     기간 안의 "날짜별 일정"
+  GET    /api/calendar?start=&end=        월간·주간 화면용: 일정 + 루틴 기록을 한 번에 (api_tools.py)
+  GET    /api/day/<date>                  하루 화면용: 일정 + 루틴 기록 + 루틴 버튼을 한 번에 (api_tools.py)
   GET    /api/items/undated               기한 미정 일정 목록
   GET    /api/items/<id>                  일정 하나 (모든 날짜 포함)
   POST   /api/items                       일정 추가
@@ -370,16 +372,11 @@ def delete_category(category_id):
 # ---------------------------------------------------------------------------
 # 일정 API
 # ---------------------------------------------------------------------------
-@bp.get("/occurrences")
-def list_occurrences():
+def occurrence_list(db, start, end):
     """
-    [start, end) 기간에 들어 있는 일정을 "날짜별로 한 줄씩" 돌려준다.
-    (end는 포함하지 않음 — FullCalendar가 이렇게 요청한다)
-    일정 하나가 3개 날짜에 들어 있으면 3줄이 나온다.
+    [start, end) 기간에 들어 있는 일정을 "날짜별로 한 줄씩" (end는 포함하지 않음).
+    일정 하나가 3개 날짜에 들어 있으면 3줄이 나온다. /api/calendar, /api/day 에서도 같이 쓴다.
     """
-    db = get_db()
-    start, end = parse_range()
-
     rows = db.execute(
         """
         SELECT d.date, i.id, i.title, i.memo, i.start_time, i.end_time, i.dday,
@@ -394,23 +391,27 @@ def list_occurrences():
         """,
         (start, end),
     ).fetchall()
+    return [
+        {
+            "id": r["id"],
+            "date": r["date"],
+            "title": r["title"],
+            "memo": r["memo"],
+            "start_time": r["start_time"],
+            "end_time": r["end_time"],
+            "category": {"id": r["c_id"], "name": r["c_name"], "color": r["c_color"]},
+            "date_count": r["date_count"],
+            "dday": bool(r["dday"]),
+        }
+        for r in rows
+    ]
 
-    return jsonify(
-        [
-            {
-                "id": r["id"],
-                "date": r["date"],
-                "title": r["title"],
-                "memo": r["memo"],
-                "start_time": r["start_time"],
-                "end_time": r["end_time"],
-                "category": {"id": r["c_id"], "name": r["c_name"], "color": r["c_color"]},
-                "date_count": r["date_count"],
-                "dday": bool(r["dday"]),
-            }
-            for r in rows
-        ]
-    )
+
+@bp.get("/occurrences")
+def list_occurrences():
+    """기간 안의 "날짜별 일정" (FullCalendar가 ?start=&end= 로 요청한다)"""
+    start, end = parse_range()
+    return jsonify(occurrence_list(get_db(), start, end))
 
 
 @bp.get("/items/undated")

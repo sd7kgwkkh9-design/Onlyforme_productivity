@@ -82,10 +82,9 @@ export class WeekView {
     const token = ++this.token;
     const keepLeft = this.root.scrollLeft;
 
-    const [items, holidays, logs] = await Promise.all([
-      api.occurrences(start, end),
+    const [{ items, logs }, holidays] = await Promise.all([
+      api.calendar(start, end), // 일정 + 루틴 기록을 한 번에
       holidaysBetween(start, end),
-      api.routineLogs(start, end).catch(() => []), // 루틴 기록 (8차) — 못 불러와도 일정은 보이게
     ]);
     if (token !== this.token) return;
 

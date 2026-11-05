@@ -19,10 +19,10 @@ import { makeSortable } from './reorder.js';
 import { timeSelect } from './timepicker.js';
 import { routineBar, routineLogView, routineManager, routineSection } from './routines.js';
 import {
-  addDays, ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
+  ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
 } from './utils.js';
 
-export const PALETTE = ['#E5534B', '#F08C2E', '#D9A514', '#3FA66B', '#2BA5B5', '#3D6FD9', '#7C5CD6', '#D45A9A'];
+const PALETTE = ['#E5534B', '#F08C2E', '#D9A514', '#3FA66B', '#2BA5B5', '#3D6FD9', '#7C5CD6', '#D45A9A'];
 
 // 두 곳이 함께 쓰는 값
 const shared = {
@@ -155,11 +155,7 @@ export class Sheet {
     let routines;
     let logs;
     try {
-      [list, routines, logs] = await Promise.all([
-        api.occurrences(date, addDays(date, 1)),
-        api.routines(date).catch(() => null),           // 루틴을 못 불러와도 일정 목록은 보이게
-        api.routineLogs(date, addDays(date, 1)).catch(() => []),
-      ]);
+      ({ items: list, logs, routines } = await api.day(date)); // 일정 + 루틴 기록 + 루틴 버튼을 한 번에
     } catch (e) { return this.failed(e); }
     if (this.view !== 'day' || this.day !== date) return; // 그 사이 다른 화면으로 바뀌었으면 무시
 

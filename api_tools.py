@@ -22,6 +22,10 @@
   DELETE /api/notes/<id>                  삭제 (메인을 지우면 맨 위 메모가 메인이 된다)
   PUT    /api/notes/order                 순서 {ids: [...]}
 
+화면 한 번에 필요한 것 묶어 받기 (최적화: 요청 수 줄이기)
+  GET    /api/calendar?start=&end=        월간·주간 화면: 일정 + 루틴 기록 (요청 2번 → 1번)
+  GET    /api/day/<date>                  하루 화면: 일정 + 루틴 기록 + 루틴 버튼 (요청 3번 → 1번)
+
 달력 위 띠
   GET    /api/overview?today=             메인 메모의 배너 글귀 + 다가오는 D-day 일정
 
@@ -34,11 +38,12 @@
 
 import unicodedata
 from datetime import date as Date
+from datetime import timedelta
 
 from flask import jsonify, request
 
 import quickadd
-from api import ApiError, bp, json_body, parse_date, parse_range, parse_time
+from api import ApiError, bp, json_body, occurrence_list, parse_date, parse_range, parse_time
 from db import get_db
 
 MAX_ROUTINES = 30
@@ -274,6 +279,33 @@ def delete_routine_log(log_id):
     db.execute("DELETE FROM routine_logs WHERE id = ?", (log_id,))
     db.commit()
     return jsonify(deleted=log_id)
+
+
+# ======================================================================== 화면별로 묶어 받기
+# 인터넷 서버는 멀리 있어서 요청 하나마다 왕복 시간이 든다. 한 화면에 필요한 것을 한 번에 돌려준다.
+def logs_between(db, start, end):
+    return [log_dict(r) for r in log_rows(db, "WHERE l.date >= ? AND l.date < ?", (start, end))]
+
+
+@bp.get("/calendar")
+def calendar_range():
+    """월간·주간 화면: [start, end) 기간의 일정(날짜별) + 루틴 기록"""
+    db = get_db()
+    start, end = parse_range()
+    return jsonify(items=occurrence_list(db, start, end), logs=logs_between(db, start, end))
+
+
+@bp.get("/day/<day>")
+def day_detail(day):
+    """하루 화면: 그날 일정 + 루틴 기록 + 루틴 버튼(그날 기준 마지막으로 기록한 날)"""
+    db = get_db()
+    day = parse_date(day)
+    nxt = (Date.fromisoformat(day) + timedelta(days=1)).isoformat()
+    return jsonify(
+        items=occurrence_list(db, day, nxt),
+        logs=logs_between(db, day, nxt),
+        routines=[routine_dict(r) for r in routine_rows(db, day)],
+    )
 
 
 # ======================================================================== 기록지

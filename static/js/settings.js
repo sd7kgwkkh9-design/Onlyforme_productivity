@@ -17,7 +17,7 @@ const THEMES = [
 ];
 
 // 글꼴: [키, 메뉴 이름, CSS font-family]. Pretendard 외에는 고를 때 그 글꼴 파일만 불러온다.
-export const FONTS = [
+const FONTS = [
   ['pretendard', 'Pretendard (기본)', "'Pretendard Variable'"],
   ['gowun-dodum', '고운돋움', "'Gowun Dodum'"],
   ['gowun-batang', '고운바탕', "'Gowun Batang'"],

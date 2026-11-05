@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS routine_logs (
     created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_routine_logs_date ON routine_logs(date);
+-- 루틴 버튼의 '마지막으로 한 날'(루틴별 가장 늦은 날짜)을 빨리 찾도록
+CREATE INDEX IF NOT EXISTS idx_routine_logs_routine ON routine_logs(routine_id, date);
 
 CREATE TABLE IF NOT EXISTS notes (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

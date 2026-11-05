@@ -14,7 +14,7 @@ import { timeSelect } from './timepicker.js';
 import { ask, el, formatLong, formatShort, formatTimeRange, icon, lastDoneLabel, todayStr, toast } from './utils.js';
 
 // 루틴 이모지 고르기 칸에 보여 줄 것들 (이 밖의 이모지는 '직접' 칸에 키보드로 넣으면 된다)
-export const EMOJI_CHOICES = [
+const EMOJI_CHOICES = [
   '🏃', '💪', '🚶', '🚴', '🏊', '🧘', '🤸',
   '📖', '✏️', '📝', '🔤', '💻', '🎧', '🎸',
   '🎨', '🎮', '🧹', '🍳', '💧', '💊', '😴',

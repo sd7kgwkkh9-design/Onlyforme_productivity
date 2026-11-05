@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{{ app_short_name }}</title>
   {% include "_head.html" %}
+  {#- JS 모듈 주소에 지문 붙이기: import './api.js' → './api.js?v=…' (import map)
+      + 모듈을 처음부터 한꺼번에 받기 시작 (modulepreload — main.js를 다 읽은 뒤에야 다음 파일을 아는 '줄줄이 받기'를 막는다) #}
+  {% set modules = module_map() %}
+  <script type="importmap">{"imports": {{ modules|tojson }}}</script>
+  {% for url in modules.values() %}<link rel="modulepreload" href="{{ url }}">
+  {% endfor %}
 </head>
 <body data-view="month" data-login="{{ '1' if login_enabled else '0' }}">
   {% if demo %}
@@ -199,8 +205,8 @@
   </script>
 
   <!-- 오픈소스: FullCalendar v6.1.22 (MIT) — static/vendor/fullcalendar/LICENSE.md -->
-  <script src="{{ url_for('static', filename='vendor/fullcalendar/fullcalendar.min.js') }}" onerror="showBootError()"></script>
-  <script src="{{ url_for('static', filename='vendor/fullcalendar/ko.min.js') }}"></script>
-  <script type="module" src="{{ url_for('static', filename='js/main.js') }}" onerror="showBootError()"></script>
+  <script src="{{ asset_url('vendor/fullcalendar/fullcalendar.min.js') }}" onerror="showBootError()"></script>
+  <script src="{{ asset_url('vendor/fullcalendar/ko.min.js') }}"></script>
+  <script type="module" src="{{ asset_url('js/main.js') }}" onerror="showBootError()"></script>
 </body>
 </html>

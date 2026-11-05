@@ -30,11 +30,6 @@ export class UndatedPanel {
     return !this.root.hidden;
   }
 
-  setOpen(open) {
-    this.root.hidden = !open;
-    if (open) this.refresh().catch(() => {}); // 실패해도 상단 버튼 쪽에서 오류를 알려 준다
-  }
-
   async refresh() {
     const items = await api.undated();
     if (!this.isOpen) return items;

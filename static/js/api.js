@@ -33,8 +33,11 @@ async function request(method, url, body) {
 const q = (params) => new URLSearchParams(params).toString();
 
 export const api = {
+  // 화면별로 묶어 받기 (요청 수 줄이기)
+  calendar: (start, end) => request('GET', `/api/calendar?${q({ start, end })}`), // 월간·주간: 일정 + 루틴 기록
+  day: (date) => request('GET', `/api/day/${date}`),                              // 하루: 일정 + 루틴 기록 + 루틴 버튼
+
   // 일정
-  occurrences: (start, end) => request('GET', `/api/occurrences?${q({ start, end })}`),
   undated: () => request('GET', '/api/items/undated'),
   getItem: (id) => request('GET', `/api/items/${id}`),
   createItem: (payload) => request('POST', '/api/items', payload),
@@ -52,8 +55,7 @@ export const api = {
   deleteRoutine: (id) => request('DELETE', `/api/routines/${id}`),
   reorderRoutines: (ids) => request('PUT', '/api/routines/order', { ids }),
 
-  // 루틴 기록 (일정과 따로 저장)
-  routineLogs: (start, end) => request('GET', `/api/routine-logs?${q({ start, end })}`),
+  // 루틴 기록 (일정과 따로 저장) — 읽기는 calendar / day로 함께 받는다
   createRoutineLog: (payload) => request('POST', '/api/routine-logs', payload),
   updateRoutineLog: (id, payload) => request('PUT', `/api/routine-logs/${id}`, payload),
   deleteRoutineLog: (id) => request('DELETE', `/api/routine-logs/${id}`),

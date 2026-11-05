@@ -26,6 +26,7 @@ import auth
 import db
 import demo
 from api import bp as api_bp
+from assets import Assets
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -65,6 +66,7 @@ def create_app(database_path=None, production=False, demo_mode=False):
 
     db.init_db(database_path)
     app.teardown_appcontext(db.close_db)
+    assets = Assets(app)  # 지문 붙은 주소(오래 저장) + 압축 — assets.py
     auth.init_auth(app, data_dir, production)
     app.register_blueprint(api_bp)
 
@@ -89,14 +91,9 @@ def create_app(database_path=None, production=False, demo_mode=False):
             # 이 저장으로 몇 번이 됐는지 알려 준다 → 화면이 '내가 바꾼 것만 있었는지'를 정확히 판단 (sync.js)
             response.headers["X-Data-Version"] = str(db.current_version(db.get_db()))
 
-        # 2) 코드를 새 버전으로 바꿨는데 브라우저가 예전 JS/CSS를 계속 쓰는 일을 막는다.
-        #    no-cache = "쓰기 전에 바뀌었는지 서버에 물어보기". 안 바뀌었으면 304로 바로 끝나서 느려지지 않는다.
-        if request.path == "/" or request.path.startswith("/static/"):
-            response.headers["Cache-Control"] = "no-cache"
-        # API 응답은 저장해 두지 말 것 (동기화가 항상 최신 값을 보도록)
-        if request.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
-        return response
+        # 2) 저장 기간 정하기 + 압축 (assets.py)
+        #    지문 붙은 JS/CSS는 1년 저장, 첫 화면은 매번 확인(no-cache), API는 저장 안 함(no-store)
+        return assets.finish(response)
 
     return app
 

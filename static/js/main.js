@@ -162,32 +162,21 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
   dayCellClassNames: (arg) => (toDateStr(arg.date) === state.selected ? ['is-selected'] : []),
 
   eventSources: [
-    // 1) 내 일정: 보이는 기간이 바뀔 때마다 서버에서 받아 온다.
+    // 1) 내 일정 + 루틴 기록: 보이는 기간이 바뀔 때마다 서버에서 한 번에 받아 온다 (/api/calendar).
+    //    루틴 기록은 칸에서 일정 아래에 보인다.
     {
-      id: 'items',
+      id: 'calendar',
       events: async (info, success, failure) => {
         try {
-          const list = await api.occurrences(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
-          success(list.map(toEvent));
+          const { items, logs } = await api.calendar(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
+          success([...items.map(toEvent), ...logs.map(toRoutineEvent)]);
         } catch (e) {
           failure(e);
           toast(e.message, 'error');
         }
       },
     },
-    // 2) 루틴 기록 (8차): 일정과 따로 저장되고, 칸에서는 일정 아래에 보인다 (실패해도 일정은 보이게)
-    {
-      id: 'routines',
-      events: async (info, success) => {
-        try {
-          const logs = await api.routineLogs(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
-          success(logs.map(toRoutineEvent));
-        } catch {
-          success([]);
-        }
-      },
-    },
-    // 3) 공휴일: 칸 배경(background) 이벤트로 넣고 이름만 작게 표시 (실패해도 일정은 보이게)
+    // 2) 공휴일: 칸 배경(background) 이벤트로 넣고 이름만 작게 표시 (실패해도 일정은 보이게)
     {
       id: 'holidays',
       display: 'background',
