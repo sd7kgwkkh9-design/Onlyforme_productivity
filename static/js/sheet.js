@@ -10,12 +10,14 @@
 //   categories : 카테고리 관리 (팝업만)
 //   그 밖      : 다른 파일이 이 창에 그리는 화면 (routines.js의 루틴 편집, stats.js의 시간 돌아보기) → showView()
 //
-// 하루 화면 맨 아래(고정)에는 루틴 버튼 줄이 있다. 누르면 이름·카테고리가 채워진 입력 창이 열린다.
+// 하루 화면: 위에는 일정, 그 아래에 '오늘의 루틴'(그날의 루틴 기록)이 따로 보인다.
+// 맨 아래(고정)에는 루틴 버튼 줄이 있고, 누르면 시간·메모만 적는 작은 기록 창이 열린다 (routines.js).
 
 import { api } from './api.js';
 import { MultiDatePicker } from './datepicker.js';
 import { makeSortable } from './reorder.js';
-import { routineBar, routineManager } from './routines.js';
+import { timeSelect } from './timepicker.js';
+import { routineBar, routineLogView, routineManager, routineSection } from './routines.js';
 import {
   addDays, ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
 } from './utils.js';
@@ -147,20 +149,24 @@ export class Sheet {
     const date = this.day;
     this.setHead(formatLong(date), date === todayStr() ? '오늘' : '');
     // 같은 날짜를 새로 고칠 때는 '불러오는 중'으로 깜빡이지 않게 기존 내용을 그대로 둔다
-    if (!keepContent || !this.bodyEl.querySelector('.item-list, .empty')) this.loading();
+    if (!keepContent || !this.bodyEl.querySelector('.item-list, .empty, .routine-day')) this.loading();
 
     let list;
     let routines;
+    let logs;
     try {
-      [list, routines] = await Promise.all([
+      [list, routines, logs] = await Promise.all([
         api.occurrences(date, addDays(date, 1)),
-        api.routines(date).catch(() => null), // 루틴을 못 불러와도 일정 목록은 보이게
+        api.routines(date).catch(() => null),           // 루틴을 못 불러와도 일정 목록은 보이게
+        api.routineLogs(date, addDays(date, 1)).catch(() => []),
       ]);
     } catch (e) { return this.failed(e); }
     if (this.view !== 'day' || this.day !== date) return; // 그 사이 다른 화면으로 바뀌었으면 무시
 
+    // 1) 일정
+    let schedule;
     if (!list.length) {
-      this.setBody(el('p', { class: 'empty' }, '이 날은 아직 비어 있어요.'));
+      schedule = [el('p', { class: logs.length ? 'empty small' : 'empty' }, logs.length ? '일정 없음' : '이 날은 아직 비어 있어요.')];
     } else {
       const sortable = list.length > 1;
       const ul = el('ul', { class: 'item-list' },
@@ -172,17 +178,20 @@ export class Sheet {
           onclick: () => this.editFromDay(o),
         })));
       if (sortable) makeSortable(ul, { scroller: this.bodyEl, onChange: (ids) => this.saveOrder(date, ids) });
-      this.setBody(ul, sortable ? el('p', { class: 'list-hint' }, '오른쪽 ≡를 끌어서 순서를 바꿀 수 있어요.') : null);
+      schedule = [ul, sortable ? el('p', { class: 'list-hint' }, '오른쪽 ≡를 끌어서 순서를 바꿀 수 있어요.') : null];
     }
+    // 2) 그날의 루틴 기록 (일정 아래, 같이 스크롤)
+    const routineDay = logs.length
+      ? routineSection({ date, logs, onOpen: (log) => this.showRoutineLog({ mode: 'edit', log }) })
+      : null;
+    this.setBody(...schedule, routineDay);
+
     this.setFoot(
       el('div', { class: 'day-foot' },
         routines ? routineBar({
           date,
           routines,
-          onPick: (r) => this.openForm({
-            mode: 'create', ctxDate: date, returnTo: 'day',
-            prefill: { title: r.name, category_id: r.category.id, routine_id: r.id, routineName: r.name },
-          }),
+          onPick: (r) => this.showRoutineLog({ mode: 'create', routine: r, date }),
           onEdit: () => this.showRoutines(),
         }) : null,
         el('button', { type: 'button', class: 'btn primary wide', onclick: () =>
@@ -193,6 +202,13 @@ export class Sheet {
 
   async showRoutines() {
     await this.showView('routines', routineManager({ onChanged: dataChanged, returnTo: 'day' }));
+  }
+
+  // 루틴 기록 창 (시간·메모만). returnTo: 저장/취소 뒤 돌아갈 곳 (빠른 입력의 '자세히'로 열면 null = 닫기)
+  async showRoutineLog({ returnTo = 'day', ...opts }) {
+    if (opts.date) this.day = opts.date;
+    else if (opts.log) this.day = opts.log.date;
+    await this.showView('routineLog', routineLogView({ ...opts, onChanged: dataChanged, returnTo }));
   }
 
   async saveOrder(date, ids) {
@@ -278,13 +294,12 @@ export class Sheet {
     const { mode, item, scope, ctxDate, prefill = null, copy = false } = this.form;
     const isEdit = mode === 'edit';
     const multi = isEdit && item.dates.length > 1;
-    const pre = prefill || {}; // 새 일정의 처음 값 (루틴 버튼, 복사, 빠른 입력의 '자세히')
+    const pre = prefill || {}; // 새 일정의 처음 값 (복사, 빠른 입력의 '자세히')
 
     let sub = '';
     if (isEdit && scope === 'single') sub = `${formatShort(ctxDate)} 하루만 바뀌어요`;
     else if (multi) sub = `${item.dates.length}개 날짜 모두에 적용돼요`;
     else if (copy) sub = '복사본이에요. 날짜를 바꾸고 저장하세요.';
-    else if (pre.routineName) sub = `루틴 '${pre.routineName}'으로 추가해요. 시간·메모는 자유롭게 적으세요.`;
     this.setHead(isEdit ? '일정 수정' : copy ? '일정 복사' : '새 일정', sub, { back: Boolean(this.form.returnTo) || this.kind === 'pane' });
 
     // 처음 값 정하기
@@ -372,7 +387,6 @@ export class Sheet {
         dates: picker.dates,
         dday: ddayInput.checked,
       };
-      if (!isEdit && pre.routine_id) payload.routine_id = pre.routine_id; // 수정할 때는 보내지 않으면 그대로 유지
       if (!payload.title) return showError(errorEl, '제목을 입력해 주세요.', titleInput);
       if (hasTime.checked && !payload.start_time && !payload.end_time) {
         return showError(errorEl, '시작이나 끝 시간 중 하나는 골라 주세요. 시간이 필요 없으면 시간 지정을 꺼 주세요.', startField.hourEl);
@@ -408,7 +422,7 @@ export class Sheet {
             prefill: {
               title: titleInput.value.trim() || item.title, memo: memoInput.value, category_id: catChips.value,
               start_time: hasTime.checked ? startField.value : null, end_time: hasTime.checked ? endField.value : null,
-              dday: ddayInput.checked, routine_id: item.routine_id, dates: picker.dates,
+              dday: ddayInput.checked, dates: picker.dates,
             },
           }),
         }, '복사')
@@ -579,39 +593,6 @@ function timeCell(start, end) {
     start ? el('span', { class: 't-start' }, `${start}~`) : null,
     end ? el('span', { class: start ? 't-end' : 't-start' }, start ? end : `~${end}`) : null,
   );
-}
-
-// 24시간 시간 고르기: [시 ▾] : [분 ▾]
-// 브라우저 기본 시간 입력(<input type=time>)은 맥·아이폰 설정에 따라 오전/오후로 나와서 직접 만든다.
-function timeSelect(label, id, initial, className) {
-  const pad = (n) => String(n).padStart(2, '0');
-  const minutes = Array.from({ length: 60 }, (_, i) => pad(i)); // 00 ~ 59 (1분 단위)
-
-  const hourEl = el('select', { id, class: `input sel ${className}-h`, 'aria-label': `${label} 시` },
-    el('option', { value: '' }, '--'),
-    Array.from({ length: 24 }, (_, i) => el('option', { value: pad(i) }, pad(i))),
-  );
-  const minuteEl = el('select', { class: `input sel ${className}-m`, 'aria-label': `${label} 분` },
-    minutes.map((m) => el('option', { value: m }, m)),
-  );
-
-  const set = (value) => {
-    const [h, m] = value ? value.split(':') : ['', '00'];
-    hourEl.value = h;
-    minuteEl.value = m;
-    minuteEl.disabled = !h; // 시를 안 고르면 분은 의미가 없으므로 잠금
-  };
-  set(initial);
-  hourEl.addEventListener('change', () => { minuteEl.disabled = !hourEl.value; });
-
-  return {
-    node: el('div', { class: 'time-field' },
-      el('span', { class: 'time-label' }, label), hourEl, el('span', { class: 'time-colon' }, ':'), minuteEl),
-    hourEl,
-    get value() { return hourEl.value ? `${hourEl.value}:${minuteEl.value}` : null; },
-    set,
-    focus: () => hourEl.focus(),
-  };
 }
 
 function field(label, input, id) {

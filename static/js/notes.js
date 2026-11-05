@@ -1,6 +1,6 @@
-// 마음 노트 (7차) — 화면 왼쪽에 열리는 메모장
+// 기록지 (7차, 8차에 '마음 노트'에서 이름 바꿈) — 화면 왼쪽에 열리는 메모장
 //
-//   - 메모를 여러 개 만들 수 있다 (힘들 때 볼 글귀, 잊지 말아야 할 것 …)
+//   - 메모를 여러 개 만들 수 있다 (다시 보고 싶은 글, 잊지 말아야 할 것 …)
 //   - 그중 하나가 ★메인 메모. 메인 메모의 '배너 글귀' 칸에 쓴 문장이 달력 위 배너에 늘 보인다.
 //   - 쓰는 대로 자동 저장된다 (잠깐 멈추면 저장, 창을 닫거나 뒤로 가도 저장).
 //
@@ -19,7 +19,7 @@ export class NotesPanel {
   /**
    * @param {HTMLElement} root      <aside id="notes">
    * @param {object} opts
-   * @param {HTMLElement} opts.toggle     상단의 '마음 노트' 버튼
+   * @param {HTMLElement} opts.toggle     상단의 '기록지' 버튼
    * @param {HTMLElement} opts.backdrop   좁은 화면에서 뒤를 어둡게 덮는 막
    * @param {() => void} opts.onBannerChanged   배너 글귀·메인이 바뀌었을 때 (달력 위 띠 다시 그리기)
    * @param {() => void} opts.onLayoutChanged   칸이 열리고 닫혀서 달력 너비가 바뀔 때
@@ -119,13 +119,13 @@ export class NotesPanel {
     this.flush();
     this.view = 'list';
     this.editingId = null;
-    this.titleEl.textContent = '마음 노트';
+    this.titleEl.textContent = '기록지';
     this.backBtn.hidden = true;
 
     if (!this.notes.length) {
       this.bodyEl.replaceChildren(
         el('div', { class: 'notes-empty' },
-          el('p', {}, '힘들 때 꺼내 볼 글귀, 잊지 말아야 할 것을 적어 두세요.'),
+          el('p', {}, '다시 보고 싶은 글, 잊지 말아야 할 것을 적어두세요.'),
           el('p', { class: 'muted' }, '첫 메모는 메인 메모가 되고, 메인 메모의 배너 글귀는 달력 위에 늘 보여요.'),
         ),
       );
@@ -185,7 +185,7 @@ export class NotesPanel {
     this.backBtn.hidden = false;
 
     const title = el('input', {
-      type: 'text', class: 'input note-title-input', maxlength: '60', placeholder: '제목 (예: 힘들 때 읽을 것)',
+      type: 'text', class: 'input note-title-input', maxlength: '60', placeholder: '제목 (예: 다시 읽을 글)',
       'aria-label': '메모 제목', value: n.title,
     });
     const banner = n.is_main

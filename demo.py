@@ -7,7 +7,7 @@
 - 로그인 없이 바로 열린다 (내 비밀번호와도 무관).
 
 예시 일정은 앱의 기능(여러 날짜, 시작·끝 시간, 끝 시간만, 기한 미정, 카테고리,
-루틴, 마음 노트, D-day 등)이 한눈에 보이도록 골랐다. 일정은 실제 API(/api/...)를 그대로 거쳐서 넣는다.
+루틴, 기록지, D-day 등)이 한눈에 보이도록 골랐다. 일정은 실제 API(/api/...)를 그대로 거쳐서 넣는다.
 """
 
 import os
@@ -51,7 +51,7 @@ def seed_demo(app, today=None):
 
     cat = {name: post("/api/categories", {"name": name, "color": color})["id"] for name, color in CATEGORIES}
 
-    def item(title, category, dates, start=None, end=None, memo="", dday=False, routine=None):
+    def item(title, category, dates, start=None, end=None, memo="", dday=False):
         body = {
             "title": title,
             "category_id": cat.get(category),  # None이면 미분류
@@ -61,8 +61,6 @@ def seed_demo(app, today=None):
             "memo": memo,
             "dday": dday,
         }
-        if routine:
-            body["routine_id"] = routine
         return post("/api/items", body)
 
     # 지난달 말 ~ 다음 달 말까지 반복 수업·알바 (한 일정에 날짜 여러 개)
@@ -89,16 +87,25 @@ def seed_demo(app, today=None):
     item("읽고 싶은 책 정리", "개인", [])
     item("노트북 배터리 교체 알아보기", None, [])
 
-    # 루틴 (7차): 버튼 3개 + 지난 며칠의 기록 → 하루 화면 아래에 '3일 전', '어제'처럼 보인다
+    # 루틴 (8차): 이모지 + 이름. 루틴 기록은 일정과 따로 저장된다
+    #   → 하루 화면의 '루틴' 구역, 맨 아래 버튼의 '어제'·'2일 전', 월간·주간 화면의 '🏃 운동'
     routine = {
-        name: post("/api/routines", {"name": name, "category_id": cat[category]})["id"]
-        for name, category in (("운동", "개인"), ("독서", "개인"), ("영어 단어", "과제"))
+        name: post("/api/routines", {"name": name, "emoji": emoji})["id"]
+        for name, emoji in (("운동", "🏃"), ("독서", "📖"), ("영어 단어", "🔤"))
     }
-    item("운동", "개인", [today - timedelta(days=3)], "07:00", "08:00", memo="5km 러닝", routine=routine["운동"])
-    item("운동", "개인", [today - timedelta(days=1)], "07:00", "07:40", memo="풀업 5세트", routine=routine["운동"])
-    item("독서", "개인", [today - timedelta(days=2)], "22:00", "22:40", memo="30쪽", routine=routine["독서"])
 
-    # 마음 노트 (7차): 첫 메모가 메인 → 배너 글귀가 달력 위에 보인다
+    def log(name, day, start=None, end=None, memo=""):
+        return post("/api/routine-logs", {
+            "routine_id": routine[name], "date": day.isoformat(), "start_time": start, "end_time": end, "memo": memo,
+        })
+
+    log("운동", today - timedelta(days=3), "07:00", "08:00", "5km 러닝")
+    log("운동", today - timedelta(days=1), "07:00", "07:40", "풀업 5세트")
+    log("독서", today - timedelta(days=2), "22:00", "22:40", "30쪽")
+    log("독서", today, "23:00", memo="자기 전 20쪽")
+    log("영어 단어", today, memo="30개")
+
+    # 기록지 (7차): 첫 메모가 메인 → 배너 글귀가 달력 위에 보인다
     post("/api/notes", {
         "title": "힘들 때 읽을 것",
         "banner": "오늘 걷는 한 걸음이 내일의 나를 만든다",

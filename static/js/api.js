@@ -52,7 +52,13 @@ export const api = {
   deleteRoutine: (id) => request('DELETE', `/api/routines/${id}`),
   reorderRoutines: (ids) => request('PUT', '/api/routines/order', { ids }),
 
-  // 마음 노트
+  // 루틴 기록 (일정과 따로 저장)
+  routineLogs: (start, end) => request('GET', `/api/routine-logs?${q({ start, end })}`),
+  createRoutineLog: (payload) => request('POST', '/api/routine-logs', payload),
+  updateRoutineLog: (id, payload) => request('PUT', `/api/routine-logs/${id}`, payload),
+  deleteRoutineLog: (id) => request('DELETE', `/api/routine-logs/${id}`),
+
+  // 기록지
   notes: () => request('GET', '/api/notes'),
   createNote: (payload) => request('POST', '/api/notes', payload),
   updateNote: (id, payload) => request('PUT', `/api/notes/${id}`, payload),
@@ -63,7 +69,7 @@ export const api = {
   // 달력 위 띠(배너·D-day), 시간 돌아보기, 빠른 입력
   overview: (today) => request('GET', `/api/overview?${q({ today })}`),
   stats: (start, end) => request('GET', `/api/stats?${q({ start, end })}`),
-  parse: (text, today, fallback) => request('GET', `/api/parse?${q({ text, today, ...(fallback ? { default: fallback } : {}) })}`),
+  parse: (text, today) => request('GET', `/api/parse?${q({ text, today })}`),
 
   // 동기화
   version: () => request('GET', '/api/version'),

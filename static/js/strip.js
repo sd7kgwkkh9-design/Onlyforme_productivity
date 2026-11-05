@@ -1,8 +1,8 @@
 // 달력 위 띠 (7차)
 //
-//   [ ❝ 메인 메모의 배너 글귀 ]            [D-2 레포트] [D-36 기말고사]
+//   [ 메인 메모의 배너 글귀 ]            [D-2 레포트] [D-36 기말고사]
 //
-// - 글귀를 누르면 마음 노트(메인 메모)가 열린다.
+// - 글귀를 누르면 기록지(메인 메모)가 열린다.
 // - D-day 칩을 누르면 그 날짜가 열린다.
 // - 글귀도 D-day도 없으면 띠 전체를 숨긴다.
 
@@ -29,10 +29,9 @@ export class TopStrip {
       ? el('button', {
           type: 'button',
           class: 'banner-quote',
-          title: '마음 노트 열기',
+          title: '기록지 열기',
           onclick: () => this.onOpenNote(banner.note_id),
         },
-          el('span', { class: 'banner-mark', 'aria-hidden': 'true' }, '❝'),
           el('span', { class: 'banner-text' }, banner.text),
         )
       : null;

@@ -13,7 +13,7 @@ CATS = [
     {"id": 3, "name": "수업", "color": "#3D6FD9"},
     {"id": 4, "name": "Study", "color": "#3FA66B"},
 ]
-ROUTINES = [{"id": 7, "name": "운동", "category_id": 4}]
+ROUTINES = [{"id": 7, "name": "운동", "emoji": "🏃"}]
 
 
 def p(text, **kw):
@@ -23,15 +23,15 @@ def p(text, **kw):
 @pytest.mark.parametrize("text, title, dates, start, end", [
     ("내일 3시~5시 스터디", "스터디", ["2026-11-05"], "15:00", "17:00"),
     ("다음 주 월요일 9시 반 회의", "회의", ["2026-11-09"], "09:30", None),
-    ("3시부터 5시까지 회의", "회의", ["2026-11-04"], "15:00", "17:00"),
-    ("저녁 8시~10시 알바", "알바", ["2026-11-04"], "20:00", "22:00"),
-    ("6시까지 레포트 제출", "레포트 제출", ["2026-11-04"], None, "18:00"),
-    ("~18:00 서류 제출", "서류 제출", ["2026-11-04"], None, "18:00"),
+    ("3시부터 5시까지 회의", "회의", [], "15:00", "17:00"),
+    ("저녁 8시~10시 알바", "알바", [], "20:00", "22:00"),
+    ("6시까지 레포트 제출", "레포트 제출", [], None, "18:00"),
+    ("~18:00 서류 제출", "서류 제출", [], None, "18:00"),
     ("모레 오후 2시 30분 면접", "면접", ["2026-11-06"], "14:30", None),
-    ("07:00 기상", "기상", ["2026-11-04"], "07:00", None),     # 0으로 시작하면 쓴 그대로
-    ("15:30 팀플", "팀플", ["2026-11-04"], "15:30", None),
-    ("밤 11시 일기", "일기", ["2026-11-04"], "23:00", None),
-    ("정오 점심 약속", "점심 약속", ["2026-11-04"], "12:00", None),
+    ("07:00 기상", "기상", [], "07:00", None),     # 0으로 시작하면 쓴 그대로
+    ("15:30 팀플", "팀플", [], "15:30", None),
+    ("밤 11시 일기", "일기", [], "23:00", None),
+    ("정오 점심 약속", "점심 약속", [], "12:00", None),
     ("3일 뒤 병원 오전 10시", "병원", ["2026-11-07"], "10:00", None),
     ("1주일 뒤 발표", "발표", ["2026-11-11"], None, None),
     ("다음 달 3일 정기검진", "정기검진", ["2026-12-03"], None, None),
@@ -87,13 +87,24 @@ def test_category_dday_and_undated():
     assert r["undated"] is True and r["dates"] == [] and r["title"] == "책 정리"
 
 
-def test_default_date_and_routine_link():
-    r = p("장보기", default_date=date(2026, 11, 10))
-    assert r["dates"] == ["2026-11-10"] and r["date_defaulted"] is True
+def test_no_date_goes_to_undated():
+    """8차: 날짜를 안 쓰면 오늘이 아니라 기한 미정"""
+    r = p("장보기")
+    assert r["dates"] == [] and r["undated"] is True
+    r = p("3시 회의 !")
+    assert r["dates"] == [] and r["start_time"] == "15:00" and r["warnings"]  # 기한 미정이면 D-day가 안 보인다고 알림
 
+
+def test_routine_name_makes_a_routine_record():
+    """제목이 루틴 이름이면 일정이 아니라 루틴 기록. 날짜를 안 쓰면 오늘, 카테고리·D-day는 쓰지 않는다"""
     r = p("운동 7시")
-    assert r["routine_id"] == 7 and r["category"]["name"] == "Study"   # 루틴의 카테고리
-    assert p("운동 #과제")["category"]["name"] == "과제"               # 직접 쓴 카테고리가 우선
+    assert r["routine"] == {"id": 7, "name": "운동", "emoji": "🏃"}
+    assert r["dates"] == ["2026-11-04"] and r["routine_today"] is True and r["start_time"] == "19:00"
+    assert r["category"] is None and r["undated"] is False
+
+    r = p("내일 운동 #과제 !")
+    assert r["dates"] == ["2026-11-05"] and r["routine_today"] is False
+    assert r["category"] is None and r["dday"] is False and r["warnings"]
 
 
 def test_things_that_are_not_dates_stay_in_title():
@@ -109,3 +120,12 @@ def test_spans_point_at_original_text():
     r = p(text)
     kinds = {text[s["start"]:s["end"]].strip(): s["kind"] for s in r["spans"]}
     assert kinds == {"내일": "date", "3시": "time", "#과제": "category"}
+
+
+def test_spans_never_overlap():
+    """화면에 '어디를 무엇으로 읽었는지' 표시할 때 같은 글자가 두 번 나오지 않게"""
+    for text in ["운동 7시~8시 #과제 !", "3시 회의 #과제", "내일 6시까지 레포트 ! #과제", "11/20~22 MT #개인 !"]:
+        spans = sorted(p(text)["spans"], key=lambda s: s["start"])
+        for a, b in zip(spans, spans[1:]):
+            assert a["end"] <= b["start"], (text, spans)
+        assert all(text[s["start"]:s["end"]].strip() == text[s["start"]:s["end"]] for s in spans), text

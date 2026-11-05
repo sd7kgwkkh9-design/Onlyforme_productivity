@@ -9,9 +9,9 @@
 //   ⚙ 설정       ─ settings.js (화면 테마, 글꼴, 로그아웃)
 //   동기화       ─ sync.js (다른 기기에서 바꾼 내용을 몇 초 안에 반영)
 //   7차 생산성 도구
-//     마음 노트  ─ notes.js (왼쪽 칸/창)        달력 위 띠 ─ strip.js (배너 글귀 + D-day)
+//     기록지     ─ notes.js (왼쪽 칸/창)        달력 위 띠 ─ strip.js (배너 글귀 + D-day)
 //     빠른 입력  ─ quick.js (+ quickadd.py)      돌아보기   ─ stats.js
-//     루틴       ─ routines.js (하루 화면 아래)  끌어서 옮기기/복사 ─ 아래 '끌어다 놓기'
+//     루틴       ─ routines.js (8차: 일정과 따로 저장되는 루틴 기록)  끌어서 옮기기/복사 ─ 아래 '끌어다 놓기'
 //
 // 안전 장치: 달력을 가장 먼저 그리고, 나머지 기능은 하나씩 safely()로 감싸서 켠다.
 // 어느 한 기능에 문제가 생겨도(예: 서버를 새 버전으로 바꿨는데 화면 파일 일부가 예전 것) 달력은 계속 보인다.
@@ -73,6 +73,8 @@ const tabUndatedCount = $('tab-undated-count');
 
 // 넓은 화면(맥, 가로로 든 아이패드)이면 오른쪽 칸을 쓴다. style.css의 같은 값과 맞춰야 한다.
 const wide = window.matchMedia('(min-width: 960px)');
+// 휴대폰: 상단 바 자리가 좁아서 주간 제목을 '11.1–7'처럼 줄여 쓴다
+const phone = window.matchMedia('(max-width: 640px)');
 
 const state = {
   view: 'month',                       // 'month' | 'week'
@@ -111,6 +113,23 @@ function toEvent(o, index) {
       time: formatTimeRange(o.start_time, o.end_time) || null, // 09:00~ / ~18:00 / 09:00~10:30
       color: o.category.color,
       order: index, // 서버가 정렬해 준 순서(올린 순서 또는 하루 창에서 바꾼 순서) 그대로
+    },
+  };
+}
+
+// 루틴 기록 → FullCalendar 이벤트. 같은 날의 일정들 아래에 '🏃 운동'처럼 보인다.
+function toRoutineEvent(log, index) {
+  return {
+    id: `r${log.id}`,
+    title: `${log.routine.emoji} ${log.routine.name}`,
+    start: log.date,
+    allDay: true,
+    classNames: ['is-routine'],
+    extendedProps: {
+      kind: 'routine',
+      log,
+      date: log.date,
+      order: 100000 + index, // 일정(0, 1, 2 …)보다 항상 뒤
     },
   };
 }
@@ -156,7 +175,19 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
         }
       },
     },
-    // 2) 공휴일: 칸 배경(background) 이벤트로 넣고 이름만 작게 표시 (실패해도 일정은 보이게)
+    // 2) 루틴 기록 (8차): 일정과 따로 저장되고, 칸에서는 일정 아래에 보인다 (실패해도 일정은 보이게)
+    {
+      id: 'routines',
+      events: async (info, success) => {
+        try {
+          const logs = await api.routineLogs(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
+          success(logs.map(toRoutineEvent));
+        } catch {
+          success([]);
+        }
+      },
+    },
+    // 3) 공휴일: 칸 배경(background) 이벤트로 넣고 이름만 작게 표시 (실패해도 일정은 보이게)
     {
       id: 'holidays',
       display: 'background',
@@ -180,8 +211,9 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
 
   // 일정 칸 모양: [시간] 제목, 왼쪽 띠는 카테고리 색
   eventContent: (arg) => {
-    const { time, holiday } = arg.event.extendedProps;
+    const { time, holiday, kind } = arg.event.extendedProps;
     if (holiday) return { domNodes: [el('span', { class: 'holiday-name' }, arg.event.title)] };
+    if (kind === 'routine') return { domNodes: [el('span', { class: 'ev ev-routine' }, el('span', { class: 'ev-title' }, arg.event.title))] };
     return {
       domNodes: [
         el('span', { class: 'ev' },
@@ -212,6 +244,7 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
 calendar.render();
 window.__appReady = true; // 달력이 그려졌으면 '화면을 불러오지 못했어요' 안내는 띄우지 않는다 (index.html)
 safely('상단 제목', updateHeader);
+phone.addEventListener('change', () => safely('상단 제목', updateHeader));
 
 // ============================================================ 2. 날짜 열기 (오른쪽 칸 / 팝업)
 
@@ -375,7 +408,7 @@ function updateHeader() {
   let main;
   let year;
   if (isWeek) {
-    ({ main, year } = weekTitle(state.weekStart));
+    ({ main, year } = weekTitle(state.weekStart, { compact: phone.matches }));
     if (todayBtn) todayBtn.disabled = state.weekStart === startOfWeek(todayStr());
   } else {
     const d = calendar.view.currentStart;
@@ -518,10 +551,11 @@ async function assignDate(itemId, date) {
 //   Option/Alt + 놓기  → 같은 내용으로 새 일정을 만든다 (복사)
 // 어느 쪽이든 알림의 '되돌리기'로 바로 취소할 수 있다.
 async function dropEvent(info) {
-  const { itemId, date: from } = info.oldEvent.extendedProps;
+  const { itemId, date: from, kind, log } = info.oldEvent.extendedProps;
   const to = info.event.startStr.slice(0, 10);
   const copy = Boolean(info.jsEvent?.altKey);
   if (copy) info.revert(); // 원래 자리는 그대로 두고 새로 만든다
+  if (kind === 'routine') return dropRoutineLog(info, log, to, copy);
   try {
     if (copy) {
       const created = await api.copyItem(itemId, [to]);
@@ -534,6 +568,31 @@ async function dropEvent(info) {
       await refreshAll();
       toast(`${formatShort(to)}로 옮겼어요`, 'info', {
         action: { label: '되돌리기', run: () => undo(() => api.moveItem(itemId, to, from)) },
+      });
+    }
+  } catch (e) {
+    if (!copy) info.revert();
+    toast(e.message, 'error');
+  }
+}
+
+// 루틴 기록을 끌어다 놓았을 때: 날짜 옮기기 / Option 누르면 같은 내용으로 새 기록
+async function dropRoutineLog(info, log, to, copy) {
+  const label = `${log.routine.emoji} ${log.routine.name}`;
+  try {
+    if (copy) {
+      const created = await api.createRoutineLog({
+        routine_id: log.routine.id, date: to, start_time: log.start_time, end_time: log.end_time, memo: log.memo,
+      });
+      await refreshAll();
+      toast(`${label} 기록을 ${formatShort(to)}에 복사했어요`, 'info', {
+        action: { label: '되돌리기', run: () => undo(() => api.deleteRoutineLog(created.id)) },
+      });
+    } else {
+      await api.updateRoutineLog(log.id, { date: to });
+      await refreshAll();
+      toast(`${label} 기록을 ${formatShort(to)}로 옮겼어요`, 'info', {
+        action: { label: '되돌리기', run: () => undo(() => api.updateRoutineLog(log.id, { date: log.date })) },
       });
     }
   } catch (e) {
@@ -574,7 +633,7 @@ async function refreshAll() {
 async function onRemoteChange() {
   await reloadViews();
   modalSheet?.refreshList(); // 열려 있는 팝업의 날짜 일정·기한 미정 목록도
-  await notes?.refresh();    // 마음 노트 (쓰고 있는 칸은 건드리지 않는다)
+  await notes?.refresh();    // 기록지 (쓰고 있는 칸은 건드리지 않는다)
 }
 
 configureSheets({ onDataChanged: refreshAll });
@@ -583,7 +642,7 @@ configureSheets({ onDataChanged: refreshAll });
 
 safely('설정', () => initSettings({ loginEnabled: document.body.dataset.login === '1' }));
 
-// ---- 7차: 달력 위 띠, 마음 노트, 빠른 입력
+// ---- 7차: 달력 위 띠, 기록지, 빠른 입력
 safely('달력 위 띠', () => {
   strip = new TopStrip($('top-strip'), {
     onOpenNote: (noteId) => notes?.open({ noteId }),
@@ -591,7 +650,7 @@ safely('달력 위 띠', () => {
   });
 });
 
-safely('마음 노트', () => {
+safely('기록지', () => {
   notes = new NotesPanel($('notes'), {
     toggle: $('btn-notes'),
     backdrop: $('notes-backdrop'),
@@ -604,8 +663,18 @@ safely('빠른 입력', () => {
   quick = new QuickAdd($('quick'), {
     onSaved: refreshAll,
     onOpenDate: (date) => showDate(date),
-    onDetail: ({ ctxDate, prefill }) => {
-      // 채워진 입력 창: 넓은 화면은 오른쪽 칸, 좁은 화면은 팝업
+    onDetail: ({ ctxDate, prefill, routineLog }) => {
+      // 루틴 이름으로 썼으면 루틴 기록 창, 아니면 일정 입력 창 — 넓은 화면은 오른쪽 칸, 좁은 화면은 팝업
+      if (routineLog) {
+        if (wide.matches && paneSheet) {
+          select(routineLog.date);
+          showPaneTab('day', { render: false });
+          paneSheet.showRoutineLog({ mode: 'create', ...routineLog });
+        } else {
+          modalSheet?.showRoutineLog({ mode: 'create', ...routineLog, returnTo: null });
+        }
+        return;
+      }
       if (wide.matches && paneSheet) {
         if (ctxDate) { select(ctxDate); paneSheet.day = ctxDate; }
         showPaneTab('day', { render: false });
@@ -619,7 +688,7 @@ safely('빠른 입력', () => {
   on($('fab-quick'), 'click', () => quick.open());
 });
 
-// 띠가 나타나거나 마음 노트 칸이 열려서 달력 자리가 바뀌면 달력 크기를 다시 맞춘다
+// 띠가 나타나거나 기록지 칸이 열려서 달력 자리가 바뀌면 달력 크기를 다시 맞춘다
 safely('크기 맞추기', () => {
   let frame = 0;
   new ResizeObserver(() => {

@@ -21,10 +21,16 @@ export function startOfWeek(dateStr) {
 }
 
 // '11월 1일 – 7일' 또는 달이 바뀌면 '10월 26일 – 11월 1일'
-export function weekTitle(start) {
+// compact(휴대폰 상단 바): '11.1–7' / '10.26–11.1'
+export function weekTitle(start, { compact = false } = {}) {
   const a = parseDateStr(start);
   const b = parseDateStr(addDays(start, 6));
-  const right = a.getMonth() === b.getMonth() ? `${b.getDate()}일` : `${b.getMonth() + 1}월 ${b.getDate()}일`;
+  const sameMonth = a.getMonth() === b.getMonth();
+  if (compact) {
+    const right = sameMonth ? `${b.getDate()}` : `${b.getMonth() + 1}.${b.getDate()}`;
+    return { main: `${a.getMonth() + 1}.${a.getDate()}–${right}`, year: String(b.getFullYear()) };
+  }
+  const right = sameMonth ? `${b.getDate()}일` : `${b.getMonth() + 1}월 ${b.getDate()}일`;
   return { main: `${a.getMonth() + 1}월 ${a.getDate()}일 – ${right}`, year: String(b.getFullYear()) };
 }
 
@@ -76,7 +82,11 @@ export class WeekView {
     const token = ++this.token;
     const keepLeft = this.root.scrollLeft;
 
-    const [items, holidays] = await Promise.all([api.occurrences(start, end), holidaysBetween(start, end)]);
+    const [items, holidays, logs] = await Promise.all([
+      api.occurrences(start, end),
+      holidaysBetween(start, end),
+      api.routineLogs(start, end).catch(() => []), // 루틴 기록 (8차) — 못 불러와도 일정은 보이게
+    ]);
     if (token !== this.token) return;
 
     const holidayOf = new Map(holidays.map((h) => [h.date, h.name]));
@@ -85,13 +95,18 @@ export class WeekView {
       if (!itemsOf.has(o.date)) itemsOf.set(o.date, []);
       itemsOf.get(o.date).push(o); // 서버가 이미 그날의 순서대로 정렬해 줌
     }
+    const logsOf = new Map();
+    for (const l of logs) {
+      if (!logsOf.has(l.date)) logsOf.set(l.date, []);
+      logsOf.get(l.date).push(l);
+    }
 
     const today = todayStr();
     const render = this.layout === 'row' ? this.renderColumn : this.renderRow;
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = addDays(start, i);
-      const node = render.call(this, date, i, itemsOf.get(date) || [], holidayOf.get(date), date === today);
+      const node = render.call(this, date, i, itemsOf.get(date) || [], holidayOf.get(date), date === today, logsOf.get(date) || []);
       if (date === this.selected) node.classList.add('is-selected');
       days.push(node);
     }
@@ -117,7 +132,7 @@ export class WeekView {
   }
 
   // ---------------------------------------------------------------- 가로 배치: 하루 = 세로 칸 하나
-  renderColumn(date, dow, items, holiday, isToday) {
+  renderColumn(date, dow, items, holiday, isToday, logs) {
     return el('button', {
       type: 'button',
       class: dayClasses('wk-col', date, dow, holiday, isToday),
@@ -131,19 +146,24 @@ export class WeekView {
       ),
       holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
       el('span', { class: 'wk-col-body' },
-        items.length
-          ? items.map((o) =>
-              el('span', { class: o.dday ? 'wk-chip is-dday' : 'wk-chip', style: { '--cat': o.category.color } },
-                o.start_time || o.end_time ? el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)) : null,
-                el('span', { class: 'wk-title' }, o.title),
-              ))
-          : el('span', { class: 'wk-empty' }, '일정 없음'),
+        items.map((o) =>
+          el('span', { class: o.dday ? 'wk-chip is-dday' : 'wk-chip', style: { '--cat': o.category.color } },
+            o.start_time || o.end_time ? el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)) : null,
+            el('span', { class: 'wk-title' }, o.title),
+          )),
+        // 루틴 기록은 그날 일정 아래에 '🏃 운동'처럼
+        logs.map((l) =>
+          el('span', { class: 'wk-chip is-routine' },
+            l.start_time || l.end_time ? el('span', { class: 'wk-time' }, formatTimeRange(l.start_time, l.end_time)) : null,
+            el('span', { class: 'wk-title' }, `${l.routine.emoji} ${l.routine.name}`),
+          )),
+        items.length || logs.length ? null : el('span', { class: 'wk-empty' }, '일정 없음'),
       ),
     );
   }
 
   // ---------------------------------------------------------------- 세로 배치: 하루 = 가로 줄 하나
-  renderRow(date, dow, items, holiday, isToday) {
+  renderRow(date, dow, items, holiday, isToday, logs) {
     return el('button', {
       type: 'button',
       class: dayClasses('wk-day', date, dow, holiday, isToday),
@@ -157,14 +177,19 @@ export class WeekView {
       ),
       el('span', { class: 'wk-body' },
         holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
-        items.length
-          ? items.map((o) =>
-              el('span', { class: o.dday ? 'wk-item is-dday' : 'wk-item', style: { '--cat': o.category.color } },
-                el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)),
-                el('span', { class: 'wk-title' }, o.title),
-                o.memo ? el('span', { class: 'wk-memo' }, o.memo.split('\n')[0]) : null,
-              ))
-          : el('span', { class: 'wk-empty' }, '일정 없음'),
+        items.map((o) =>
+          el('span', { class: o.dday ? 'wk-item is-dday' : 'wk-item', style: { '--cat': o.category.color } },
+            el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)),
+            el('span', { class: 'wk-title' }, o.title),
+            o.memo ? el('span', { class: 'wk-memo' }, o.memo.split('\n')[0]) : null,
+          )),
+        logs.map((l) =>
+          el('span', { class: 'wk-item is-routine' },
+            el('span', { class: 'wk-time' }, formatTimeRange(l.start_time, l.end_time)),
+            el('span', { class: 'wk-title' }, `${l.routine.emoji} ${l.routine.name}`),
+            l.memo ? el('span', { class: 'wk-memo' }, l.memo) : null,
+          )),
+        items.length || logs.length ? null : el('span', { class: 'wk-empty' }, '일정 없음'),
       ),
     );
   }

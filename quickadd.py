@@ -9,11 +9,12 @@
 규칙 (빠른 입력 창의 도움말, README에도 같은 내용)
   날짜   오늘·내일·모레·글피·어제, 3일 뒤, 2주 후, (이번 주 / 다음 주) 금요일,
          11/20, 11월 20일, 2026-11-20, 20일, 기간 11/20~11/22, 여러 개 쓰면 여러 날짜
-         → 날짜를 안 쓰면 기준 날짜(보통 오늘). 언젠가 / 기한 미정 → 기한 미정
+         → 날짜를 안 쓰면 기한 미정 ('언젠가'라고 써도 같다, 8차부터)
   시간   3시, 3시 반, 3시 30분, 15:30, 오전·오후·아침·저녁·밤·새벽, 정오
          3시~5시, 3시부터 5시까지 → 시작~끝,   6시까지 / ~6시 → 끝만
          오전·오후를 안 쓰면 1~7시는 오후로 본다 (7시 스터디 → 19:00, 9시 수업 → 09:00)
   기타   #카테고리,  띄어 쓴 ! 또는 'D-day' → D-day 표시
+  루틴   제목이 루틴 이름과 같으면 ('운동 7시') 일정이 아니라 루틴 기록으로 — 날짜를 안 쓰면 오늘
 
 해석은 '찾은 부분을 지워 나가는' 방식이다.
 카테고리·D-day → 날짜 → 시간 순서로 찾고, 찾은 글자는 같은 길이의 공백으로 덮는다
@@ -257,7 +258,8 @@ def _find_time(t, warnings):
         else:
             start = a
 
-        t.take(m.start(), m.end(), "time")
+        # 뒤쪽 \s*가 이미 지운(공백으로 덮은) #태그·! 자리까지 먹지 않도록 끝의 공백은 빼고 표시한다
+        t.take(m.start(), m.start() + len(m.group(0).rstrip()), "time")
         start_s = _fmt(*start[:2]) if start else None
         end_s = _fmt(*end[:2]) if end else None
         if start_s and end_s and end_s <= start_s:
@@ -286,14 +288,13 @@ def _match_category(tag, categories):
     return starts[0] if len(starts) == 1 else None
 
 
-def parse(text, today, categories=(), routines=(), default_date=None):
+def parse(text, today, categories=(), routines=()):
     """
     text        사용자가 쓴 한 줄
     today       기준이 되는 '오늘' (date). 서버 시계 대신 화면(기기)의 날짜를 받는다
                 — 인터넷 서버는 보통 영국 시간(UTC)이라 한국과 날짜가 다를 수 있기 때문.
     categories  [{'id', 'name', 'color'}]   #태그를 찾을 대상
-    routines    [{'id', 'name', 'category_id'}]  제목이 루틴 이름과 같으면 그 루틴으로 연결
-    default_date 날짜를 안 썼을 때 넣을 날짜 (없으면 today)
+    routines    [{'id', 'name', 'emoji'}]   제목이 루틴 이름과 같으면 루틴 기록으로
     """
     text = (text or "").strip()
     t = _Text(text)
@@ -324,37 +325,38 @@ def parse(text, today, categories=(), routines=(), default_date=None):
     dates = _find_dates(t, today, warnings)
     start_time, end_time = _find_time(t, warnings)
 
-    date_defaulted = False
     if undated:
         dates = []
-    elif not dates:
-        dates = [(default_date or today).isoformat()]
-        date_defaulted = True
-
     title = _clean_title(t.work)
 
-    # 5) 루틴: 제목이 루틴 이름과 같으면 연결 (카테고리를 따로 안 썼으면 루틴의 카테고리)
-    routine_id = None
-    for r in routines:
-        if title and r["name"].strip().lower() == title.lower():
-            routine_id = r["id"]
-            if category is None and unknown_tag is None:
-                category = next((c for c in categories if c["id"] == r["category_id"]), None)
-            break
-
-    if dday and not dates:
-        warnings.append("기한 미정 일정은 D-day가 보이지 않아요.")
+    # 5) 루틴: 제목이 루틴 이름과 같으면 일정이 아니라 루틴 기록 (카테고리·D-day는 쓰지 않는다)
+    routine = next((r for r in routines if title and r["name"].strip().lower() == title.lower()), None)
+    routine_today = False
+    if routine:
+        warnings = [w for w in warnings if "카테고리가 없어서" not in w]
+        if category or unknown_tag or dday:
+            warnings.append("루틴 기록에는 카테고리와 D-day를 쓰지 않아요.")
+        if undated:
+            warnings.append("루틴 기록은 날짜가 있어야 해서 오늘로 넣어요.")
+        if not dates:  # 루틴 기록은 날짜가 꼭 있어야 하므로, 안 쓰면 오늘 한 것으로
+            dates = [today.isoformat()]
+            routine_today = True
+        category, unknown_tag, dday, undated = None, None, False, False
+    else:
+        undated = not dates  # 날짜를 안 쓰면 기한 미정 (8차)
+        if dday and undated:
+            warnings.append("기한 미정 일정은 D-day가 보이지 않아요.")
 
     return {
         "title": title,
         "dates": dates,
-        "date_defaulted": date_defaulted,
         "undated": undated,
         "start_time": start_time,
         "end_time": end_time,
         "category": {"id": category["id"], "name": category["name"], "color": category["color"]} if category else None,
         "unknown_tag": unknown_tag,
-        "routine_id": routine_id,
+        "routine": {"id": routine["id"], "name": routine["name"], "emoji": routine["emoji"]} if routine else None,
+        "routine_today": routine_today,
         "dday": dday,
         "spans": sorted(t.spans, key=lambda s: s["start"]),
         "warnings": warnings,

@@ -14,10 +14,10 @@
   {% endif %}
   <header class="topbar">
     <div class="nav">
-      <!-- 마음 노트: 화면 왼쪽에 열리는 메모장 -->
-      <button class="text-btn tool-btn" id="btn-notes" type="button" aria-controls="notes" aria-expanded="false" aria-label="마음 노트" title="마음 노트">
+      <!-- 기록지: 화면 왼쪽에 열리는 메모장 -->
+      <button class="text-btn tool-btn" id="btn-notes" type="button" aria-controls="notes" aria-expanded="false" aria-label="기록지" title="기록지">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6zM9 10h6M9 14h6M9 18h3"/></svg>
-        <span class="tool-label">마음 노트</span>
+        <span class="tool-label">기록지</span>
       </button>
       <button class="icon-btn" id="btn-prev" type="button" aria-label="이전 달">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
@@ -69,14 +69,14 @@
   <section class="top-strip" id="top-strip" aria-label="배너와 D-day" hidden></section>
 
   <div class="layout">
-    <!-- 마음 노트 (notes.js): 넓은 화면은 달력 왼쪽 칸, 좁은 화면은 왼쪽에서 밀려 나오는 창 -->
-    <aside class="notes" id="notes" aria-label="마음 노트" hidden>
+    <!-- 기록지 (notes.js): 넓은 화면은 달력 왼쪽 칸, 좁은 화면은 왼쪽에서 밀려 나오는 창 -->
+    <aside class="notes" id="notes" aria-label="기록지" hidden>
       <header class="notes-head">
         <button class="icon-btn notes-back" type="button" aria-label="메모 목록으로" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
-        <h2 class="notes-title" tabindex="-1">마음 노트</h2>
-        <button class="icon-btn notes-close" type="button" aria-label="마음 노트 닫기">
+        <h2 class="notes-title" tabindex="-1">기록지</h2>
+        <button class="icon-btn notes-close" type="button" aria-label="기록지 닫기">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </header>
@@ -158,8 +158,9 @@
           <li><b>날짜</b> 오늘·내일·모레, 3일 뒤, (다음 주) 금요일, 11/20, 11월 20일, 20일, 기간 11/20~22</li>
           <li><b>시간</b> 3시, 3시 반, 15:30, 오전·오후·저녁, 3시~5시, 6시까지(끝만)
             — 오전·오후를 안 쓰면 1~7시는 오후로 봐요</li>
-          <li><b>카테고리</b> #과제 &nbsp; <b>D-day</b> 띄어 쓴 <code>!</code> &nbsp; <b>기한 미정</b> 언젠가</li>
-          <li>날짜를 안 쓰면 오늘로 넣어요. 루틴 이름과 같으면 그 루틴으로 기록돼요.</li>
+          <li><b>카테고리</b> #과제 &nbsp; <b>D-day</b> 띄어 쓴 <code>!</code></li>
+          <li>날짜를 안 쓰면 <b>기한 미정</b>으로 넣어요.</li>
+          <li>루틴 이름으로 쓰면(<code>운동 7시</code>) 일정 대신 <b>루틴 기록</b>으로 들어가요. 이때는 날짜를 안 쓰면 오늘이에요.</li>
         </ul>
       </details>
       <div class="quick-buttons">

@@ -537,7 +537,11 @@ dialog.ask p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; }
   .actions .text-btn { flex: 1; justify-content: center; padding: 0 8px; }
   .view-switch .seg-btn { padding: 0 10px; }
   .month-title { font-size: 22px; min-width: 0; flex: 1; }
-  body[data-view="week"] .month-title { font-size: 18px; }
+  body[data-view="week"] .month-title { font-size: 18px; white-space: nowrap; }
+  /* 주간 제목은 '11.1–7'로 줄이고 연도·화살표는 숨김 (기록지·돌아보기·배치 버튼까지 한 줄에 들어가야 해서) */
+  body[data-view="week"] .month-title .y, body[data-view="week"] .title-btn .caret { display: none; }
+  .nav { gap: 2px; }
+  .nav .text-btn:not(.tool-btn) { padding: 0 9px; }
   .layout { padding: 0 8px max(8px, env(safe-area-inset-bottom)); }
   #calendar, .week { min-height: 480px; border-radius: 12px; }
   .fc .holiday-name { display: none; }
@@ -907,7 +911,7 @@ body.gate {
    7차: 생산성 도구
    ========================================================================== */
 
-/* ---------- 상단 도구 버튼 (마음 노트 / 돌아보기 / 빠른 입력) ---------- */
+/* ---------- 상단 도구 버튼 (기록지 / 돌아보기 / 빠른 입력) ---------- */
 .tool-btn { gap: 6px; padding: 0 11px 0 9px; }
 .tool-btn svg { width: 18px; height: 18px; flex: none; }
 .quick-btn { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
@@ -958,7 +962,6 @@ body.gate {
   text-align: left; font-size: 15px; font-weight: 500; line-height: 1.55;
 }
 .banner-quote:hover { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
-.banner-mark { flex: none; font-size: 22px; line-height: 1; color: var(--accent); margin-top: 1px; }
 .banner-text { white-space: pre-line; overflow-wrap: anywhere; }
 .dday-list { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .top-strip:not(.has-quote) .dday-list { flex: 1; }
@@ -982,7 +985,7 @@ body.gate {
   .dday-chip { flex: none; height: 32px; font-size: 13px; padding: 0 12px 0 10px; }
 }
 
-/* ---------- 마음 노트 (왼쪽) ---------- */
+/* ---------- 기록지 (왼쪽) ---------- */
 .notes {
   display: none; flex-direction: column; min-height: 0;
   background: var(--surface);
@@ -1043,39 +1046,96 @@ textarea.note-body-input { min-height: max(240px, 46dvh); line-height: 1.7; }
 .note-status { font-size: 12px; color: var(--muted); }
 .field-hint { margin: 0; font-size: 12px; color: var(--muted); }
 
-/* ---------- 루틴: 하루 화면 아래 버튼 줄 ---------- */
+/* ---------- 루틴 (8차): 일정과 따로. 카테고리 색 대신 루틴 전용 색 하나 + 이모지 ---------- */
+:root { --routine: #0F9D8A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --routine: #3CCBB4; } }
+:root[data-theme="dark"] { --routine: #3CCBB4; }
+
 .day-foot { flex: 1; min-width: 0; display: grid; gap: 10px; }
+.empty.small { margin: 0 0 4px; padding: 10px 0; font-size: 13px; }
+
+/* 하루 화면 맨 아래(고정): 루틴 기록하기 버튼 줄 */
 .routine-bar { display: grid; gap: 6px; }
 .routine-head { display: flex; align-items: center; justify-content: space-between; }
 .routine-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 80px; overflow-y: auto; }
 .routine-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  height: 34px; padding: 0 12px 0 10px;
-  border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  height: 34px; padding: 0 12px 0 9px;
+  border: 1px solid color-mix(in srgb, var(--routine) 35%, var(--line)); border-radius: 999px;
+  background: color-mix(in srgb, var(--routine) 6%, var(--surface));
   font-size: 14px;
 }
-.routine-chip:hover {
-  border-color: color-mix(in srgb, var(--cat) 55%, var(--line));
-  background: color-mix(in srgb, var(--cat) 10%, var(--surface));
-}
+.routine-chip:hover { background: color-mix(in srgb, var(--routine) 14%, var(--surface)); border-color: var(--routine); }
+.routine-emoji { font-size: 16px; line-height: 1; }
 .routine-name { font-weight: 500; }
 .routine-last { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .routine-empty { margin: 0; font-size: 12px; color: var(--muted); }
 
+/* 하루 화면: 일정 아래 '오늘의 루틴' 구역 */
+.routine-day { margin-top: 18px; padding-top: 14px; border-top: 1px dashed color-mix(in srgb, var(--routine) 45%, var(--line)); }
+.routine-day-title { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--routine); }
+.routine-day-title::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--routine); }
+.routine-logs { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.routine-log {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 12px 8px 10px;
+  border: 0; border-radius: 10px; text-align: left;
+  background: color-mix(in srgb, var(--routine) 7%, var(--surface));
+}
+.routine-log:hover { background: color-mix(in srgb, var(--routine) 14%, var(--surface)); }
+.routine-log-emoji { font-size: 20px; line-height: 1; text-align: center; }
+.routine-log-main { display: grid; min-width: 0; }
+.routine-log-name { font-weight: 500; }
+.routine-log-memo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--muted); }
+.routine-log-time { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.routine-save { min-width: 72px; }
+
 /* 루틴 편집 화면 */
 .routine-list { list-style: none; margin: 0 0 6px; padding: 0; }
 .routine-row {
-  display: grid; grid-template-columns: 14px 1fr auto auto; align-items: center; gap: 12px;
+  display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center; gap: 12px;
   min-height: 52px; padding: 4px 0; border-bottom: 1px solid var(--line); background: var(--surface);
 }
+.routine-row-emoji { font-size: 22px; line-height: 1; text-align: center; }
 .routine-row.editing { display: block; padding: 12px 0; }
 .routine-row-main { display: grid; min-width: 0; }
 .routine-row .drag-handle { height: 40px; width: 40px; }
 .routine-list.is-sorting { user-select: none; }
 .routine-row.is-dragging { position: relative; z-index: 1; box-shadow: 0 10px 24px -10px var(--shadow); }
 .routine-add { display: grid; gap: 10px; margin-top: 18px; }
+.routine-preview {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px;
+  border-radius: 10px; background: color-mix(in srgb, var(--routine) 10%, var(--surface));
+  font-size: 24px; line-height: 1;
+}
+.emoji-picker { display: grid; gap: 8px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.emoji-choice {
+  position: relative; display: grid; place-items: center; height: 38px;
+  border-radius: 8px; font-size: 20px; cursor: pointer; user-select: none;
+}
+.emoji-choice:hover { background: var(--hover); }
+.emoji-choice input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.emoji-choice:has(input:checked) { background: color-mix(in srgb, var(--routine) 16%, var(--surface)); box-shadow: inset 0 0 0 2px var(--routine); }
+.emoji-choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.emoji-custom { width: 120px; font-size: 18px; text-align: center; }
 @media (max-width: 640px) {
-  .routine-row { grid-template-columns: 14px 1fr auto auto; gap: 8px; }
+  .routine-row { grid-template-columns: 28px 1fr auto auto; gap: 8px; }
+}
+
+/* 월간 화면: 루틴 기록은 일정 아래에 둥근 '🏃 운동' (색 띠 없이 루틴 색 바탕) */
+.fc .fc-daygrid-event.fc-h-event.is-routine {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--routine) 13%, var(--surface));
+  box-shadow: none;
+}
+.fc .fc-daygrid-event.fc-h-event.is-routine:hover { background: color-mix(in srgb, var(--routine) 24%, var(--surface)); }
+.ev-routine { padding-left: 6px; }
+.ev-routine .ev-title { font-weight: 500; }
+/* 주간 화면 */
+.wk-chip.is-routine, .wk-item.is-routine {
+  background: color-mix(in srgb, var(--routine) 11%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--routine) 28%, transparent);
 }
 
 /* ---------- D-day 표시 ---------- */
@@ -1128,6 +1188,7 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 }
 .quick-chip-label { font-size: 12px; color: var(--muted); }
 .quick-cat { display: inline-flex; align-items: center; gap: 5px; }
+.quick-chip.is-routine { border-color: color-mix(in srgb, var(--routine) 45%, var(--line)); background: color-mix(in srgb, var(--routine) 8%, var(--surface)); }
 .quick-warnings { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--danger); }
 .quick-help summary { cursor: pointer; font-size: 13px; color: var(--muted); width: max-content; }
 .quick-help ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; color: var(--muted); line-height: 1.55; }
@@ -1184,12 +1245,8 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 .stats-tip strong { font-size: 15px; }
 .stats-tip-row { display: inline-flex; align-items: center; gap: 5px; }
 .stats-tip-key { display: inline-block; width: 12px; height: 2px; border-radius: 1px; background: var(--cat); }
-.stats-routines { display: flex; flex-wrap: wrap; gap: 6px; }
-.stats-routine {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 12px 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px;
-}
-.stats-routine b { font-variant-numeric: tabular-nums; }
+.stats-bar-row.is-routine .stats-bar-fill, .stats-seg.is-routine, .stats-tip-row.is-routine .stats-tip-key { background: var(--routine); }
+.stats-emoji { font-size: 15px; line-height: 1; }
 
 /* ---------- 알림의 '되돌리기' / '보기' 버튼 ---------- */
 .toast.has-action:popover-open, .toast.has-action.show { display: flex; align-items: center; gap: 14px; }
@@ -1197,4 +1254,11 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 .toast-action {
   flex: none; padding: 2px 0; border: 0; background: none; color: inherit;
   font-size: 14px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* 아주 좁은 휴대폰(360px 안팎): 상단 버튼 글자가 두 줄로 꺾이지 않게 */
+.text-btn { white-space: nowrap; }
+@media (max-width: 380px) {
+  .actions .text-btn { font-size: 13px; padding: 0 6px; gap: 4px; }
+  .view-switch .seg-btn { padding: 0 8px; font-size: 13px; }
 }

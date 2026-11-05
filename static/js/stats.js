@@ -1,9 +1,9 @@
 // 시간 돌아보기 (7차) — 이번 주 / 이번 달에 시간을 어디에 썼는지
 //
-//   - 맨 위: 기록된 전체 시간 (시작·끝 시간이 모두 있는 일정만 더한다)
-//   - 카테고리별 가로 막대: 시간이 많은 순서. 이름과 값을 막대 옆에 글자로 적어서 색만으로 구분하지 않게 했다.
-//   - 날짜별 세로 막대: 카테고리별로 쌓는다. 막대에 마우스를 올리거나 키보드로 고르면 자세한 값이 뜬다.
-//   - 루틴: 그 기간에 몇 번 했는지
+//   - 맨 위: 기록된 전체 시간 = 일정 + 루틴 (시작·끝 시간이 모두 있는 것만 더한다)
+//   - 카테고리별 가로 막대 (일정): 시간이 많은 순서. 이름과 값을 막대 옆에 글자로 적어서 색만으로 구분하지 않게 했다.
+//   - 루틴별 가로 막대 (8차: 루틴 기록은 일정과 따로): 몇 번, 몇 시간
+//   - 날짜별 세로 막대: 카테고리별로 쌓고 맨 위에 루틴. 막대에 마우스를 올리거나 키보드로 고르면 자세한 값이 뜬다.
 // 계산은 서버(api_tools.py의 /api/stats)가 하고, 여기서는 그리기만 한다.
 // 달성률·목표 같은 건 일부러 넣지 않았다. '내 시간이 어디에 쓰였나'를 보는 화면이다.
 
@@ -50,9 +50,9 @@ export function statsView({ mode = 'week', anchor = todayStr() }) {
         controls,
         hero(data),
         data.item_count ? categoryBars(data) : null,
+        data.routines.length ? routineBars(data) : null,
         data.total_minutes ? dayColumns(data, state) : null,
-        data.routines.length ? routineCounts(data) : null,
-        el('p', { class: 'list-hint' }, '시작·끝 시간이 모두 있는 일정만 시간에 더해요. 여러 날짜에 들어간 일정은 날짜마다 따로 세요.'),
+        el('p', { class: 'list-hint' }, '시작·끝 시간이 모두 있는 일정·루틴 기록만 시간에 더해요. 여러 날짜에 들어간 일정은 날짜마다 따로 세요.'),
       ),
     );
     sheet.setFoot();
@@ -97,13 +97,13 @@ function periodLabel(state) {
 
 // ---------------------------------------------------------------- 그리기
 function hero(data) {
+  const parts = [];
+  if (data.item_count) parts.push(`일정 ${formatMinutes(data.schedule_minutes)} (${data.item_count}개 중 시간 적은 것 ${data.timed_count}개)`);
+  if (data.log_count) parts.push(`루틴 ${formatMinutes(data.routine_minutes)} (기록 ${data.log_count}개)`);
   return el('div', { class: 'stats-hero' },
     el('span', { class: 'stats-hero-label' }, '기록된 시간'),
     el('span', { class: 'stats-hero-value' }, formatMinutes(data.total_minutes)),
-    el('span', { class: 'stats-hero-sub' },
-      data.item_count
-        ? `일정 ${data.item_count}개 중 시간을 적은 일정 ${data.timed_count}개`
-        : '이 기간에는 일정이 없어요.'),
+    el('span', { class: 'stats-hero-sub' }, parts.length ? parts.join(' · ') : '이 기간에는 일정도 루틴 기록도 없어요.'),
   );
 }
 
@@ -111,11 +111,11 @@ function hero(data) {
 function categoryBars(data) {
   const max = Math.max(1, ...data.categories.map((c) => c.minutes));
   return el('section', { class: 'stats-section' },
-    el('h3', { class: 'label' }, '카테고리별'),
+    el('h3', { class: 'label' }, '일정 · 카테고리별'),
     el('ul', { class: 'stats-bars' },
       data.categories.map((c) => {
         const pct = (c.minutes / max) * 100;
-        const share = data.total_minutes ? Math.round((c.minutes / data.total_minutes) * 100) : 0;
+        const share = data.schedule_minutes ? Math.round((c.minutes / data.schedule_minutes) * 100) : 0;
         return el('li', { class: 'stats-bar-row', style: { '--cat': c.color } },
           el('span', { class: 'stats-bar-name' }, el('span', { class: 'dot' }), c.name),
           el('span', { class: 'stats-bar-track', role: 'img', 'aria-label': `${c.name}: ${formatMinutes(c.minutes)}, 일정 ${c.count}개` },
@@ -133,12 +133,13 @@ function categoryBars(data) {
 function dayColumns(data, state) {
   const { start, end } = period(state);
   const byDate = new Map(data.days.map((d) => [d.date, d.by_category]));
+  const routineOf = new Map(data.days.map((d) => [d.date, d.routine]));
   const catOf = new Map(data.categories.map((c) => [String(c.id), c]));
   const order = data.categories.map((c) => String(c.id)); // 아래부터 시간 많은 카테고리 순으로 쌓는다
 
   const days = [];
   for (let d = start; d < end; d = addDays(d, 1)) days.push(d);
-  const totals = days.map((d) => Object.values(byDate.get(d) || {}).reduce((a, b) => a + b, 0));
+  const totals = days.map((d) => Object.values(byDate.get(d) || {}).reduce((a, b) => a + b, 0) + (routineOf.get(d) || 0));
   const maxDay = Math.max(...totals);
   const scaleTop = Math.max(60, Math.ceil(maxDay / 60) * 60); // 위쪽 기준선: 시간 단위로 올림
 
@@ -152,8 +153,10 @@ function dayColumns(data, state) {
     const total = totals[i];
     const date = parseDateStr(d);
     const label = `${date.getMonth() + 1}월 ${date.getDate()}일 (${WEEKDAYS[date.getDay()]})`;
+    const routine = routineOf.get(d) || 0;
     const segs = order.filter((id) => cats[id]).map((id) =>
       el('span', { class: 'stats-seg', style: { '--cat': catOf.get(id).color, height: `${(cats[id] / scaleTop) * 100}%` } }));
+    if (routine) segs.push(el('span', { class: 'stats-seg is-routine', style: { height: `${(routine / scaleTop) * 100}%` } })); // 루틴은 맨 위
 
     const showTip = () => {
       tip.replaceChildren(
@@ -162,6 +165,7 @@ function dayColumns(data, state) {
         ...order.filter((id) => cats[id]).map((id) =>
           el('span', { class: 'stats-tip-row', style: { '--cat': catOf.get(id).color } },
             el('span', { class: 'stats-tip-key' }), el('b', {}, formatMinutes(cats[id])), ` ${catOf.get(id).name}`)),
+        routine ? el('span', { class: 'stats-tip-row is-routine' }, el('span', { class: 'stats-tip-key' }), el('b', {}, formatMinutes(routine)), ' 루틴') : null,
       );
     };
     const col = el('button', {
@@ -196,13 +200,20 @@ function dayColumns(data, state) {
   );
 }
 
-function routineCounts(data) {
+// 루틴별 가로 막대 (기록 횟수 순). 막대 길이 = 가장 많이 한 루틴 대비 횟수
+function routineBars(data) {
+  const max = Math.max(1, ...data.routines.map((r) => r.count));
   return el('section', { class: 'stats-section' },
     el('h3', { class: 'label' }, '루틴'),
-    el('div', { class: 'stats-routines' },
+    el('ul', { class: 'stats-bars' },
       data.routines.map((r) =>
-        el('span', { class: 'stats-routine', style: { '--cat': r.color } },
-          el('span', { class: 'dot' }), r.name, el('b', {}, `${r.count}번`)))),
+        el('li', { class: 'stats-bar-row is-routine' },
+          el('span', { class: 'stats-bar-name' }, el('span', { class: 'stats-emoji', 'aria-hidden': 'true' }, r.emoji), r.name),
+          el('span', { class: 'stats-bar-track', role: 'img', 'aria-label': `${r.name}: ${r.count}번${r.minutes ? `, ${formatMinutes(r.minutes)}` : ''}` },
+            el('span', { class: 'stats-bar-fill', style: { width: `max(4px, ${(r.count / max) * 100}%)` } })),
+          el('span', { class: 'stats-bar-value' }, `${r.count}번`,
+            el('span', { class: 'muted' }, r.minutes ? ` · ${formatMinutes(r.minutes)}` : '')),
+        )),
+    ),
   );
 }
-

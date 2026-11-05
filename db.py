@@ -8,8 +8,9 @@ items       : 일정/할 일 본체 (제목, 메모, 카테고리, 시작·끝 �
 item_dates  : 일정이 들어간 날짜들 (일정 하나에 날짜 여러 개 가능)
               + 그 날짜 안에서의 표시 순서(position)
 
-routines    : 루틴 — 자주 하는 활동(운동, 독서 …)을 빠르게 추가하는 버튼 (7차)
-notes       : 마음 노트 — 메모 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
+routines     : 루틴 — 자주 하는 활동(🏃 운동, 📖 독서 …). 카테고리 대신 이모지 하나 (8차에서 바뀜)
+routine_logs : 루틴 기록 — 그날 그 루틴을 했다는 기록 (시간·메모는 선택). 일정(items)과는 따로 둔다 (8차)
+notes        : 기록지 — 메모 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
 
 meta        : 변경 번호(version) — 일정·카테고리·루틴·메모가 바뀔 때마다 1씩 커진다.
               다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
@@ -55,9 +56,20 @@ CREATE INDEX IF NOT EXISTS idx_item_dates_date ON item_dates(date);
 CREATE TABLE IF NOT EXISTS routines (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
-    category_id INTEGER NOT NULL REFERENCES categories(id),
+    emoji       TEXT    NOT NULL DEFAULT '⭐', -- 루틴을 나타내는 이모지 하나
     position    INTEGER NOT NULL DEFAULT 0    -- 버튼 순서 (작을수록 앞)
 );
+
+CREATE TABLE IF NOT EXISTS routine_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    routine_id  INTEGER NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+    date        TEXT    NOT NULL,             -- 'YYYY-MM-DD'
+    start_time  TEXT,                         -- 'HH:MM' 또는 NULL
+    end_time    TEXT,
+    memo        TEXT    NOT NULL DEFAULT '',  -- '5km', '30쪽' 같은 자유 메모
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_routine_logs_date ON routine_logs(date);
 
 CREATE TABLE IF NOT EXISTS notes (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,7 +107,7 @@ def migrate(conn):
       - items.end_time       : 끝 시간 (2차 수정에서 추가)
       - item_dates.position  : 하루 안의 표시 순서 (2차 수정에서 추가)
       - items.dday           : D-day 표시 여부 (7차 수정에서 추가)
-      - items.routine_id     : 어느 루틴으로 추가한 일정인지 (7차 수정에서 추가)
+      - routines             : 카테고리 → 이모지, 7차의 '루틴으로 넣은 일정'을 루틴 기록으로 옮김 (8차 수정)
     """
     if "end_time" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN end_time TEXT")
@@ -105,8 +117,63 @@ def migrate(conn):
         conn.execute("UPDATE item_dates SET position = item_id")
     if "dday" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN dday INTEGER NOT NULL DEFAULT 0")
-    if "routine_id" not in column_names(conn, "items"):
-        conn.execute("ALTER TABLE items ADD COLUMN routine_id INTEGER REFERENCES routines(id) ON DELETE SET NULL")
+    if "emoji" not in column_names(conn, "routines"):
+        migrate_routines_v8(conn)
+
+
+# 7차 루틴 이름으로 이모지 짐작하기 (나중에 루틴 편집에서 바꿀 수 있다)
+EMOJI_GUESS = [
+    (("운동", "헬스", "러닝", "달리기", "조깅"), "🏃"), (("독서", "책"), "📖"), (("영어", "단어", "외국어"), "🔤"),
+    (("공부", "복습", "예습"), "✏️"), (("명상",), "🧘"), (("스트레칭", "요가"), "🤸"), (("게임",), "🎮"),
+    (("산책", "걷기"), "🚶"), (("물",), "💧"), (("일기", "기록"), "📝"), (("코딩", "개발"), "💻"), (("청소",), "🧹"),
+]
+
+
+def guess_emoji(name):
+    for words, emoji in EMOJI_GUESS:
+        if any(w in name for w in words):
+            return emoji
+    return "⭐"
+
+
+def migrate_routines_v8(conn):
+    """
+    7차 → 8차: 루틴을 일정과 분리한다.
+      1) routines 표를 '카테고리' 대신 '이모지'를 가진 모양으로 다시 만든다 (번호는 그대로).
+      2) 7차에서 루틴 버튼으로 넣은 일정(items.routine_id가 있는 것)을 루틴 기록(routine_logs)으로 옮기고,
+         일정 목록에서는 지운다. 날짜·시간·메모는 그대로 옮겨진다.
+    SQLite는 칸을 지우거나 바꾸는 기능이 약해서 '새 표 만들기 → 옮겨 담기 → 옛 표 지우기 → 이름 바꾸기' 순서로 한다.
+    """
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")  # 표를 바꿔 끼우는 동안만 잠시 끈다
+    has_link = "routine_id" in column_names(conn, "items")
+    move_logs = """
+        INSERT INTO routine_logs (routine_id, date, start_time, end_time, memo)
+        SELECT i.routine_id, d.date, i.start_time, i.end_time, i.memo
+        FROM items i JOIN item_dates d ON d.item_id = i.id
+        WHERE i.routine_id IN (SELECT id FROM routines);
+        DELETE FROM item_dates WHERE item_id IN (SELECT id FROM items WHERE routine_id IN (SELECT id FROM routines));
+        DELETE FROM items WHERE routine_id IN (SELECT id FROM routines);
+        UPDATE items SET routine_id = NULL;
+    """ if has_link else ""
+    conn.executescript(f"""
+        BEGIN;
+        CREATE TABLE routines_new (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            name     TEXT    NOT NULL,
+            emoji    TEXT    NOT NULL DEFAULT '⭐',
+            position INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO routines_new (id, name, position) SELECT id, name, position FROM routines;
+        DROP TABLE routines;
+        ALTER TABLE routines_new RENAME TO routines;
+        {move_logs}
+        COMMIT;
+    """)
+    for row in conn.execute("SELECT id, name FROM routines").fetchall():
+        conn.execute("UPDATE routines SET emoji = ? WHERE id = ?", (guess_emoji(row["name"]), row["id"]))
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = ON")
 
 
 def init_db(path):

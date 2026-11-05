@@ -5,6 +5,8 @@
 //   1) 쓰는 동안 '어떻게 읽었는지'를 바로 보여 주고 (읽은 부분은 색으로 표시)
 //   2) Enter(추가)를 누르면 그대로 저장하고,
 //   3) '자세히'를 누르면 채워진 입력 창을 연다 (메모·여러 날짜 등을 더 손볼 때).
+// 날짜를 안 쓰면 기한 미정으로 들어간다 (8차).
+// 제목이 루틴 이름과 같으면('운동 7시') 일정이 아니라 루틴 기록으로 저장한다 (날짜를 안 쓰면 오늘).
 
 import { api } from './api.js';
 import { ddayLabel, daysBetween, el, formatShort, formatTimeRange, todayStr, toast } from './utils.js';
@@ -118,16 +120,22 @@ export class QuickAdd {
     const chip = (label, value, extra = {}) =>
       el('span', { class: 'quick-chip', ...extra }, el('span', { class: 'quick-chip-label' }, label), value);
 
+    const chips = r.routine
+      ? [ // 루틴 기록: 카테고리·D-day 없이
+          chip('루틴 기록', `${r.routine.emoji} ${r.routine.name}`, { class: 'quick-chip is-routine' }),
+          chip('날짜', dateLabel + (r.routine_today ? ' (안 써서 오늘)' : '')),
+          chip('시간', time || '없음'),
+        ]
+      : [
+          chip('날짜', r.dates.length ? dateLabel : '기한 미정 (날짜를 안 썼어요)'),
+          chip('시간', time || '없음'),
+          chip('카테고리', el('span', { class: 'quick-cat', style: { '--cat': r.category?.color || 'var(--faint)' } },
+            el('span', { class: 'dot' }), r.category?.name || '미분류')),
+          r.dday && r.dates.length ? chip('D-day', ddayLabel(daysBetween(today, nextDate(r.dates, today)))) : null,
+        ];
     this.previewEl.replaceChildren(...[
       el('p', { class: 'quick-title' }, r.title || el('span', { class: 'muted' }, '무엇을 할지도 적어 주세요')),
-      el('div', { class: 'quick-chips' },
-        chip('날짜', dateLabel + (r.date_defaulted ? ' (안 써서 오늘)' : '')),
-        chip('시간', time || '없음'),
-        chip('카테고리', el('span', { class: 'quick-cat', style: { '--cat': r.category?.color || 'var(--faint)' } },
-          el('span', { class: 'dot' }), r.category?.name || '미분류')),
-        r.dday && r.dates.length ? chip('D-day', ddayLabel(daysBetween(today, nextDate(r.dates, today)))) : null,
-        r.routine_id ? chip('루틴', '연결됨') : null,
-      ),
+      el('div', { class: 'quick-chips' }, chips),
       r.warnings.length ? el('ul', { class: 'quick-warnings' }, r.warnings.map((w) => el('li', {}, w))) : null,
     ].filter(Boolean));
   }
@@ -141,8 +149,18 @@ export class QuickAdd {
       end_time: r.end_time,
       category_id: r.category?.id ?? null,
       dday: r.dday,
-      ...(r.routine_id ? { routine_id: r.routine_id } : {}),
     };
+  }
+
+  // 루틴 기록으로 저장 (날짜마다 기록 하나)
+  async saveRoutine(r) {
+    const logs = [];
+    for (const date of r.dates) {
+      logs.push(await api.createRoutineLog({
+        routine_id: r.routine.id, date, start_time: r.start_time, end_time: r.end_time, memo: '',
+      }));
+    }
+    return logs;
   }
 
   async save() {
@@ -154,11 +172,16 @@ export class QuickAdd {
     }
     this.saveBtn.disabled = true;
     try {
+      if (r.routine) {
+        const logs = await this.saveRoutine(r);
+        this.clear();
+        await this.onSaved();
+        const first = logs[0].date;
+        toast(`${formatShort(first)}에 ${r.routine.emoji} ${r.routine.name} 기록을 넣었어요`, 'info', { action: { label: '보기', run: () => this.onOpenDate(first) } });
+        return;
+      }
       const item = await api.createItem(this.payload(r));
-      this.input.value = '';
-      this.result = null;
-      this.resultText = '';
-      this.dialog.close();
+      this.clear();
       await this.onSaved(item);
       if (item.dates.length) {
         const first = item.dates[0];
@@ -173,11 +196,24 @@ export class QuickAdd {
     }
   }
 
+  clear() {
+    this.input.value = '';
+    this.result = null;
+    this.resultText = '';
+    this.dialog.close();
+  }
+
   async detail() {
     const r = await this.current();
     this.dialog.close();
     if (!r) {
       this.onDetail({ prefill: null, ctxDate: todayStr() });
+      return;
+    }
+    if (r.routine) { // 루틴 기록 창 (첫 날짜로)
+      this.onDetail({
+        routineLog: { routine: r.routine, date: r.dates[0], prefill: { start_time: r.start_time, end_time: r.end_time } },
+      });
       return;
     }
     this.onDetail({

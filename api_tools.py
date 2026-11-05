@@ -1,14 +1,20 @@
 """
 생산성 도구 API (7차) — api.py와 같은 /api 주소 묶음(blueprint)에 붙는다.
 
-루틴 (자주 하는 활동을 빠르게 추가하는 버튼)
-  GET    /api/routines?date=              루틴 목록 + 그 날짜 기준으로 마지막으로 한 날(last_date)
-  POST   /api/routines                    루틴 추가 {name, category_id}
-  PUT    /api/routines/<id>               이름·카테고리 수정
-  DELETE /api/routines/<id>               삭제 (이미 추가한 일정은 그대로 남는다)
+루틴 (자주 하는 활동. 이모지 하나 + 이름)
+  GET    /api/routines?date=              루틴 목록 + 그 날짜 기준으로 마지막으로 기록한 날(last_date)
+  POST   /api/routines                    루틴 추가 {name, emoji}
+  PUT    /api/routines/<id>               이름·이모지 수정
+  DELETE /api/routines/<id>               삭제 (그 루틴의 기록도 함께)
   PUT    /api/routines/order              버튼 순서 {ids: [...]}
 
-마음 노트
+루틴 기록 (일정과 따로 저장)
+  GET    /api/routine-logs?start=&end=    기간의 루틴 기록
+  POST   /api/routine-logs                기록 추가 {routine_id, date, start_time, end_time, memo}
+  PUT    /api/routine-logs/<id>           수정 (보낸 칸만 — 끌어서 날짜만 옮길 때는 {date})
+  DELETE /api/routine-logs/<id>           삭제
+
+기록지
   GET    /api/notes                       메모 목록
   POST   /api/notes                       메모 추가 (첫 메모는 자동으로 메인)
   PUT    /api/notes/<id>                  제목·내용·배너 글귀 수정 (자동 저장)
@@ -20,19 +26,20 @@
   GET    /api/overview?today=             메인 메모의 배너 글귀 + 다가오는 D-day 일정
 
 시간 돌아보기
-  GET    /api/stats?start=&end=           기간 안의 카테고리별·날짜별 시간, 루틴 횟수
+  GET    /api/stats?start=&end=           기간 안의 카테고리별·날짜별 시간, 루틴 횟수·시간
 
 빠른 입력
-  GET    /api/parse?text=&today=&default= 한 줄 입력을 해석만 한다 (저장은 POST /api/items)
+  GET    /api/parse?text=&today=          한 줄 입력을 해석만 한다 (저장은 POST /api/items 또는 /api/routine-logs)
 """
 
+import unicodedata
 from datetime import date as Date
 
 from flask import jsonify, request
 
 import quickadd
-from api import ApiError, bp, json_body, parse_date, parse_range
-from db import default_category_id, get_db
+from api import ApiError, bp, json_body, parse_date, parse_range, parse_time
+from db import get_db
 
 MAX_ROUTINES = 30
 MAX_ROUTINE_NAME = 30
@@ -63,6 +70,11 @@ def id_list(data, table, label):
 
 
 # ======================================================================== 루틴
+# 루틴 = 이모지 하나 + 이름 (카테고리 없음). 루틴 버튼으로 남긴 건 일정이 아니라 '루틴 기록'으로 따로 저장한다.
+MAX_EMOJI_LEN = 16   # 이모지 하나가 여러 글자(코드 포인트)로 이루어진 경우도 있어서 넉넉하게 (👨‍💻, 🏃‍♀️)
+MAX_LOG_MEMO = 500
+
+
 def routine_payload(data, db, exclude_id=None):
     name = str(data.get("name") or "").strip()
     if not name:
@@ -72,28 +84,26 @@ def routine_payload(data, db, exclude_id=None):
     if db.execute("SELECT 1 FROM routines WHERE name = ? AND id IS NOT ?", (name, exclude_id)).fetchone():
         raise ApiError(f"'{name}' 루틴이 이미 있어요.")
 
-    category_id = data.get("category_id")
-    if category_id in (None, ""):
-        category_id = default_category_id(db)
-    elif not isinstance(category_id, int) or not db.execute(
-        "SELECT 1 FROM categories WHERE id = ?", (category_id,)
-    ).fetchone():
-        raise ApiError("카테고리를 찾을 수 없어요.", 404)
-    return {"name": name, "category_id": category_id}
+    emoji = str(data.get("emoji") or "").strip()
+    if not emoji:
+        raise ApiError("루틴 이모지를 골라 주세요.")
+    # 글자(한글·영어 등)나 띄어쓰기가 섞이면 이모지가 아닌 것으로 본다
+    if len(emoji) > MAX_EMOJI_LEN or any(ch.isspace() or unicodedata.category(ch).startswith("L") for ch in emoji):
+        raise ApiError("이모지는 하나만 골라 주세요.")
+    return {"name": name, "emoji": emoji}
 
 
 def routine_rows(db, until=None):
     """
-    루틴 목록. until(날짜)이 있으면 그 날짜까지 중 마지막으로 그 활동을 한 날(last_date)도 함께.
-    '그 활동을 한 날' = 루틴 버튼으로 추가한 일정이 있는 날, 또는 제목이 루틴 이름과 똑같은 일정이 있는 날
-    (루틴을 만들기 전에 손으로 적어 둔 '운동'도 기록으로 친다).
+    루틴 목록. until(날짜)이 있으면 그 날짜까지 중 마지막으로 기록한 날(last_date)도 함께.
+    log_count = 지금까지 남긴 기록 수 (삭제할 때 '기록 N개도 함께 지워져요' 안내용)
     """
     return db.execute(
         """
-        SELECT r.*, c.name AS c_name, c.color AS c_color,
-               (SELECT MAX(d.date) FROM item_dates d JOIN items i ON i.id = d.item_id
-                 WHERE (i.routine_id = r.id OR TRIM(i.title) = r.name) AND d.date <= ?) AS last_date
-        FROM routines r JOIN categories c ON c.id = r.category_id
+        SELECT r.*,
+               (SELECT MAX(l.date) FROM routine_logs l WHERE l.routine_id = r.id AND l.date <= ?) AS last_date,
+               (SELECT COUNT(*) FROM routine_logs l WHERE l.routine_id = r.id) AS log_count
+        FROM routines r
         ORDER BY r.position, r.id
         """,
         (until or "9999-12-31",),
@@ -104,9 +114,10 @@ def routine_dict(r):
     return {
         "id": r["id"],
         "name": r["name"],
+        "emoji": r["emoji"],
         "position": r["position"],
-        "category": {"id": r["category_id"], "name": r["c_name"], "color": r["c_color"]},
         "last_date": r["last_date"],
+        "log_count": r["log_count"],
     }
 
 
@@ -125,8 +136,7 @@ def create_routine():
     fields = routine_payload(json_body(), db)
     position = db.execute("SELECT COALESCE(MAX(position), 0) + 1 AS p FROM routines").fetchone()["p"]
     cur = db.execute(
-        "INSERT INTO routines (name, category_id, position) VALUES (?, ?, ?)",
-        (fields["name"], fields["category_id"], position),
+        "INSERT INTO routines (name, emoji, position) VALUES (?, ?, ?)", (fields["name"], fields["emoji"], position)
     )
     db.commit()
     row = next(r for r in routine_rows(db) if r["id"] == cur.lastrowid)
@@ -134,8 +144,10 @@ def create_routine():
 
 
 def get_routine_or_404(db, routine_id):
-    if not db.execute("SELECT 1 FROM routines WHERE id = ?", (routine_id,)).fetchone():
+    row = db.execute("SELECT * FROM routines WHERE id = ?", (routine_id,)).fetchone()
+    if row is None:
         raise ApiError("루틴을 찾을 수 없어요.", 404)
+    return row
 
 
 @bp.put("/routines/<int:routine_id>")
@@ -143,10 +155,7 @@ def update_routine(routine_id):
     db = get_db()
     get_routine_or_404(db, routine_id)
     fields = routine_payload(json_body(), db, exclude_id=routine_id)
-    db.execute(
-        "UPDATE routines SET name = ?, category_id = ? WHERE id = ?",
-        (fields["name"], fields["category_id"], routine_id),
-    )
+    db.execute("UPDATE routines SET name = ?, emoji = ? WHERE id = ?", (fields["name"], fields["emoji"], routine_id))
     db.commit()
     row = next(r for r in routine_rows(db) if r["id"] == routine_id)
     return jsonify(routine_dict(row))
@@ -154,12 +163,13 @@ def update_routine(routine_id):
 
 @bp.delete("/routines/<int:routine_id>")
 def delete_routine(routine_id):
+    """루틴을 지우면 그 루틴의 기록도 함께 지워진다 (화면에서 개수를 알려 주고 묻는다)."""
     db = get_db()
     get_routine_or_404(db, routine_id)
-    db.execute("UPDATE items SET routine_id = NULL WHERE routine_id = ?", (routine_id,))  # 일정은 남긴다
+    removed = db.execute("DELETE FROM routine_logs WHERE routine_id = ?", (routine_id,)).rowcount
     db.execute("DELETE FROM routines WHERE id = ?", (routine_id,))
     db.commit()
-    return jsonify(deleted=routine_id)
+    return jsonify(deleted=routine_id, logs_deleted=removed)
 
 
 @bp.put("/routines/order")
@@ -171,7 +181,102 @@ def reorder_routines():
     return jsonify(ids=ids)
 
 
-# ======================================================================== 마음 노트
+# ------------------------------------------------------------------------ 루틴 기록
+def log_payload(data, partial=False):
+    """루틴 기록의 날짜·시간·메모. partial이면 보낸 칸만 (끌어서 날짜만 옮길 때)."""
+    out = {}
+    if "date" in data or not partial:
+        out["date"] = parse_date(data.get("date"))
+    if "start_time" in data or "end_time" in data or not partial:
+        start = parse_time(data.get("start_time"), "시작 시간")
+        end = parse_time(data.get("end_time"), "끝 시간")
+        if start and end and end <= start:
+            raise ApiError("끝 시간은 시작 시간보다 늦어야 해요.")
+        out["start_time"], out["end_time"] = start, end
+    if "memo" in data or not partial:
+        memo = str(data.get("memo") or "").strip()
+        if len(memo) > MAX_LOG_MEMO:
+            raise ApiError(f"메모는 {MAX_LOG_MEMO}자 이하로 적어 주세요.")
+        out["memo"] = memo
+    return out
+
+
+def log_rows(db, where="", params=()):
+    return db.execute(
+        f"""
+        SELECT l.*, r.name AS r_name, r.emoji AS r_emoji
+        FROM routine_logs l JOIN routines r ON r.id = l.routine_id
+        {where}
+        ORDER BY l.date, l.start_time IS NULL, l.start_time, r.position, l.id
+        """,
+        params,
+    ).fetchall()
+
+
+def log_dict(r):
+    return {
+        "id": r["id"],
+        "date": r["date"],
+        "start_time": r["start_time"],
+        "end_time": r["end_time"],
+        "memo": r["memo"],
+        "routine": {"id": r["routine_id"], "name": r["r_name"], "emoji": r["r_emoji"]},
+    }
+
+
+def get_log_or_404(db, log_id):
+    rows = log_rows(db, "WHERE l.id = ?", (log_id,))
+    if not rows:
+        raise ApiError("루틴 기록을 찾을 수 없어요.", 404)
+    return rows[0]
+
+
+@bp.get("/routine-logs")
+def list_routine_logs():
+    """[start, end) 기간의 루틴 기록. 같은 날 안에서는 시간 있는 것 → 시간순, 시간 없는 것은 뒤로."""
+    start, end = parse_range()
+    return jsonify([log_dict(r) for r in log_rows(get_db(), "WHERE l.date >= ? AND l.date < ?", (start, end))])
+
+
+@bp.post("/routine-logs")
+def create_routine_log():
+    db = get_db()
+    data = json_body()
+    routine_id = data.get("routine_id")
+    if not isinstance(routine_id, int):
+        raise ApiError("어떤 루틴인지 골라 주세요.")
+    get_routine_or_404(db, routine_id)
+    fields = log_payload(data)
+    cur = db.execute(
+        "INSERT INTO routine_logs (routine_id, date, start_time, end_time, memo) VALUES (?, ?, ?, ?, ?)",
+        (routine_id, fields["date"], fields["start_time"], fields["end_time"], fields["memo"]),
+    )
+    db.commit()
+    return jsonify(log_dict(get_log_or_404(db, cur.lastrowid))), 201
+
+
+@bp.put("/routine-logs/<int:log_id>")
+def update_routine_log(log_id):
+    db = get_db()
+    get_log_or_404(db, log_id)
+    fields = log_payload(json_body(), partial=True)
+    if fields:
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        db.execute(f"UPDATE routine_logs SET {sets} WHERE id = ?", (*fields.values(), log_id))
+        db.commit()
+    return jsonify(log_dict(get_log_or_404(db, log_id)))
+
+
+@bp.delete("/routine-logs/<int:log_id>")
+def delete_routine_log(log_id):
+    db = get_db()
+    get_log_or_404(db, log_id)
+    db.execute("DELETE FROM routine_logs WHERE id = ?", (log_id,))
+    db.commit()
+    return jsonify(deleted=log_id)
+
+
+# ======================================================================== 기록지
 def note_dict(r):
     return {
         "id": r["id"],
@@ -330,16 +435,15 @@ def minutes_between(start, end):
 def stats():
     """
     [start, end) 기간의 시간 사용.
-      - 시간: 시작·끝이 모두 있는 일정만 (끝 - 시작). 여러 날짜 일정은 날짜마다 따로 더한다.
-      - 개수: 시간이 없는 일정도 센다.
-      - 루틴: 기간 안에 루틴으로 추가한 일정(또는 제목이 루틴 이름과 같은 일정)이 몇 번 있었는지.
+      - 시간: 시작·끝이 모두 있는 것만 (끝 - 시작). 여러 날짜 일정은 날짜마다 따로 더한다.
+      - 일정은 카테고리별로, 루틴 기록은 루틴별로 따로 모은다.
+      - 개수: 시간이 없는 것도 센다.
     """
     db = get_db()
     start, end = parse_range()
     rows = db.execute(
         """
-        SELECT d.date, i.title, i.start_time, i.end_time, i.routine_id,
-               c.id AS c_id, c.name AS c_name, c.color AS c_color
+        SELECT d.date, i.start_time, i.end_time, c.id AS c_id, c.name AS c_name, c.color AS c_color
         FROM item_dates d
         JOIN items i ON i.id = d.item_id
         JOIN categories c ON c.id = i.category_id
@@ -347,10 +451,14 @@ def stats():
         """,
         (start, end),
     ).fetchall()
+    logs = log_rows(db, "WHERE l.date >= ? AND l.date < ?", (start, end))
 
-    categories = {}
-    days = {}
-    total = timed = 0
+    categories, routines, days = {}, {}, {}
+    schedule_total = routine_total = timed = 0
+
+    def day(date):
+        return days.setdefault(date, {"by_category": {}, "routine": 0})
+
     for r in rows:
         minutes = minutes_between(r["start_time"], r["end_time"])
         cat = categories.setdefault(
@@ -360,41 +468,46 @@ def stats():
         cat["minutes"] += minutes
         if minutes:
             timed += 1
-            total += minutes
-            day = days.setdefault(r["date"], {})
-            day[r["c_id"]] = day.get(r["c_id"], 0) + minutes
+            schedule_total += minutes
+            bucket = day(r["date"])["by_category"]
+            bucket[str(r["c_id"])] = bucket.get(str(r["c_id"]), 0) + minutes
 
-    routines = []
-    for r in routine_rows(db):
-        count = sum(1 for x in rows if x["routine_id"] == r["id"] or x["title"].strip() == r["name"])
-        if count:
-            routines.append({"id": r["id"], "name": r["name"], "color": r["c_color"], "count": count})
-    routines.sort(key=lambda x: -x["count"])
+    for log in logs:
+        minutes = minutes_between(log["start_time"], log["end_time"])
+        rt = routines.setdefault(
+            log["routine_id"],
+            {"id": log["routine_id"], "name": log["r_name"], "emoji": log["r_emoji"], "count": 0, "minutes": 0},
+        )
+        rt["count"] += 1
+        rt["minutes"] += minutes
+        if minutes:
+            routine_total += minutes
+            day(log["date"])["routine"] += minutes
 
     return jsonify(
         start=start,
         end=end,
-        total_minutes=total,
+        total_minutes=schedule_total + routine_total,
+        schedule_minutes=schedule_total,
+        routine_minutes=routine_total,
         item_count=len(rows),
         timed_count=timed,
+        log_count=len(logs),
         categories=sorted(categories.values(), key=lambda c: (-c["minutes"], -c["count"])),
-        days=[{"date": d, "by_category": {str(k): v for k, v in cats.items()}} for d, cats in sorted(days.items())],
-        routines=routines,
+        routines=sorted(routines.values(), key=lambda r: (-r["count"], -r["minutes"])),
+        days=[{"date": d, **v} for d, v in sorted(days.items())],
     )
 
 
 # ======================================================================== 빠른 입력
 @bp.get("/parse")
 def parse_quick():
-    """한 줄 입력을 해석해서 돌려준다. 저장은 하지 않는다 (화면이 미리 보여 준 뒤 POST /api/items)."""
+    """한 줄 입력을 해석해서 돌려준다. 저장은 하지 않는다 (화면이 미리 보여 준 뒤 일정 또는 루틴 기록으로 저장)."""
     text = request.args.get("text", "")
     if len(text) > MAX_PARSE_TEXT:
         raise ApiError(f"빠른 입력은 {MAX_PARSE_TEXT}자까지 쓸 수 있어요.")
     today = today_arg()
-    raw_default = request.args.get("default")
-    default = Date.fromisoformat(parse_date(raw_default, "기준 날짜")) if raw_default else None
-
     db = get_db()
     categories = [dict(r) for r in db.execute("SELECT id, name, color FROM categories ORDER BY is_default DESC, id")]
-    routines = [dict(r) for r in db.execute("SELECT id, name, category_id FROM routines ORDER BY position, id")]
-    return jsonify(quickadd.parse(text, today, categories, routines, default_date=default))
+    routines = [dict(r) for r in db.execute("SELECT id, name, emoji FROM routines ORDER BY position, id")]
+    return jsonify(quickadd.parse(text, today, categories, routines))

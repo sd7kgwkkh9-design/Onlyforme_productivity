@@ -21,7 +21,7 @@ import sys
 from flask import Flask, render_template, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-import api_tools  # noqa: F401  루틴·마음 노트·D-day·시간 돌아보기·빠른 입력 주소를 같은 /api 묶음에 등록
+import api_tools  # noqa: F401  루틴·루틴 기록·기록지·D-day·시간 돌아보기·빠른 입력 주소를 같은 /api 묶음에 등록
 import auth
 import db
 import demo
