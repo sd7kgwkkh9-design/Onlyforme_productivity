@@ -4,18 +4,21 @@
 테이블 구조
 -----------
 categories  : 카테고리 (이름, 색상, 기본 카테고리 여부)
-items       : 일정/할 일 본체 (제목, 메모, 카테고리, 시작·끝 시각)
+items       : 일정/할 일 본체 (제목, 메모, 카테고리, 시작·끝 시각, 할 일 완료 시각)
 item_dates  : 일정이 들어간 날짜들 (일정 하나에 날짜 여러 개 가능)
               + 그 날짜 안에서의 표시 순서(position)
 
 routines     : 루틴 — 자주 하는 활동(🏃 운동, 📖 독서 …). 카테고리 대신 이모지 하나 (8차에서 바뀜)
 routine_logs : 루틴 기록 — 그날 그 루틴을 했다는 기록 (시간·메모는 선택). 일정(items)과는 따로 둔다 (8차)
-notes        : 기록지 — 메모 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
+notes        : 기록지의 '메모' — 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
+goals        : 기록지의 '목표' — 제목 + 기한(선택). 기한이 있으면 달력 위 D-day 띠에 보인다 (0.9.0)
 
 meta        : 변경 번호(version) — 일정·카테고리·루틴·메모가 바뀔 때마다 1씩 커진다.
               다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
 
-item_dates에 줄이 하나도 없는 일정 = "기한 미정" 일정이다.
+item_dates에 줄이 하나도 없는 일정 = 기록지의 "할 일"이다 (0.8까지는 '기한 미정'이라고 불렀다).
+할 일은 체크하면 done_at에 완료 시각이 들어가고, 날짜를 정해 주면 그대로 달력의 일정이 된다.
+반복 일정(매주·격주)도 따로 표를 두지 않고 '날짜 여러 개짜리 일정'으로 저장한다 (0.9.0).
 """
 
 import sqlite3
@@ -40,6 +43,8 @@ CREATE TABLE IF NOT EXISTS items (
     category_id INTEGER NOT NULL REFERENCES categories(id),
     start_time  TEXT,                         -- 'HH:MM' 또는 NULL
     end_time    TEXT,                         -- 'HH:MM' 또는 NULL (둘 다 NULL이면 시간 없는 할 일)
+    dday        INTEGER NOT NULL DEFAULT 0,   -- 1이면 달력 위 D-day 띠에 표시 (7차)
+    done_at     TEXT,                         -- 할 일(날짜 없는 일정)을 체크한 시각, 안 했으면 NULL (0.9.0)
     created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -83,6 +88,16 @@ CREATE TABLE IF NOT EXISTS notes (
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS goals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    due         TEXT,                         -- 기한 'YYYY-MM-DD' 또는 NULL (기한 없음)
+    memo        TEXT    NOT NULL DEFAULT '',
+    done_at     TEXT,                         -- 이룬 시각, 아직이면 NULL
+    position    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value INTEGER NOT NULL
@@ -110,6 +125,8 @@ def migrate(conn):
       - item_dates.position  : 하루 안의 표시 순서 (2차 수정에서 추가)
       - items.dday           : D-day 표시 여부 (7차 수정에서 추가)
       - routines             : 카테고리 → 이모지, 7차의 '루틴으로 넣은 일정'을 루틴 기록으로 옮김 (8차 수정)
+      - items.done_at        : 할 일 완료 시각 (0.9.0)
+      - goals                : 목표 표 (0.9.0) — SCHEMA의 CREATE TABLE IF NOT EXISTS가 새로 만들어 준다
     """
     if "end_time" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN end_time TEXT")
@@ -121,6 +138,8 @@ def migrate(conn):
         conn.execute("ALTER TABLE items ADD COLUMN dday INTEGER NOT NULL DEFAULT 0")
     if "emoji" not in column_names(conn, "routines"):
         migrate_routines_v8(conn)
+    if "done_at" not in column_names(conn, "items"):
+        conn.execute("ALTER TABLE items ADD COLUMN done_at TEXT")
 
 
 # 7차 루틴 이름으로 이모지 짐작하기 (나중에 루틴 편집에서 바꿀 수 있다)

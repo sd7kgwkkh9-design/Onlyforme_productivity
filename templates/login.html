@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>로그인 - {{ app_short_name }}</title>
+  <title>로그인 - {{ app_name }}</title>
   {% include "_head.html" %}
 </head>
 <body class="gate">
   <main class="gate-card">
     <img class="gate-icon" src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="64" height="64">
-    <h1 class="gate-title">{{ app_name }}<span class="gate-tagline">{{ app_tagline }}</span></h1>
+    <h1 class="gate-title">{{ app_name }}</h1>
     <form method="post" action="{{ url_for('auth.login') }}" class="gate-form">
       {# 아이폰·맥의 암호 저장(iCloud 키체인)이 이 사이트 비밀번호를 기억하도록 숨은 아이디 칸을 둔다 #}
       <input type="text" name="username" value="calendar" autocomplete="username" hidden>

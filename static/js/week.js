@@ -5,6 +5,7 @@
 //                     휴대폰처럼 좁은 화면에서는 한 화면에 3일씩 보이고 좌우로 밀어서 본다.
 //   col (세로)      : 7일을 위에서 아래로, 날짜 옆에 그날 일정
 // 날짜를 누르면 월간 화면과 똑같이 그 날짜의 일정이 열린다.
+// 일정·루틴 기록을 두 손가락 클릭(오른쪽 클릭)하면 메뉴가 뜬다 (0.9.0, 메뉴 내용은 main.js).
 
 import { api } from './api.js';
 import { slideIn } from './gestures.js';
@@ -39,10 +40,14 @@ export class WeekView {
    * @param {HTMLElement} root  스크롤되는 <section>
    * @param {object} opts
    * @param {(date: string) => void} opts.onDayClick
+   * @param {(e: MouseEvent, occ) => void} [opts.onItemMenu]  일정 오른쪽 클릭
+   * @param {(e: MouseEvent, log) => void} [opts.onLogMenu]   루틴 기록 오른쪽 클릭
    */
-  constructor(root, { onDayClick }) {
+  constructor(root, { onDayClick, onItemMenu = () => {}, onLogMenu = () => {} }) {
     this.root = root;
     this.onDayClick = onDayClick;
+    this.onItemMenu = onItemMenu;
+    this.onLogMenu = onLogMenu;
     this.start = null;
     this.selected = null;  // 넓은 화면에서 오른쪽 칸에 열려 있는 날짜
     this.token = 0;        // 빠르게 넘길 때 늦게 도착한 옛 응답을 버리기 위한 번호
@@ -146,13 +151,13 @@ export class WeekView {
       holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
       el('span', { class: 'wk-col-body' },
         items.map((o) =>
-          el('span', { class: o.dday ? 'wk-chip is-dday' : 'wk-chip', style: { '--cat': o.category.color } },
+          el('span', { class: o.dday ? 'wk-chip is-dday' : 'wk-chip', style: { '--cat': o.category.color }, oncontextmenu: (e) => this.onItemMenu(e, o) },
             o.start_time || o.end_time ? el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)) : null,
             el('span', { class: 'wk-title' }, o.title),
           )),
         // 루틴 기록은 그날 일정 아래에 '🏃 운동'처럼
         logs.map((l) =>
-          el('span', { class: 'wk-chip is-routine' },
+          el('span', { class: 'wk-chip is-routine', oncontextmenu: (e) => this.onLogMenu(e, l) },
             l.start_time || l.end_time ? el('span', { class: 'wk-time' }, formatTimeRange(l.start_time, l.end_time)) : null,
             el('span', { class: 'wk-title' }, `${l.routine.emoji} ${l.routine.name}`),
           )),
@@ -177,13 +182,13 @@ export class WeekView {
       el('span', { class: 'wk-body' },
         holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
         items.map((o) =>
-          el('span', { class: o.dday ? 'wk-item is-dday' : 'wk-item', style: { '--cat': o.category.color } },
+          el('span', { class: o.dday ? 'wk-item is-dday' : 'wk-item', style: { '--cat': o.category.color }, oncontextmenu: (e) => this.onItemMenu(e, o) },
             el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)),
             el('span', { class: 'wk-title' }, o.title),
             o.memo ? el('span', { class: 'wk-memo' }, o.memo.split('\n')[0]) : null,
           )),
         logs.map((l) =>
-          el('span', { class: 'wk-item is-routine' },
+          el('span', { class: 'wk-item is-routine', oncontextmenu: (e) => this.onLogMenu(e, l) },
             el('span', { class: 'wk-time' }, formatTimeRange(l.start_time, l.end_time)),
             el('span', { class: 'wk-title' }, `${l.routine.emoji} ${l.routine.name}`),
             l.memo ? el('span', { class: 'wk-memo' }, l.memo) : null,

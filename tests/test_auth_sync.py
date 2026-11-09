@@ -140,7 +140,11 @@ def test_demo_calendar_is_filled_around_today(tmp_path):
     assert len(month) > 20
     titles_today = [o["title"] for o in month if o["date"] == today.isoformat()]
     assert "오늘 할 일 정리" in titles_today and "스터디" in titles_today
-    assert len(c.get("/api/items/undated").get_json()) == 2
+    todos = c.get("/api/items/undated").get_json()                 # 기록지의 할 일 (하나는 완료)
+    assert len(todos) == 4 and [t["done"] for t in todos].count(True) == 1
+    inbox = c.get("/api/inbox").get_json()
+    assert len(inbox["notes"]) == 4 and [g["title"] for g in inbox["goals"]][:2] == ["풀업 15개", "토익 900점"]
+    assert any(d["kind"] == "goal" for d in c.get("/api/overview?today=2027-03-10").get_json()["ddays"])
     assert b"demo-banner" in c.get("/").data
 
     # 실제 데이터 폴더와 분리돼 있다
@@ -151,24 +155,29 @@ def test_normal_app_has_no_demo_banner(client):
     assert b"demo-banner" not in client.get("/").data
 
 
-# ---------------------------------------------------------------- 앱 이름 / 설정 메뉴 (6차)
-def test_app_name_and_settings_menu(tmp_path):
+# ---------------------------------------------------------------- 앱 이름 / 버전 / 설정 메뉴 (0.9.0에서 이름 바꿈)
+def test_app_name_version_and_settings_menu(tmp_path):
+    from app import APP_VERSION
+
     c = make_client(tmp_path)
     html = c.get("/").get_data(as_text=True)
-    assert "<title>극한캘린더</title>" in html
-    assert 'content="극한캘린더"' in html             # 홈 화면 아이콘 아래 이름 (아이폰)
+    assert "<title>오직 나를 위한 캘린더</title>" in html
+    assert 'content="Onlyforme"' in html              # 홈 화면 아이콘 아래 이름 (아이폰은 긴 이름이 잘려서 짧게)
+    assert f'data-version="{APP_VERSION}"' in html     # ⚙ 설정 메뉴 맨 아래에 보이는 버전
     assert 'id="settings-menu"' in html and 'id="btn-settings"' in html
     assert 'id="boot-error"' in html                  # 화면 코드를 못 불러왔을 때 안내
+    assert "극한" not in html and 'id="btn-undated"' not in html  # '기한 미정' 버튼은 기록지의 '할 일' 탭으로
 
     manifest = c.get("/static/manifest.webmanifest").get_json()
-    assert manifest["short_name"] == "극한캘린더"
-    assert manifest["name"].startswith("극한 생산성 캘린더")
+    assert manifest["short_name"] == "Onlyforme"
+    assert manifest["name"] == "오직 나를 위한 캘린더"
+    major, minor, patch = (int(x) for x in APP_VERSION.split("."))  # 유의적 버전 MAJOR.MINOR.PATCH
 
 
 def test_login_page_shows_app_name(tmp_path):
     c = make_client(tmp_path, password="secret1")
     html = c.get("/login").get_data(as_text=True)
-    assert "극한 생산성 캘린더" in html and "일정 관리의 종결" in html
+    assert "오직 나를 위한 캘린더" in html and "일정 관리의 종결" not in html
 
 
 def test_font_files_are_served(client):

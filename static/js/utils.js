@@ -138,12 +138,26 @@ export function icon(path) {
   return svg;
 }
 
+// 팝업 창(모달 dialog)이 열려 있으면 그 창, 아니면 <body>.
+// 모달 창이 열려 있는 동안 창 바깥은 '누를 수 없는' 상태가 되므로, 그 위에 띄우는 메뉴·알림은 창 안으로 옮겨서 띄운다.
+export function topLayerHost() {
+  const modals = [...document.querySelectorAll('dialog[open]')].filter((d) => {
+    try { return d.matches(':modal'); } catch { return true; }
+  });
+  return modals.at(-1) || document.body;
+}
+
 // ------------------------------------------------------------------ 알림
 // toast('옮겼어요', 'info', { action: { label: '되돌리기', run: () => ... } })
 //   action을 주면 알림 안에 버튼이 생기고, 조금 더 오래(5초) 떠 있다.
 let toastTimer;
 export function toast(message, kind = 'info', { action = null } = {}) {
   const box = document.getElementById('toast');
+  const host = topLayerHost(); // '되돌리기' 버튼을 팝업 창이 열려 있을 때도 누를 수 있게
+  if (box.parentElement !== host) {
+    if (box.matches?.(':popover-open')) box.hidePopover();
+    host.append(box);
+  }
   box.replaceChildren(el('span', {}, message));
   if (action) {
     box.append(el('button', {

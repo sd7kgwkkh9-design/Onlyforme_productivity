@@ -4,14 +4,15 @@
 //   오른쪽 칸(pane): 넓은 화면에서 달력 오른쪽에 늘 붙어 있는 칸
 //
 // 한 곳 안에서 화면이 바뀌며 나온다.
-//   day        : 선택한 날짜의 일정 목록  ─┐
-//   undated    : 기한 미정 목록 (팝업만)   ─┼─ 일정을 누르거나 추가 → form
-//   form       : 일정 추가/수정            ─┘   저장/취소하면 원래 화면으로 돌아감
+//   day        : 선택한 날짜의 일정 목록  ─┐ 일정을 누르거나 추가 → form
+//   form       : 일정 추가/수정            ─┘ 저장/취소하면 원래 화면으로 돌아감
+//                (기록지의 '할 일'을 눌렀을 때도 이 form으로 수정한다)
 //   categories : 카테고리 관리 (팝업만)
 //   그 밖      : 다른 파일이 이 창에 그리는 화면 (routines.js의 루틴 편집, stats.js의 시간 돌아보기) → showView()
 //
 // 하루 화면: 위에는 일정, 그 아래에 '오늘의 루틴'(그날의 루틴 기록)이 따로 보인다.
 // 맨 아래(고정)에는 루틴 버튼 줄이 있고, 누르면 시간·메모만 적는 작은 기록 창이 열린다 (routines.js).
+// 일정·루틴 기록을 두 손가락 클릭(오른쪽 클릭)하면 메뉴가 뜬다 (0.9.0, 메뉴 내용은 main.js가 정한다).
 
 import { api } from './api.js';
 import { MultiDatePicker } from './datepicker.js';
@@ -29,10 +30,14 @@ const shared = {
   categories: [],
   lastCategoryId: null, // 새 일정을 만들 때 직전에 고른 카테고리를 기본값으로
   onDataChanged: async () => {},
+  onItemMenu: null,     // (event, occurrence, sheet) — 일정을 오른쪽 클릭했을 때 (main.js)
+  onLogMenu: null,      // (event, log, sheet)        — 루틴 기록을 오른쪽 클릭했을 때
 };
 
-export function configureSheets({ onDataChanged }) {
+export function configureSheets({ onDataChanged, onItemMenu = null, onLogMenu = null }) {
   shared.onDataChanged = onDataChanged;
+  shared.onItemMenu = onItemMenu;
+  shared.onLogMenu = onLogMenu;
 }
 
 async function loadCategories() {
@@ -50,21 +55,19 @@ export class Sheet {
    *                            (팝업이면 <dialog> 자체)
    * @param {object} opts
    * @param {'modal'|'pane'} opts.kind
-   * @param {(view: string) => void} [opts.onShow]       오른쪽 칸: 화면이 바뀔 때 (탭 표시 맞추기)
-   * @param {() => void} [opts.onBackToUndated]          오른쪽 칸: 기한 미정 탭에서 연 일정을 저장/취소했을 때
+   * @param {(view: string) => void} [opts.onShow]       화면이 바뀔 때
    */
-  constructor(root, { kind, onShow = () => {}, onBackToUndated = () => {} }) {
+  constructor(root, { kind, onShow = () => {} }) {
     this.root = root;
     this.kind = kind;
     this.onShow = onShow;
-    this.onBackToUndated = onBackToUndated;
     this.titleEl = root.querySelector('.sheet-title');
     this.subEl = root.querySelector('.sheet-sub');
     this.bodyEl = root.querySelector('.sheet-body');
     this.footEl = root.querySelector('.sheet-foot');
     this.backBtn = root.querySelector('.sheet-back');
 
-    this.view = null;   // 'day' | 'undated' | 'form' | 'categories' | showView()로 연 화면 이름
+    this.view = null;   // 'day' | 'form' | 'categories' | showView()로 연 화면 이름
     this.day = todayStr();
     this.form = null;   // { mode, item, scope, ctxDate, returnTo, prefill, copy }
     this.custom = null; // showView()로 연 화면 { render, returnTo }
@@ -121,7 +124,6 @@ export class Sheet {
   refreshList() {
     if (!this.isOpen || this.bodyEl.querySelector('.is-sorting')) return;
     if (this.view === 'day') this.renderDay();
-    else if (this.view === 'undated') this.renderUndated();
     else if (this.custom?.refresh) this.custom.refresh(this);
   }
 
@@ -172,13 +174,18 @@ export class Sheet {
           badge: o.date_count > 1 ? `${o.date_count}일` : null,
           dday: o.dday && o.date >= todayStr() ? ddayLabel(daysBetween(todayStr(), o.date)) : null,
           onclick: () => this.editFromDay(o),
+          oncontextmenu: shared.onItemMenu ? (e) => shared.onItemMenu(e, o, this) : null,
         })));
       if (sortable) makeSortable(ul, { scroller: this.bodyEl, onChange: (ids) => this.saveOrder(date, ids) });
       schedule = [ul, sortable ? el('p', { class: 'list-hint' }, '오른쪽 ≡를 끌어서 순서를 바꿀 수 있어요.') : null];
     }
     // 2) 그날의 루틴 기록 (일정 아래, 같이 스크롤)
     const routineDay = logs.length
-      ? routineSection({ date, logs, onOpen: (log) => this.showRoutineLog({ mode: 'edit', log }) })
+      ? routineSection({
+          date, logs,
+          onOpen: (log) => this.showRoutineLog({ mode: 'edit', log }),
+          onMenu: shared.onLogMenu ? (e, log) => shared.onLogMenu(e, log, this) : null,
+        })
       : null;
     this.setBody(...schedule, routineDay);
 
@@ -236,37 +243,6 @@ export class Sheet {
     } catch (e) { toast(e.message, 'error'); }
   }
 
-  // ---------------------------------------------------------------- undated (팝업)
-  async showUndated() {
-    this.open('undated');
-    await this.renderUndated();
-  }
-
-  async renderUndated() {
-    this.setHead('기한 미정');
-    this.loading();
-    let list;
-    try { list = await api.undated(); } catch (e) { return this.failed(e); }
-    if (this.view !== 'undated') return;
-
-    this.subEl.textContent = list.length ? `날짜가 정해지지 않은 일정 ${list.length}개` : '';
-    this.subEl.hidden = !list.length;
-    this.setBody(
-      list.length
-        ? el('ul', { class: 'item-list' },
-            list.map((item) => itemRow({
-              ...item,
-              showTime: list.some((i) => i.start_time || i.end_time),
-              onclick: () => this.openForm({ mode: 'edit', item, scope: 'all', ctxDate: null, returnTo: 'undated' }),
-            })))
-        : el('p', { class: 'empty' }, '날짜를 아직 못 정한 일은 여기에 모아 두세요.'),
-    );
-    this.setFoot(
-      el('button', { type: 'button', class: 'btn primary wide', onclick: () =>
-        this.openForm({ mode: 'create', ctxDate: null, returnTo: 'undated' }) }, '할 일 추가'),
-    );
-  }
-
   // ---------------------------------------------------------------- form
   async openForm(form) {
     this.form = form;
@@ -280,10 +256,7 @@ export class Sheet {
     this.form = null;
     this.custom = null;
     if (to === 'day') this.showDay(this.day);
-    else if (to === 'undated') {
-      if (this.kind === 'modal') this.showUndated();
-      else this.onBackToUndated();
-    } else this.close();
+    else this.close();
   }
 
   renderForm() {
@@ -396,7 +369,7 @@ export class Sheet {
         if (isEdit) await api.updateItem(item.id, { ...payload, scope, date: ctxDate });
         else await api.createItem(payload);
         shared.lastCategoryId = payload.category_id;
-        toast(payload.dates.length ? '저장했어요' : '기한 미정 목록에 저장했어요');
+        toast(payload.dates.length ? '저장했어요' : '기록지의 할 일에 저장했어요');
         await dataChanged();
         this.goBack();
       } catch (err) {
@@ -553,11 +526,11 @@ export class Sheet {
 
 // ======================================================================= 화면 조각
 
-// 일정 한 줄 (day / undated 목록에서 공통으로 사용)
+// 일정 한 줄 (하루 목록)
 //   showTime=false : 시간 칸을 아예 빼서 제목을 왼쪽에 붙인다 (시간 있는 일정이 하나도 없는 목록용)
-//   sortable=true  : 오른쪽에 순서 바꾸기 손잡이(≡)를 붙인다 (하루 목록용)
-function itemRow({ id, title, memo, start_time, end_time, category, badge, dday = null, onclick, showTime = true, sortable = false }) {
-  return el('li', { class: 'item-li', dataset: { id: String(id) }, style: { '--cat': category.color } },
+//   sortable=true  : 오른쪽에 순서 바꾸기 손잡이(≡)를 붙인다
+function itemRow({ id, title, memo, start_time, end_time, category, badge, dday = null, onclick, oncontextmenu = null, showTime = true, sortable = false }) {
+  return el('li', { class: 'item-li', dataset: { id: String(id) }, style: { '--cat': category.color }, oncontextmenu },
     el('button', { type: 'button', class: showTime ? 'item-row' : 'item-row no-time', onclick },
       showTime ? timeCell(start_time, end_time) : null,
       el('span', { class: 'item-main' },

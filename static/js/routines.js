@@ -52,13 +52,13 @@ export function routineBar({ date, routines, onPick, onEdit }) {
 }
 
 // ---------------------------------------------------------------- 하루 화면: 그날의 루틴 기록
-export function routineSection({ date, logs, onOpen }) {
+export function routineSection({ date, logs, onOpen, onMenu = null }) {
   return el('section', { class: 'routine-day', 'aria-label': '루틴 기록' },
     el('h3', { class: 'routine-day-title' }, date === todayStr() ? '오늘의 루틴' : '이 날의 루틴'),
     el('ul', { class: 'routine-logs' },
       logs.map((l) => {
         const time = formatTimeRange(l.start_time, l.end_time);
-        return el('li', {},
+        return el('li', { oncontextmenu: onMenu ? (e) => onMenu(e, l) : null },
           el('button', { type: 'button', class: 'routine-log', onclick: () => onOpen(l) },
             el('span', { class: 'routine-log-emoji', 'aria-hidden': 'true' }, l.routine.emoji),
             el('span', { class: 'routine-log-main' },

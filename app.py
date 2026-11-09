@@ -1,5 +1,5 @@
 """
-극한 생산성 캘린더: 일정 관리의 종결 — 실행 파일
+오직 나를 위한 캘린더 — 실행 파일
 
 내 컴퓨터에서 실행:
     python app.py                 # http://127.0.0.1:8000 에서 실행
@@ -31,9 +31,12 @@ from assets import Assets
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 앱 이름 (화면 곳곳에 쓰인다. 홈 화면 아이콘 아래 이름은 static/manifest.webmanifest에도 있다)
-APP_NAME = "극한 생산성 캘린더"
-APP_TAGLINE = "일정 관리의 종결"
-APP_SHORT_NAME = "극한캘린더"
+APP_NAME = "오직 나를 위한 캘린더"
+APP_SHORT_NAME = "Onlyforme"   # 휴대폰 홈 화면 아이콘 아래 이름 (긴 이름은 잘려서 짧게)
+
+# 버전 (유의적 버전 MAJOR.MINOR.PATCH) — ⚙ 설정 메뉴 맨 아래에 보인다.
+# 새 기능을 넣으면 가운데 숫자(0.9.0 → 0.10.0), 고치기만 했으면 끝 숫자(0.9.0 → 0.9.1)를 올린다.
+APP_VERSION = "0.9.0"
 
 # 홈 화면 설치용 manifest 파일의 형식을 브라우저에 올바르게 알려 준다.
 mimetypes.add_type("application/manifest+json", ".webmanifest")
@@ -73,7 +76,7 @@ def create_app(database_path=None, production=False, demo_mode=False):
     @app.context_processor
     def app_names():
         # 모든 템플릿에서 {{ app_name }} 등으로 쓸 수 있게
-        return {"app_name": APP_NAME, "app_tagline": APP_TAGLINE, "app_short_name": APP_SHORT_NAME}
+        return {"app_name": APP_NAME, "app_short_name": APP_SHORT_NAME, "app_version": APP_VERSION}
 
     @app.get("/")
     def index():
@@ -135,7 +138,7 @@ def main():
         print("\n  [시연용] 예시 일정이 들어 있는 캘린더예요. 실제 데이터(instance/calendar.db)와는 분리되어 있어요.")
     else:
         app = create_app()
-    print(f"\n  {APP_SHORT_NAME}: http://localhost:{args.port}")
+    print(f"\n  {APP_NAME} {APP_VERSION}: http://localhost:{args.port}")
     if args.host == "0.0.0.0":
         print(f"  휴대폰에서는 http://<이 컴퓨터의 IP 주소>:{args.port} 로 접속하세요.")
     print()

@@ -6,8 +6,8 @@
   → 언제 실행해도 이번 달·이번 주에 일정이 보인다.
 - 로그인 없이 바로 열린다 (내 비밀번호와도 무관).
 
-예시 일정은 앱의 기능(여러 날짜, 시작·끝 시간, 끝 시간만, 기한 미정, 카테고리,
-루틴, 기록지, D-day 등)이 한눈에 보이도록 골랐다. 일정은 실제 API(/api/...)를 그대로 거쳐서 넣는다.
+예시 일정은 앱의 기능(반복·여러 날짜, 시작·끝 시간, 끝 시간만, 카테고리, 루틴,
+기록지의 메모·목표·할 일, D-day 등)이 한눈에 보이도록 골랐다. 일정은 실제 API(/api/...)를 그대로 거쳐서 넣는다.
 """
 
 import os
@@ -63,7 +63,7 @@ def seed_demo(app, today=None):
         }
         return post("/api/items", body)
 
-    # 지난달 말 ~ 다음 달 말까지 반복 수업·알바 (한 일정에 날짜 여러 개)
+    # 지난달 말 ~ 다음 달 말까지 반복 수업·알바 (반복 일정 = 한 일정에 날짜 여러 개)
     first = today.replace(day=1)
     period_start = first - timedelta(days=7)
     period_end = (first + timedelta(days=62)).replace(day=1) - timedelta(days=1)
@@ -83,9 +83,12 @@ def seed_demo(app, today=None):
 
     item("회로이론2 기말고사", "수업", [today + timedelta(days=33)], "13:00", "15:00", dday=True)
 
-    # 기한 미정
+    # 기록지 — 할 일 (날짜 없는 일정. 0.8까지의 '기한 미정')
     item("읽고 싶은 책 정리", "개인", [])
     item("노트북 배터리 교체 알아보기", None, [])
+    item("교수님께 면담 메일 보내기", "수업", [], memo="학부연구생 관련")
+    done = item("자취방 관리비 이체", None, [])
+    client.put(f"/api/items/{done['id']}/done", json={"done": True})   # 완료한 할 일
 
     # 루틴 (8차): 이모지 + 이름. 루틴 기록은 일정과 따로 저장된다
     #   → 하루 화면의 '루틴' 구역, 맨 아래 버튼의 '어제'·'2일 전', 월간·주간 화면의 '🏃 운동'
@@ -112,3 +115,13 @@ def seed_demo(app, today=None):
         "body": "완벽하지 않아도 괜찮아. 어제보다 조금만 나아가면 돼.\n지칠 땐 10분 산책하고 다시 시작하기.",
     })
     post("/api/notes", {"title": "잊지 말 것", "body": "부모님께 주 1회 전화\n잠은 7시간 이상\n물 자주 마시기"})
+    # 그때그때 적은 한 줄 메모 (0.9.0: 기록지 맨 위 칸이나 빠른 입력의 '- '로)
+    post("/api/notes", {"body": "블로그 주제: 파이프라인 해저드를 그림으로 정리해 보기"})
+    post("/api/notes", {"body": "MT 챙길 것 — 보조배터리, 담요, 상비약"})
+
+    # 기록지 — 목표 (0.9.0): 기한이 있으면 달력 위 D-day 띠에 🎯로 보인다
+    month_end = (first + timedelta(days=62)).replace(day=1) - timedelta(days=1)  # 다음 달 말일
+    post("/api/goals", {"title": "풀업 15개", "due": month_end.isoformat(), "memo": "지금 8개 → 주 3회 연습"})
+    post("/api/goals", {"title": "토익 900점", "memo": "매일 단어 30개"})
+    reached = post("/api/goals", {"title": "이번 학기 지각 0번"})
+    client.put(f"/api/goals/{reached['id']}", json={"done": True})   # 이룬 목표

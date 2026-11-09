@@ -1,4 +1,4 @@
-// ⚙ 설정 메뉴: 화면 테마 / 글꼴 / 이 기기에서 로그아웃
+// ⚙ 설정 메뉴: 화면 테마 / 글꼴 / 이 기기에서 로그아웃 / 앱 이름과 버전 (0.9.0)
 //
 // - 테마와 글꼴은 기기(브라우저)마다 따로 저장된다. 폰은 다크+주아, 맥은 라이트+Pretendard처럼 쓸 수 있다.
 // - 실제 색·글꼴은 style.css가 바꾼다. 여기서는 <html data-theme="..." data-font="...">만 바꾼다.
@@ -79,7 +79,7 @@ function applyFont() {
 }
 
 // ---------------------------------------------------------------- 메뉴
-function renderMenu(loginEnabled) {
+function renderMenu(loginEnabled, appName, version) {
   const choice = (group, value, label, current, onPick, style) =>
     el('button', {
       type: 'button',
@@ -103,6 +103,11 @@ function renderMenu(loginEnabled) {
       ? el('form', { class: 'menu-logout', method: 'post', action: '/logout' },
           el('button', { type: 'submit', role: 'menuitem', class: 'menu-choice danger' }, '이 기기에서 로그아웃'))
       : null, // 로그인을 쓰지 않으면(비밀번호 없이 내 컴퓨터에서 실행) 로그아웃은 없다
+    // 맨 아래: 앱 이름과 버전 (app.py의 APP_VERSION)
+    version
+      ? el('p', { class: 'menu-version', role: 'note' },
+          el('span', { class: 'menu-app' }, appName), el('span', {}, `버전 ${version}`))
+      : null,
   ];
   menu.replaceChildren(...parts.filter(Boolean));
 }
@@ -135,7 +140,7 @@ function placeMenu() {
   menu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
 }
 
-export function initSettings({ loginEnabled = false } = {}) {
+export function initSettings({ loginEnabled = false, appName = '', version = '' } = {}) {
   button = document.getElementById('btn-settings');
   menu = document.getElementById('settings-menu');
   theme = read(THEME_KEY, ['light', 'dark'], 'auto');
@@ -147,7 +152,7 @@ export function initSettings({ loginEnabled = false } = {}) {
     'M12 15.5a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7z' +
     'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
   ));
-  renderMenu(loginEnabled);
+  renderMenu(loginEnabled, appName, version);
 
   if (typeof menu.showPopover === 'function') {
     // 버튼의 popovertarget으로 열리고, 바깥을 누르거나 Esc를 누르면 저절로 닫힌다.

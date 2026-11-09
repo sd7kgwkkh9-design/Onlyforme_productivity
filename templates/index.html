@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{{ app_short_name }}</title>
+  <title>{{ app_name }}</title>
   {% include "_head.html" %}
   {#- JS 모듈 주소에 지문 붙이기: import './api.js' → './api.js?v=…' (import map)
       + 모듈을 처음부터 한꺼번에 받기 시작 (modulepreload — main.js를 다 읽은 뒤에야 다음 파일을 아는 '줄줄이 받기'를 막는다) #}
@@ -12,7 +12,7 @@
   {% for url in modules.values() %}<link rel="modulepreload" href="{{ url }}">
   {% endfor %}
 </head>
-<body data-view="month" data-login="{{ '1' if login_enabled else '0' }}">
+<body data-view="month" data-login="{{ '1' if login_enabled else '0' }}" data-app-name="{{ app_name }}" data-version="{{ app_version }}">
   {% if demo %}
   <p class="demo-banner" role="note">
     <strong>시연용 캘린더</strong>예요. 예시 일정이며 실제 데이터와 분리되어 있고, 앱을 다시 실행하면 처음 상태로 돌아가요.
@@ -20,10 +20,11 @@
   {% endif %}
   <header class="topbar">
     <div class="nav">
-      <!-- 기록지: 화면 왼쪽에 열리는 메모장 -->
-      <button class="text-btn tool-btn" id="btn-notes" type="button" aria-controls="notes" aria-expanded="false" aria-label="기록지" title="기록지">
+      <!-- 기록지: 화면 왼쪽에 열리는 메모·목표·할 일 (숫자 = 아직 안 한 할 일) -->
+      <button class="text-btn tool-btn" id="btn-notes" type="button" aria-controls="notes" aria-expanded="false" aria-label="기록지" title="기록지 (메모·목표·할 일)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6zM9 10h6M9 14h6M9 18h3"/></svg>
         <span class="tool-label">기록지</span>
+        <span class="count tool-count" id="todo-count" hidden>0</span>
       </button>
       <button class="icon-btn" id="btn-prev" type="button" aria-label="이전 달">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
@@ -55,16 +56,13 @@
         <button class="seg-btn" id="btn-view-month" type="button" aria-pressed="true">월간</button>
         <button class="seg-btn" id="btn-view-week" type="button" aria-pressed="false">이번 주</button>
       </div>
-      <button class="text-btn" id="btn-undated" type="button">
-        기한 미정 <span class="count" id="undated-count" hidden>0</span>
-      </button>
       <button class="text-btn" id="btn-categories" type="button">카테고리</button>
       <button class="icon-btn settings-btn" id="btn-settings" type="button" popovertarget="settings-menu"
               aria-haspopup="menu" aria-expanded="false" aria-label="설정" title="설정"></button>
     </div>
   </header>
 
-  <!-- ⚙ 설정 메뉴: 화면 테마 / 글꼴 / 로그아웃 (내용은 settings.js가 그린다.
+  <!-- ⚙ 설정 메뉴: 화면 테마 / 글꼴 / 로그아웃 / 버전 (내용은 settings.js가 그린다.
        popover: 바깥을 누르거나 Esc를 누르면 저절로 닫힌다) -->
   <div class="settings-menu" id="settings-menu" popover role="menu" aria-label="설정"></div>
 
@@ -75,10 +73,11 @@
   <section class="top-strip" id="top-strip" aria-label="배너와 D-day" hidden></section>
 
   <div class="layout">
-    <!-- 기록지 (notes.js): 넓은 화면은 달력 왼쪽 칸, 좁은 화면은 왼쪽에서 밀려 나오는 창 -->
+    <!-- 기록지 (notes.js): 넓은 화면은 달력 왼쪽 칸, 좁은 화면은 왼쪽에서 밀려 나오는 창
+         [전체 | 메모 | 목표 | 할 일] — 할 일 = 날짜를 정하지 않은 일정 (0.8까지의 '기한 미정') -->
     <aside class="notes" id="notes" aria-label="기록지" hidden>
       <header class="notes-head">
-        <button class="icon-btn notes-back" type="button" aria-label="메모 목록으로" hidden>
+        <button class="icon-btn notes-back" type="button" aria-label="목록으로" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
         <h2 class="notes-title" tabindex="-1">기록지</h2>
@@ -86,7 +85,13 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </header>
-      <div class="notes-body"></div>
+      <div class="notes-tabs" role="tablist" aria-label="기록지 종류">
+        <button class="notes-tab" type="button" role="tab" data-tab="all" aria-selected="true">전체</button>
+        <button class="notes-tab" type="button" role="tab" data-tab="memo" aria-selected="false">메모</button>
+        <button class="notes-tab" type="button" role="tab" data-tab="goal" aria-selected="false">목표</button>
+        <button class="notes-tab" type="button" role="tab" data-tab="todo" aria-selected="false">할 일 <span class="count" hidden>0</span></button>
+      </div>
+      <div class="notes-body" role="tabpanel"></div>
       <footer class="notes-foot"></footer>
     </aside>
 
@@ -95,18 +100,10 @@
       <section class="week" id="week" aria-label="주간 일정" hidden></section>
     </main>
 
-    <!-- 오른쪽 칸 (넓은 화면에서만 보임)
-         [날짜 일정] 고른 날짜의 일정 — 처음엔 오늘. 추가·수정·순서 바꾸기도 여기서
-         [기한 미정] 카드를 달력의 날짜로 끌어다 놓으면 그 날짜에 들어감 -->
-    <aside class="pane" id="side-pane" aria-label="날짜 일정과 기한 미정">
-      <div class="pane-tabs" role="tablist">
-        <button class="pane-tab" id="tab-day" type="button" role="tab" aria-selected="true" aria-controls="pane-day">날짜 일정</button>
-        <button class="pane-tab" id="tab-undated" type="button" role="tab" aria-selected="false" aria-controls="pane-undated">
-          기한 미정 <span class="count" id="tab-undated-count" hidden>0</span>
-        </button>
-      </div>
-
-      <section class="pane-host" id="pane-day" role="tabpanel" aria-labelledby="tab-day">
+    <!-- 오른쪽 칸 (넓은 화면에서만 보임): 고른 날짜의 일정 — 처음엔 오늘. 추가·수정·순서 바꾸기도 여기서
+         (할 일은 0.9.0부터 왼쪽 기록지의 '할 일' 탭으로 옮겼다) -->
+    <aside class="pane" id="side-pane" aria-label="날짜 일정">
+      <section class="pane-host" id="pane-day">
         <header class="sheet-head">
           <button class="icon-btn sheet-back" type="button" aria-label="뒤로" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
@@ -119,16 +116,10 @@
         <div class="sheet-body"></div>
         <footer class="sheet-foot"></footer>
       </section>
-
-      <section class="pane-undated" id="pane-undated" role="tabpanel" aria-labelledby="tab-undated" hidden>
-        <p class="panel-hint">카드를 달력의 날짜로 끌어다 놓으면 그 날짜에 들어가요.</p>
-        <ul class="panel-list"></ul>
-        <button class="btn wide panel-add" type="button">할 일 추가</button>
-      </section>
     </aside>
   </div>
 
-  <!-- 팝업 편집 창: 좁은 화면의 날짜 일정·기한 미정, 그리고 카테고리 관리 -->
+  <!-- 팝업 편집 창: 좁은 화면의 날짜 일정, 카테고리 관리, 시간 돌아보기 -->
   <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
     <div class="sheet-inner">
       <header class="sheet-head">
@@ -153,7 +144,11 @@
   <!-- 빠른 입력 창 (quick.js) -->
   <dialog class="quick" id="quick" aria-labelledby="quick-heading">
     <form class="quick-form" novalidate>
-      <h2 class="quick-heading" id="quick-heading">빠른 입력</h2>
+      <div class="quick-top">
+        <h2 class="quick-heading" id="quick-heading">빠른 입력</h2>
+        <!-- 누르면 맨 앞에 기호를 넣었다 뺐다 한다 ( - 메모 / * 목표 / [] 할 일 ) — quick.js -->
+        <div class="quick-kinds" role="group" aria-label="기록지에 넣기"></div>
+      </div>
       <input class="input quick-input" type="text" maxlength="300" autocomplete="off" enterkeyhint="done"
              placeholder="예: 내일 3시~5시 스터디 #과제" aria-describedby="quick-help">
       <p class="quick-read" aria-hidden="true"></p>
@@ -164,8 +159,10 @@
           <li><b>날짜</b> 오늘·내일·모레, 3일 뒤, (다음 주) 금요일, 11/20, 11월 20일, 20일, 기간 11/20~22</li>
           <li><b>시간</b> 3시, 3시 반, 15:30, 오전·오후·저녁, 3시~5시, 6시까지(끝만)
             — 오전·오후를 안 쓰면 1~7시는 오후로 봐요</li>
+          <li><b>반복</b> <code>매주 월수 9시 컴구 ~12/15</code>, 격주 화, 매일, 매주 평일 — 끝 날짜를 안 쓰면 그 달 말일까지</li>
           <li><b>카테고리</b> #과제 &nbsp; <b>D-day</b> 띄어 쓴 <code>!</code></li>
-          <li>날짜를 안 쓰면 <b>기한 미정</b>으로 넣어요.</li>
+          <li>날짜를 안 쓰면 기록지의 <b>할 일</b>로 넣어요.</li>
+          <li>맨 앞에 <code>-</code> 메모, <code>*</code> 목표(<code>* 12월까지 풀업 15개</code>), <code>[]</code> 할 일 — 위의 버튼을 눌러도 돼요.</li>
           <li>루틴 이름으로 쓰면(<code>운동 7시</code>) 일정 대신 <b>루틴 기록</b>으로 들어가요. 이때는 날짜를 안 쓰면 오늘이에요.</li>
         </ul>
       </details>
@@ -182,6 +179,12 @@
   <button class="fab" id="fab-quick" type="button" aria-label="빠른 입력">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
   </button>
+
+  <!-- 일정을 두 손가락 클릭(오른쪽 클릭)했을 때 뜨는 메뉴 (ctxmenu.js) -->
+  <div class="ctx-menu" id="ctx-menu" popover="manual" role="menu" aria-label="일정 메뉴"></div>
+
+  <!-- 날짜 하나 고르기 창: 다른 날로 옮기기·복사, 할 일 날짜 정하기 (datepop.js) -->
+  <dialog class="datepop" id="datepop" aria-labelledby="datepop-title"></dialog>
 
   <!-- 확인/선택 질문 창 ("이 날만 / 모든 날짜" 등) -->
   <dialog class="ask" id="ask" aria-labelledby="ask-message">

@@ -11,7 +11,9 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   GET    /api/occurrences?start=&end=     기간 안의 "날짜별 일정"
   GET    /api/calendar?start=&end=        월간·주간 화면용: 일정 + 루틴 기록을 한 번에 (api_tools.py)
   GET    /api/day/<date>                  하루 화면용: 일정 + 루틴 기록 + 루틴 버튼을 한 번에 (api_tools.py)
-  GET    /api/items/undated               기한 미정 일정 목록
+  GET    /api/items/undated               할 일 목록 (날짜가 없는 일정. 0.8까지의 '기한 미정') — 안 한 것 먼저, 완료한 것은 뒤에
+  PUT    /api/items/<id>/done             할 일 체크 / 체크 풀기 {done: true|false} (0.9.0)
+  DELETE /api/items/done                  완료한 할 일 모두 지우기 (0.9.0)
   GET    /api/items/<id>                  일정 하나 (모든 날짜 포함)
   POST   /api/items                       일정 추가
   PUT    /api/items/<id>                  일정 수정 (scope = all | single)
@@ -247,6 +249,8 @@ def item_dict(db, row):
         },
         "dates": dates,
         "dday": bool(row["dday"]),
+        "done": row["done_at"] is not None,   # 할 일 체크 (날짜가 없는 일정에서만 쓴다)
+        "done_at": row["done_at"],
     }
 
 
@@ -414,19 +418,59 @@ def list_occurrences():
     return jsonify(occurrence_list(get_db(), start, end))
 
 
+UNDATED = "NOT EXISTS (SELECT 1 FROM item_dates d WHERE d.item_id = i.id)"
+
+
 @bp.get("/items/undated")
 def list_undated():
-    """날짜가 하나도 없는 일정 = 기한 미정."""
-    db = get_db()
+    """
+    날짜가 하나도 없는 일정 = 할 일 (기록지의 '할 일' 탭).
+    안 한 것은 새로 넣은 것이 위로, 완료한 것은 그 뒤에 최근에 끝낸 순서로.
+    """
+    return jsonify(undated_items(get_db()))
+
+
+def undated_items(db):
+    """할 일 목록 (/api/items/undated, 기록지를 한 번에 받는 /api/inbox에서 같이 쓴다)"""
     rows = db.execute(
-        """
+        f"""
         SELECT i.*, c.name AS c_name, c.color AS c_color, c.is_default AS c_default
         FROM items i JOIN categories c ON c.id = i.category_id
-        WHERE NOT EXISTS (SELECT 1 FROM item_dates d WHERE d.item_id = i.id)
-        ORDER BY i.id DESC
+        WHERE {UNDATED}
+        ORDER BY i.done_at IS NOT NULL, i.done_at DESC, i.id DESC
         """
     ).fetchall()
-    return jsonify([item_dict(db, r) for r in rows])
+    return [item_dict(db, r) for r in rows]
+
+
+@bp.put("/items/<int:item_id>/done")
+def set_item_done(item_id):
+    """할 일 체크 {done: true} / 체크 풀기 {done: false}. 날짜가 정해진 일정은 체크하지 않는다."""
+    db = get_db()
+    get_item_or_404(db, item_id)
+    done = json_body().get("done")
+    if not isinstance(done, bool):
+        raise ApiError("done은 true/false여야 해요.")
+    if item_date_count(db, item_id):
+        raise ApiError("날짜가 정해진 일정은 체크할 수 없어요. 할 일(날짜 없는 일정)만 체크해요.")
+    db.execute(
+        "UPDATE items SET done_at = CASE WHEN ? THEN COALESCE(done_at, datetime('now', 'localtime')) END WHERE id = ?",
+        (int(done), item_id),
+    )
+    db.commit()
+    return jsonify(item_dict(db, get_item_or_404(db, item_id)))
+
+
+@bp.delete("/items/done")
+def clear_done_items():
+    """완료한 할 일을 한꺼번에 지운다 (기록지 '할 일' 탭의 '완료한 것 비우기')."""
+    db = get_db()
+    removed = db.execute(
+        "DELETE FROM items WHERE done_at IS NOT NULL"
+        " AND NOT EXISTS (SELECT 1 FROM item_dates d WHERE d.item_id = items.id)"
+    ).rowcount
+    db.commit()
+    return jsonify(deleted=removed)
 
 
 @bp.get("/items/<int:item_id>")
@@ -473,6 +517,9 @@ def update_item(item_id):
         (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"],
          int(fields["dday"]), item_id),
     )
+    if fields["dates"]:
+        # 할 일에 날짜를 정해 주면 달력의 일정이 된다 → 체크 표시는 의미가 없어지므로 지운다
+        db.execute("UPDATE items SET done_at = NULL WHERE id = ?", (item_id,))
     # 날짜는 바뀐 부분만 반영한다: 그대로 남는 날짜는 그날의 순서(position)를 유지해야 하므로
     # 전부 지우고 다시 넣지 않는다.
     current = {r["date"] for r in db.execute("SELECT date FROM item_dates WHERE item_id = ?", (item_id,))}

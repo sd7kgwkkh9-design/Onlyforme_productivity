@@ -14,7 +14,7 @@
   PUT    /api/routine-logs/<id>           수정 (보낸 칸만 — 끌어서 날짜만 옮길 때는 {date})
   DELETE /api/routine-logs/<id>           삭제
 
-기록지
+기록지 — 메모
   GET    /api/notes                       메모 목록
   POST   /api/notes                       메모 추가 (첫 메모는 자동으로 메인)
   PUT    /api/notes/<id>                  제목·내용·배너 글귀 수정 (자동 저장)
@@ -22,12 +22,21 @@
   DELETE /api/notes/<id>                  삭제 (메인을 지우면 맨 위 메모가 메인이 된다)
   PUT    /api/notes/order                 순서 {ids: [...]}
 
+기록지 — 목표 (0.9.0)
+  GET    /api/goals                       목표 목록 (아직인 것 먼저, 이룬 것은 뒤에)
+  POST   /api/goals                       목표 추가 {title, due, memo}
+  PUT    /api/goals/<id>                  수정 (보낸 칸만) {title, due, memo, done}
+  DELETE /api/goals/<id>                  삭제
+  PUT    /api/goals/order                 아직인 목표들의 순서 {ids: [...]}
+  (기록지의 '할 일'은 날짜 없는 일정이라 api.py의 /api/items/undated 등을 쓴다)
+
 화면 한 번에 필요한 것 묶어 받기 (최적화: 요청 수 줄이기)
   GET    /api/calendar?start=&end=        월간·주간 화면: 일정 + 루틴 기록 (요청 2번 → 1번)
   GET    /api/day/<date>                  하루 화면: 일정 + 루틴 기록 + 루틴 버튼 (요청 3번 → 1번)
+  GET    /api/inbox                       기록지: 메모 + 목표 + 할 일 (요청 3번 → 1번, 0.9.0)
 
 달력 위 띠
-  GET    /api/overview?today=             메인 메모의 배너 글귀 + 다가오는 D-day 일정
+  GET    /api/overview?today=             메인 메모의 배너 글귀 + 다가오는 D-day 일정 + 기한 있는 목표
 
 시간 돌아보기
   GET    /api/stats?start=&end=           기간 안의 카테고리별·날짜별 시간, 루틴 횟수·시간
@@ -43,16 +52,19 @@ from datetime import timedelta
 from flask import jsonify, request
 
 import quickadd
-from api import ApiError, bp, json_body, occurrence_list, parse_date, parse_range, parse_time
+from api import ApiError, bp, json_body, occurrence_list, parse_date, parse_range, parse_time, undated_items
 from db import get_db
 
 MAX_ROUTINES = 30
 MAX_ROUTINE_NAME = 30
-MAX_NOTES = 50
+MAX_NOTES = 500        # 0.9.0부터 한 줄 메모도 여기 쌓이므로 넉넉하게
 MAX_NOTE_TITLE = 60
 MAX_NOTE_BODY = 20000
 MAX_BANNER = 200
 MAX_DDAYS = 6
+MAX_GOALS = 200
+MAX_GOAL_TITLE = 100
+MAX_GOAL_MEMO = 2000
 MAX_PARSE_TEXT = 300
 
 
@@ -308,6 +320,17 @@ def day_detail(day):
     )
 
 
+@bp.get("/inbox")
+def inbox():
+    """기록지 한 번에: 메모(notes) + 목표(goals) + 할 일(날짜 없는 일정)"""
+    db = get_db()
+    return jsonify(
+        notes=[note_dict(r) for r in db.execute("SELECT * FROM notes ORDER BY position, id")],
+        goals=[goal_dict(r) for r in db.execute(GOALS_SQL)],
+        todos=undated_items(db),
+    )
+
+
 # ======================================================================== 기록지
 def note_dict(r):
     return {
@@ -416,13 +439,122 @@ def reorder_notes():
     return jsonify(ids=ids)
 
 
+# ======================================================================== 기록지: 목표 (0.9.0)
+# 목표 = 제목 + 기한(선택) + 메모. 체크하면 '이룬 목표'로 접힌다. 기한이 있으면 달력 위 D-day 띠에 보인다.
+def goal_dict(r):
+    return {
+        "id": r["id"],
+        "title": r["title"],
+        "due": r["due"],
+        "memo": r["memo"],
+        "done": r["done_at"] is not None,
+        "done_at": r["done_at"],
+        "position": r["position"],
+    }
+
+
+def goal_payload(data, partial=False):
+    out = {}
+    if "title" in data or not partial:
+        title = str(data.get("title") or "").strip()
+        if not title:
+            raise ApiError("목표를 적어 주세요.")
+        if len(title) > MAX_GOAL_TITLE:
+            raise ApiError(f"목표는 {MAX_GOAL_TITLE}자 이하로 적어 주세요.")
+        out["title"] = title
+    if "due" in data or not partial:
+        due = data.get("due")
+        out["due"] = parse_date(due, "기한") if due not in (None, "") else None
+    if "memo" in data or not partial:
+        memo = str(data.get("memo") or "").strip()
+        if len(memo) > MAX_GOAL_MEMO:
+            raise ApiError(f"메모는 {MAX_GOAL_MEMO}자 이하로 적어 주세요.")
+        out["memo"] = memo
+    return out
+
+
+def get_goal_or_404(db, goal_id):
+    row = db.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
+    if row is None:
+        raise ApiError("목표를 찾을 수 없어요.", 404)
+    return row
+
+
+GOALS_SQL = "SELECT * FROM goals ORDER BY done_at IS NOT NULL, done_at DESC, position, id"
+
+
+@bp.get("/goals")
+def list_goals():
+    return jsonify([goal_dict(r) for r in get_db().execute(GOALS_SQL)])
+
+
+@bp.post("/goals")
+def create_goal():
+    db = get_db()
+    if db.execute("SELECT COUNT(*) AS n FROM goals").fetchone()["n"] >= MAX_GOALS:
+        raise ApiError(f"목표는 {MAX_GOALS}개까지 만들 수 있어요. 이룬 목표를 정리해 주세요.")
+    fields = goal_payload(json_body())
+    position = db.execute("SELECT COALESCE(MAX(position), 0) + 1 AS p FROM goals").fetchone()["p"]
+    cur = db.execute(
+        "INSERT INTO goals (title, due, memo, position) VALUES (?, ?, ?, ?)",
+        (fields["title"], fields["due"], fields["memo"], position),
+    )
+    db.commit()
+    return jsonify(goal_dict(get_goal_or_404(db, cur.lastrowid))), 201
+
+
+@bp.put("/goals/<int:goal_id>")
+def update_goal(goal_id):
+    db = get_db()
+    get_goal_or_404(db, goal_id)
+    data = json_body()
+    fields = goal_payload(data, partial=True)
+    if "done" in data:
+        if not isinstance(data["done"], bool):
+            raise ApiError("done은 true/false여야 해요.")
+        db.execute(
+            "UPDATE goals SET done_at = CASE WHEN ? THEN COALESCE(done_at, datetime('now', 'localtime')) END WHERE id = ?",
+            (int(data["done"]), goal_id),
+        )
+    if fields:
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        db.execute(f"UPDATE goals SET {sets} WHERE id = ?", (*fields.values(), goal_id))
+    db.commit()
+    return jsonify(goal_dict(get_goal_or_404(db, goal_id)))
+
+
+@bp.delete("/goals/<int:goal_id>")
+def delete_goal(goal_id):
+    db = get_db()
+    get_goal_or_404(db, goal_id)
+    db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+    db.commit()
+    return jsonify(deleted=goal_id)
+
+
+@bp.put("/goals/order")
+def reorder_goals():
+    """아직 이루지 않은 목표들의 순서 (이룬 목표는 따로 접혀 있어서 순서를 바꾸지 않는다)."""
+    db = get_db()
+    ids = json_body().get("ids")
+    if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids):
+        raise ApiError("ids는 번호(정수)의 목록이어야 해요.")
+    active = {r["id"] for r in db.execute("SELECT id FROM goals WHERE done_at IS NULL")}
+    if len(ids) != len(set(ids)) or set(ids) != active:
+        raise ApiError("목표 목록이 바뀌었어요. 다시 열어 주세요.", 409)
+    db.executemany("UPDATE goals SET position = ? WHERE id = ?", [(n + 1, i) for n, i in enumerate(ids)])
+    db.commit()
+    return jsonify(ids=ids)
+
+
 # ======================================================================== 달력 위 띠: 배너 + D-day
 @bp.get("/overview")
 def overview():
     """
     banner : 메인 메모의 배너 글귀 (비어 있으면 null → 화면에서 배너를 숨긴다)
-    ddays  : D-day로 표시한 일정 중 오늘 이후 날짜가 남은 것, 가까운 순서로.
+    ddays  : D-day로 표시한 일정 중 오늘 이후 날짜가 남은 것 + 기한이 남은 목표(아직 못 이룬 것), 가까운 순서로.
              여러 날짜에 들어간 일정은 오늘부터 가장 가까운 날짜 기준.
+             kind = 'item'(일정) | 'goal'(목표)
     """
     db = get_db()
     today = today_arg()
@@ -442,17 +574,21 @@ def overview():
         """,
         (today.isoformat(), MAX_DDAYS),
     ).fetchall()
+    goals = db.execute(
+        "SELECT id, title, due FROM goals WHERE done_at IS NULL AND due >= ? ORDER BY due, position LIMIT ?",
+        (today.isoformat(), MAX_DDAYS),
+    ).fetchall()
     ddays = [
-        {
-            "id": r["id"],
-            "title": r["title"],
-            "date": r["next_date"],
-            "days_left": (Date.fromisoformat(r["next_date"]) - today).days,
-            "color": r["c_color"],
-        }
+        {"kind": "item", "id": r["id"], "title": r["title"], "date": r["next_date"], "color": r["c_color"]}
         for r in rows
+    ] + [
+        {"kind": "goal", "id": g["id"], "title": g["title"], "date": g["due"], "color": None}
+        for g in goals
     ]
-    return jsonify(banner=banner, ddays=ddays)
+    ddays.sort(key=lambda d: (d["date"], d["kind"] != "item"))  # 같은 날이면 일정 먼저
+    for d in ddays:
+        d["days_left"] = (Date.fromisoformat(d["date"]) - today).days
+    return jsonify(banner=banner, ddays=ddays[:MAX_DDAYS])
 
 
 # ======================================================================== 시간 돌아보기

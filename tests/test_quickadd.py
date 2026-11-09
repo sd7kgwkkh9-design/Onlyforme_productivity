@@ -129,3 +129,80 @@ def test_spans_never_overlap():
         for a, b in zip(spans, spans[1:]):
             assert a["end"] <= b["start"], (text, spans)
         assert all(text[s["start"]:s["end"]].strip() == text[s["start"]:s["end"]] for s in spans), text
+
+
+# ---------------------------------------------------------------- 0.9.0: 반복 일정
+def test_weekly_repeat_with_end_date():
+    r = p("매주 월수 9시 컴퓨터구조 ~12/15 #수업")
+    assert r["kind"] == "schedule" and r["title"] == "컴퓨터구조" and r["start_time"] == "09:00"
+    assert r["category"]["name"] == "수업"
+    # 오늘(11/4 수)부터 12/15까지의 월·수
+    assert r["dates"][:4] == ["2026-11-04", "2026-11-09", "2026-11-11", "2026-11-16"]
+    assert r["dates"][-1] == "2026-12-14" and len(r["dates"]) == 12
+    assert r["repeat"] == {"interval": 1, "daily": False, "weekdays": [0, 2], "start": "2026-11-04",
+                           "end": "2026-12-15", "end_default": False, "count": 12}
+    assert r["warnings"] == []
+
+
+def test_repeat_without_end_stops_at_month_end():
+    r = p("격주 화 스터디")
+    assert r["repeat"]["interval"] == 2 and r["repeat"]["end"] == "2026-11-30" and r["repeat"]["end_default"]
+    assert r["dates"] == ["2026-11-10", "2026-11-24"]          # 첫 화요일부터 한 주 건너 한 주
+    assert any("11/30까지만" in w for w in r["warnings"])
+
+
+@pytest.mark.parametrize("text, dates", [
+    ("11/10부터 매주 회의", ["2026-11-10", "2026-11-17", "2026-11-24"]),       # 시작 날짜 → 그 요일, 그 달 말까지
+    ("매주 금요일 동아리 11/13~12/4", ["2026-11-13", "2026-11-20", "2026-11-27", "2026-12-04"]),
+    ("화요일마다 상담 11/30까지", ["2026-11-10", "2026-11-17", "2026-11-24"]),
+    ("매주 평일 출근 ~11/10", ["2026-11-04", "2026-11-05", "2026-11-06", "2026-11-09", "2026-11-10"]),
+    ("매일 일기 ~11/7", ["2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07"]),
+    ("11/11부터 격주 화 회의 ~12/31", ["2026-11-17", "2026-12-01", "2026-12-15", "2026-12-29"]),
+])
+def test_repeat_forms(text, dates):
+    r = p(text)
+    assert r["dates"] == dates, r
+
+
+def test_weekday_letters_inside_words_are_not_weekdays():
+    r = p("매주 화 수업 ~11/30")           # '수업'의 '수'는 수요일이 아니다
+    assert r["title"] == "수업" and r["repeat"]["weekdays"] == [1]
+    r = p("매주 목욕 ~11/20")              # 요일을 안 쓰면 시작하는 날(오늘 수요일)의 요일
+    assert r["title"] == "목욕" and r["repeat"]["weekdays"] == [2]
+
+
+def test_repeat_is_never_a_routine_record_and_bad_range_warns():
+    assert p("매주 월 운동 ~11/30")["kind"] == "schedule"
+    r = p("매주 월 회의 ~11/1")             # 끝이 오늘보다 앞
+    assert r["dates"] == [] and r["warnings"]
+
+
+# ---------------------------------------------------------------- 0.9.0: 맨 앞 기호로 메모·목표·할 일
+def test_memo_prefix_keeps_text_as_is():
+    r = p("- 블로그 주제: 3시 방향 #과제 내일")
+    assert r["kind"] == "memo" and r["title"] == "블로그 주제: 3시 방향 #과제 내일"
+    assert r["dates"] == [] and r["start_time"] is None and r["category"] is None
+    assert r["spans"] == [{"start": 0, "end": 1, "kind": "kind"}]
+
+
+@pytest.mark.parametrize("text, title, due", [
+    ("* 12월까지 풀업 15개", "풀업 15개", "2026-12-31"),
+    ("* 이번 달 안에 책 2권", "책 2권", "2026-11-30"),
+    ("* 다음 달까지 토익 접수", "토익 접수", "2026-12-31"),
+    ("* 올해 안에 운전면허", "운전면허", "2026-12-31"),
+    ("* 3월까지 정보처리기사", "정보처리기사", "2027-03-31"),     # 지난 달 → 내년
+    ("* 12월 20일까지 토익 900", "토익 900", "2026-12-20"),
+    ("* 매일 물 2L", "매일 물 2L", None),
+])
+def test_goal_prefix_reads_due(text, title, due):
+    r = p(text)
+    assert r["kind"] == "goal" and r["title"] == title and r["due"] == due
+
+
+def test_todo_prefix():
+    r = p("[] 교수님께 메일")
+    assert r["kind"] == "todo" and r["undated"] is True and r["title"] == "교수님께 메일"
+    assert p("[ ]운동")["kind"] == "todo"                # [ ]로 쓰면 루틴 이름이어도 할 일
+    r = p("[] 내일 3시 메일")                             # 날짜를 쓰면 그날의 일정
+    assert r["kind"] == "schedule" and r["dates"] == ["2026-11-05"] and r["start_time"] == "15:00"
+    assert p("-3일 뒤 병원")["kind"] != "memo"            # '-' 뒤에 띄어쓰기가 있어야 메모

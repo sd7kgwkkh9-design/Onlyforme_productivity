@@ -36,9 +36,12 @@ export const api = {
   // 화면별로 묶어 받기 (요청 수 줄이기)
   calendar: (start, end) => request('GET', `/api/calendar?${q({ start, end })}`), // 월간·주간: 일정 + 루틴 기록
   day: (date) => request('GET', `/api/day/${date}`),                              // 하루: 일정 + 루틴 기록 + 루틴 버튼
+  inbox: () => request('GET', '/api/inbox'),                                       // 기록지: 메모 + 목표 + 할 일
 
-  // 일정
+  // 일정 (날짜 없는 일정 = 할 일)
   undated: () => request('GET', '/api/items/undated'),
+  setDone: (id, done) => request('PUT', `/api/items/${id}/done`, { done }),
+  clearDone: () => request('DELETE', '/api/items/done'),
   getItem: (id) => request('GET', `/api/items/${id}`),
   createItem: (payload) => request('POST', '/api/items', payload),
   updateItem: (id, payload) => request('PUT', `/api/items/${id}`, payload),
@@ -60,13 +63,19 @@ export const api = {
   updateRoutineLog: (id, payload) => request('PUT', `/api/routine-logs/${id}`, payload),
   deleteRoutineLog: (id) => request('DELETE', `/api/routine-logs/${id}`),
 
-  // 기록지
+  // 기록지 — 메모
   notes: () => request('GET', '/api/notes'),
   createNote: (payload) => request('POST', '/api/notes', payload),
   updateNote: (id, payload) => request('PUT', `/api/notes/${id}`, payload),
   setMainNote: (id) => request('PUT', `/api/notes/${id}/main`),
   deleteNote: (id) => request('DELETE', `/api/notes/${id}`),
   reorderNotes: (ids) => request('PUT', '/api/notes/order', { ids }),
+
+  // 기록지 — 목표
+  createGoal: (payload) => request('POST', '/api/goals', payload),
+  updateGoal: (id, payload) => request('PUT', `/api/goals/${id}`, payload),
+  deleteGoal: (id) => request('DELETE', `/api/goals/${id}`),
+  reorderGoals: (ids) => request('PUT', '/api/goals/order', { ids }),
 
   // 달력 위 띠(배너·D-day), 시간 돌아보기, 빠른 입력
   overview: (today) => request('GET', `/api/overview?${q({ today })}`),
