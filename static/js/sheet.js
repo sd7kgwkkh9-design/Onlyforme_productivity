@@ -22,6 +22,7 @@ import { routineBar, routineLogView, routineManager, routineSection } from './ro
 import {
   ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
 } from './utils.js';
+import { weatherLine } from './weather.js';
 
 const PALETTE = ['#E5534B', '#F08C2E', '#D9A514', '#3FA66B', '#2BA5B5', '#3D6FD9', '#7C5CD6', '#D45A9A'];
 
@@ -109,6 +110,16 @@ export class Sheet {
 
   setBody(...nodes) { this.bodyEl.replaceChildren(...nodes.filter(Boolean)); }
 
+  // 날씨가 늦게 들어왔을 때: 하루 목록 맨 위의 날씨 줄만 넣거나 바꾼다 (목록은 다시 불러오지 않는다)
+  updateWeather() {
+    if (this.view !== 'day' || !this.bodyEl.querySelector('.item-list, .empty, .routine-day')) return;
+    const old = this.bodyEl.querySelector(':scope > .wx-line');
+    const line = weatherLine(this.day);
+    if (old && line) old.replaceWith(line);
+    else if (old) old.remove();
+    else if (line) this.bodyEl.prepend(line);
+  }
+
   setFoot(...nodes) {
     const real = nodes.filter(Boolean); // null(예: 새 일정에는 없는 삭제 버튼)은 빼고
     this.footEl.replaceChildren(...real);
@@ -187,7 +198,7 @@ export class Sheet {
           onMenu: shared.onLogMenu ? (e, log) => shared.onLogMenu(e, log, this) : null,
         })
       : null;
-    this.setBody(...schedule, routineDay);
+    this.setBody(weatherLine(date), ...schedule, routineDay); // 맨 위: 그날 서울 날씨 (오늘부터 일주일만)
 
     this.setFoot(
       el('div', { class: 'day-foot' },
@@ -472,7 +483,7 @@ export class Sheet {
     return el('li', { class: 'cat-row', style: { '--cat': c.color } },
       el('span', { class: 'dot lg' }),
       el('span', { class: 'cat-name' }, c.name),
-      el('span', { class: 'cat-count' }, `일정 ${c.item_count}개`),
+      // 0.10.0: 줄마다 '일정 N개'는 보여 주지 않는다 (삭제할 때 확인 창에서만 알려 준다)
       c.is_default
         ? el('span', { class: 'cat-lock', title: '기본 카테고리는 지울 수 없어요' }, '기본')
         : el('span', { class: 'cat-actions' },

@@ -118,6 +118,12 @@ def seed_demo(app, today=None):
     # 그때그때 적은 한 줄 메모 (0.9.0: 기록지 맨 위 칸이나 빠른 입력의 '- '로)
     post("/api/notes", {"body": "블로그 주제: 파이프라인 해저드를 그림으로 정리해 보기"})
     post("/api/notes", {"body": "MT 챙길 것 — 보조배터리, 담요, 상비약"})
+    # 마크다운 메모 (0.10.0): 보기 화면에서 체크리스트를 바로 누를 수 있다
+    post("/api/notes", {
+        "title": "이번 주 공부",
+        "body": "## 시험 범위\n- [x] 선형대수 1~3장\n- [ ] 회로이론2 4장 **페이저**\n- [ ] 컴퓨터구조 파이프라인 정리\n\n"
+                "> 하루에 한 과목씩\n\n참고: [강의자료](https://example.com)",
+    })
 
     # 기록지 — 목표 (0.9.0): 기한이 있으면 달력 위 D-day 띠에 🎯로 보인다
     month_end = (first + timedelta(days=62)).replace(day=1) - timedelta(days=1)  # 다음 달 말일

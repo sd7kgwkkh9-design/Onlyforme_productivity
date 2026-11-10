@@ -10,7 +10,7 @@
   <main class="gate-card">
     <img class="gate-icon" src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="64" height="64">
     <h1 class="gate-title">{{ app_name }}</h1>
-    <form method="post" action="{{ url_for('auth.login') }}" class="gate-form">
+    <form method="post" action="{{ url_for('auth.login', next=request.args.get('next')) if request.args.get('next') else url_for('auth.login') }}" class="gate-form">
       {# 아이폰·맥의 암호 저장(iCloud 키체인)이 이 사이트 비밀번호를 기억하도록 숨은 아이디 칸을 둔다 #}
       <input type="text" name="username" value="calendar" autocomplete="username" hidden>
       <label class="label" for="password">비밀번호</label>

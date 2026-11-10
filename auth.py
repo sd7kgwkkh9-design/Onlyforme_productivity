@@ -108,7 +108,17 @@ def require_login():
         return None
     if path.startswith("/api/"):
         return jsonify(error="로그인이 필요해요."), 401
+    # 보던 화면 주소(/?week=…)로 들어왔으면 로그인한 뒤 그 화면으로 돌아가게 기억해 둔다 (0.10.0)
+    if path == "/" and request.query_string:
+        return redirect(url_for("auth.login", next=request.full_path))
     return redirect(url_for("auth.login"))
+
+
+def safe_next(value):
+    """로그인 뒤에 돌아갈 주소: 이 앱의 첫 화면 주소(/?…)만 허용한다 (다른 사이트로 보내는 것 방지)"""
+    if value and value.startswith("/?") and "//" not in value and "\\" not in value:
+        return value
+    return url_for("index")
 
 
 # ---------------------------------------------------------------- 연속 실패 제한
@@ -153,7 +163,7 @@ def login():
             session.clear()
             session["logged_in"] = True
             session.permanent = True  # 브라우저를 닫아도 1년 동안 유지
-            return redirect(url_for("index"))
+            return redirect(safe_next(request.args.get("next")))
         else:
             _record_fail(ip)
             error = "비밀번호가 맞지 않아요."

@@ -4,6 +4,7 @@
 //   전체  : 세 가지를 한눈에 — 안 한 할 일, 아직인 목표, 최근 메모
 //   메모  : 다시 보고 싶은 글, 그때그때 드는 생각. 위 칸에 한 줄로 바로 적거나 '새 메모'로 길게 쓴다.
 //           ★메인 메모의 '배너 글귀'는 달력 위 배너에 늘 보인다. 쓰는 대로 자동 저장.
+//           마크다운(0.10.0): [보기 | 쓰기]. 보기에서는 **굵게**, 체크리스트, 링크가 꾸며져 보이고 체크리스트를 바로 누를 수 있다.
 //   목표  : 이루고 싶은 것 + 기한(선택). 기한이 있으면 달력 위 D-day 띠에 보인다. 체크하면 '이룬 목표'로.
 //   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 체크하면 '완료'로 접히고,
 //           날짜를 정하면(📅 버튼, 또는 달력으로 끌어다 놓기) 그날의 일정이 된다.
@@ -14,6 +15,7 @@
 import { api } from './api.js';
 import { openMenu } from './ctxmenu.js';
 import { pickDate } from './datepop.js';
+import { renderMarkdown, stripMarkdown } from './markdown.js';
 import { makeSortable } from './reorder.js';
 import { ask, daysBetween, ddayLabel, el, formatShort, formatTimeRange, icon, todayStr, toast } from './utils.js';
 
@@ -80,6 +82,7 @@ export class NotesPanel {
     this.pending = null;       // 저장 대기 중인 메모 { id, fields }
     this.timer = null;
     this.captureKind = 'memo'; // '전체' 탭의 입력칸이 넣을 종류
+    this.memoMode = 'view';    // 메모 화면: 'view'(꾸며진 보기) | 'edit'(글 고치기)
     this.openDone = { todo: false, goal: false };
 
     this.backBtn.addEventListener('click', () => this.showList());
@@ -636,8 +639,8 @@ export class NotesPanel {
   }
 
   memoCard(n, sortable) {
-    // 제목이 없는 한 줄 메모는 첫 줄을 제목처럼 보여 준다
-    const lines = (n.body || '').trim().split('\n').filter(Boolean);
+    // 제목이 없는 한 줄 메모는 첫 줄을 제목처럼 보여 준다 (마크다운 기호는 걷어 내고)
+    const lines = stripMarkdown((n.body || '').trim()).split('\n').map((l) => l.trim()).filter(Boolean);
     const headline = n.title || lines.shift() || '빈 메모';
     const preview = lines.slice(0, 2).join(' · ');
     return el('li', { class: 'note-li', dataset: { id: String(n.id) } },
@@ -664,10 +667,14 @@ export class NotesPanel {
   }
 
   // ---------------------------------------------------------------- 메모 쓰기 (자동 저장)
-  showMemo(id) {
+  showMemo(id, { mode = null } = {}) {
+    const fresh = this.editingId !== id || this.view !== 'memo';
     if (this.editingId !== id) this.flush();
     const n = this.note(id);
     if (!n) return this.showList();
+    // 처음 열 때: 내용이 있으면 '보기', 비어 있으면 바로 '쓰기'
+    if (mode) this.memoMode = mode;
+    else if (fresh) this.memoMode = (n.body || '').trim() ? 'view' : 'edit';
     this.view = 'memo';
     this.editingId = id;
     this.titleEl.textContent = n.is_main ? '★ 메인 메모' : '메모';
@@ -684,17 +691,40 @@ export class NotesPanel {
           'aria-label': '배너 글귀', value: n.banner,
         })
       : null;
-    const body = el('textarea', {
-      class: 'input note-body-input', placeholder: '자유롭게 적어 두세요.', 'aria-label': '메모 내용', value: n.body,
-    });
+    let text = this.pending?.id === id ? this.pending.fields.body : n.body; // 아직 저장 전인 글이 있으면 그것
+    const editing = this.memoMode === 'edit';
+    const body = editing
+      ? el('textarea', {
+          class: 'input note-body-input', placeholder: '자유롭게 적어 두세요.\n\n- [ ] 체크리스트\n**굵게**  # 제목  [링크](주소)', 'aria-label': '메모 내용', value: text,
+        })
+      : el('div', { class: 'md-view', tabindex: '0', 'aria-label': '메모 내용 (보기)' });
 
-    const onInput = () => this.schedule(id, {
+    const fields = () => ({
       title: title.value,
-      body: body.value,
+      body: editing ? body.value : text,
       ...(banner ? { banner: banner.value } : {}),
     });
-    [title, body, banner].forEach((input) => input?.addEventListener('input', onInput));
-    [title, body, banner].forEach((input) => input?.addEventListener('blur', () => this.flush()));
+    const onInput = () => this.schedule(id, fields());
+    [title, editing ? body : null, banner].forEach((input) => input?.addEventListener('input', onInput));
+    [title, editing ? body : null, banner].forEach((input) => input?.addEventListener('blur', () => this.flush()));
+
+    if (!editing) {
+      const draw = () => renderMarkdown(body, text, {
+        onToggle: (next) => { text = next; this.schedule(id, fields()); draw(); }, // 체크리스트를 누르면 그 줄만 바뀌어 저장
+      });
+      if ((text || '').trim()) draw();
+      else body.append(el('p', { class: 'muted' }, "아직 내용이 없어요. '쓰기'를 눌러 적어 보세요."));
+      // 빈 곳을 두 번 누르면 쓰기로 (링크·체크 칸은 그대로 동작)
+      body.addEventListener('dblclick', (e) => { if (!e.target.closest('a, input')) this.switchMemoMode(id, 'edit'); });
+    }
+
+    const modeBtn = (m, label) => el('button', {
+      type: 'button', class: 'seg-btn', 'aria-pressed': String(this.memoMode === m), onclick: () => this.switchMemoMode(id, m),
+    }, label);
+    const modeBar = el('div', { class: 'note-mode-row' },
+      el('div', { class: 'seg note-mode', role: 'group', 'aria-label': '메모 보기 방식' }, modeBtn('view', '보기'), modeBtn('edit', '쓰기')),
+      editing ? el('span', { class: 'note-md-hint' }, '마크다운: **굵게**, - [ ] 체크리스트, # 제목') : null,
+    );
 
     this.bodyEl.replaceChildren(
       el('div', { class: 'note-edit' },
@@ -705,10 +735,30 @@ export class NotesPanel {
               banner,
               el('p', { class: 'field-hint' }, '여기 쓴 문장이 달력 위 배너에 늘 보여요. 비워 두면 배너가 숨겨져요.'))
           : null,
+        modeBar,
         body,
       ),
     );
     this.renderMemoFoot(n);
+  }
+
+  // 보기 ↔ 쓰기: 쓰던 글은 먼저 저장(대기열)에 넣어 두고 화면만 바꾼다
+  switchMemoMode(id, mode) {
+    const area = this.bodyEl.querySelector('.note-body-input');
+    if (area && this.note(id)) {
+      const n = this.note(id);
+      const title = this.bodyEl.querySelector('.note-title-input');
+      const banner = this.bodyEl.querySelector('.note-banner-input');
+      if (area.value !== n.body || this.pending) {
+        this.schedule(id, { title: title.value, body: area.value, ...(banner ? { banner: banner.value } : {}) });
+      }
+    }
+    this.showMemo(id, { mode });
+    if (mode === 'edit') {
+      const area2 = this.bodyEl.querySelector('.note-body-input');
+      area2?.focus();
+      area2?.setSelectionRange(area2.value.length, area2.value.length);
+    }
   }
 
   renderMemoFoot(n) {

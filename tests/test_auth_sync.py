@@ -143,7 +143,7 @@ def test_demo_calendar_is_filled_around_today(tmp_path):
     todos = c.get("/api/items/undated").get_json()                 # 기록지의 할 일 (하나는 완료)
     assert len(todos) == 4 and [t["done"] for t in todos].count(True) == 1
     inbox = c.get("/api/inbox").get_json()
-    assert len(inbox["notes"]) == 4 and [g["title"] for g in inbox["goals"]][:2] == ["풀업 15개", "토익 900점"]
+    assert len(inbox["notes"]) == 5 and [g["title"] for g in inbox["goals"]][:2] == ["풀업 15개", "토익 900점"]
     assert any(d["kind"] == "goal" for d in c.get("/api/overview?today=2027-03-10").get_json()["ddays"])
     assert b"demo-banner" in c.get("/").data
 

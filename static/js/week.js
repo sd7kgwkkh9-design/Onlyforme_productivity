@@ -11,6 +11,7 @@ import { api } from './api.js';
 import { slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
 import { WEEKDAYS, addDays, el, formatLong, formatTimeRange, parseDateStr, toDateStr, todayStr } from './utils.js';
+import { weatherBadge } from './weather.js';
 
 const LAYOUT_KEY = 'my-calendar:week-layout';
 
@@ -147,6 +148,7 @@ export class WeekView {
       el('span', { class: 'wk-col-head', 'aria-hidden': 'true' },
         el('span', { class: 'wk-name' }, WEEKDAYS[dow]),
         el('span', { class: 'wk-num' }, String(parseDateStr(date).getDate())),
+        weatherBadge(date), // 오늘부터 일주일만 (weather.js)
       ),
       holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
       el('span', { class: 'wk-col-body' },
@@ -178,6 +180,7 @@ export class WeekView {
       el('span', { class: 'wk-date', 'aria-hidden': 'true' },
         el('span', { class: 'wk-num' }, String(parseDateStr(date).getDate())),
         el('span', { class: 'wk-name' }, `${WEEKDAYS[dow]}요일`),
+        weatherBadge(date),
       ),
       el('span', { class: 'wk-body' },
         holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,

@@ -12,7 +12,8 @@
   {% for url in modules.values() %}<link rel="modulepreload" href="{{ url }}">
   {% endfor %}
 </head>
-<body data-view="month" data-login="{{ '1' if login_enabled else '0' }}" data-app-name="{{ app_name }}" data-version="{{ app_version }}">
+<body data-view="month" data-login="{{ '1' if login_enabled else '0' }}" data-app-name="{{ app_name }}" data-version="{{ app_version }}"
+      data-marked="{{ asset_url('vendor/marked/marked.esm.js') }}" data-purify="{{ asset_url('vendor/dompurify/purify.es.js') }}">
   {% if demo %}
   <p class="demo-banner" role="note">
     <strong>시연용 캘린더</strong>예요. 예시 일정이며 실제 데이터와 분리되어 있고, 앱을 다시 실행하면 처음 상태로 돌아가요.
@@ -57,6 +58,11 @@
         <button class="seg-btn" id="btn-view-week" type="button" aria-pressed="false">이번 주</button>
       </div>
       <button class="text-btn" id="btn-categories" type="button">카테고리</button>
+      <!-- 공유·인쇄 (0.10.0): 고른 날짜·이 주 일정 보내기, 인쇄 / PDF로 저장 (share.js) -->
+      <button class="icon-btn settings-btn" id="btn-share" type="button" popovertarget="share-menu"
+              aria-haspopup="menu" aria-expanded="false" aria-label="공유·인쇄" title="공유·인쇄">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>
+      </button>
       <button class="icon-btn settings-btn" id="btn-settings" type="button" popovertarget="settings-menu"
               aria-haspopup="menu" aria-expanded="false" aria-label="설정" title="설정"></button>
     </div>
@@ -65,6 +71,7 @@
   <!-- ⚙ 설정 메뉴: 화면 테마 / 글꼴 / 로그아웃 / 버전 (내용은 settings.js가 그린다.
        popover: 바깥을 누르거나 Esc를 누르면 저절로 닫힌다) -->
   <div class="settings-menu" id="settings-menu" popover role="menu" aria-label="설정"></div>
+  <div class="settings-menu share-menu" id="share-menu" popover role="menu" aria-label="공유·인쇄"></div>
 
   <!-- 제목을 눌렀을 때 뜨는 빠른 이동 (내용은 jump.js가 그린다) -->
   <div class="jump-menu" id="jump-menu" popover role="dialog" aria-label="날짜로 이동"></div>

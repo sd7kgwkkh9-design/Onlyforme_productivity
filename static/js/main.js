@@ -20,6 +20,8 @@
 import { api } from './api.js';
 import { openMenu } from './ctxmenu.js';
 import { pickDate } from './datepop.js';
+import { initShare } from './share.js';
+import { decorateMonth, decorateMonthCell, decorateWeek, loadWeather, onWeather } from './weather.js';
 import { attachEdgePager } from './edgepager.js';
 import { onSwipe, slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
@@ -131,9 +133,31 @@ function toRoutineEvent(log, index) {
   };
 }
 
+// ---- 주소에 보던 화면 남기기 (0.10.0)
+//   /?month=2026-11&day=2026-11-12      월간 화면의 11월, 12일이 열린 상태
+//   /?week=2026-11-08                   11월 8일(일)부터의 한 주
+// - 달·주를 넘기면 주소가 바뀌어서(방문 기록이 쌓여서) 브라우저의 '뒤로 가기'로 보던 화면에 돌아갈 수 있다.
+// - 새로 고침해도, 북마크·홈 화면에 둔 주소로 열어도 그 화면이 그대로 열린다. (날짜만 고르는 건 기록을 쌓지 않는다)
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function readUrl() {
+  const p = new URLSearchParams(location.search);
+  const week = p.get('week');
+  const month = p.get('month');
+  const day = p.get('day');
+  return {
+    week: week && DATE_RE.test(week) ? startOfWeek(week) : null,
+    month: month && /^\d{4}-\d{2}$/.test(month) ? month : null,
+    day: day && DATE_RE.test(day) ? day : null,
+  };
+}
+const startUrl = readUrl();
+if (startUrl.day) state.selected = startUrl.day;
+const urlSync = { ready: false, restoring: false };
+
 const calendar = new FullCalendar.Calendar(calendarEl, {
   locale: 'ko',
   initialView: 'dayGridMonth',
+  initialDate: startUrl.month ? `${startUrl.month}-01` : (startUrl.day || undefined),
   headerToolbar: false,      // 상단 바는 직접 만든 것을 쓴다
   height: '100%',
   fixedWeekCount: false,     // 그 달에 필요한 주(4~6주)만 표시
@@ -235,6 +259,8 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
   },
 
   datesSet: () => safely('상단 제목', updateHeader),
+  // 날짜 칸이 그려질 때 날씨(오늘부터 일주일, 서울)를 날짜 숫자 옆에 붙인다 (weather.js)
+  dayCellDidMount: (arg) => decorateMonthCell(arg.el),
 });
 
 calendar.render();
@@ -253,6 +279,7 @@ function openDay(date) {
 
 function select(date) {
   state.selected = date;
+  syncUrl({ replace: true }); // 날짜를 고르는 건 '뒤로 가기' 기록을 쌓지 않는다
   calendarEl.querySelectorAll('td.fc-daygrid-day.is-selected').forEach((c) => c.classList.remove('is-selected'));
   calendarEl.querySelector(`td.fc-daygrid-day[data-date="${date}"]`)?.classList.add('is-selected');
   weekView?.select(date);
@@ -390,7 +417,58 @@ function updateHeader() {
   weekBtn?.setAttribute('aria-pressed', String(isWeek));
   if (layoutBtn) layoutBtn.hidden = !isWeek;
   document.body.dataset.view = state.view;
+  syncUrl();
 }
+
+function urlOfState() {
+  const p = new URLSearchParams();
+  if (state.view === 'week') p.set('week', state.weekStart);
+  else p.set('month', toDateStr(calendar.view.currentStart).slice(0, 7));
+  if (state.selected !== todayStr()) p.set('day', state.selected);
+  return `${location.pathname}?${p}`;
+}
+
+function syncUrl({ replace = false } = {}) {
+  if (!urlSync.ready) return;
+  const url = urlOfState();
+  if (url === location.pathname + location.search) return;
+  try {
+    if (replace || urlSync.restoring) history.replaceState(null, '', url);
+    else history.pushState(null, '', url);
+  } catch { /* 주소를 못 바꿔도 화면은 그대로 동작 */ }
+}
+
+// '뒤로 가기·앞으로 가기': 주소에 적힌 화면으로 돌아간다
+window.addEventListener('popstate', () => safely('뒤로 가기', () => {
+  const u = readUrl();
+  urlSync.restoring = true;
+  try {
+    if (u.week && weekView) {
+      if (state.view !== 'week') {
+        state.view = 'week';
+        calendarEl.hidden = true;
+        weekEl.hidden = false;
+      }
+      showWeek(u.week, u.week > state.weekStart ? 1 : u.week < state.weekStart ? -1 : 0, 'start');
+    } else {
+      if (state.view === 'week') {
+        state.view = 'month';
+        weekEl.hidden = true;
+        calendarEl.hidden = false;
+        calendar.updateSize();
+      }
+      calendar.gotoDate(u.month ? `${u.month}-01` : todayStr());
+      updateHeader();
+    }
+    const day = u.day || todayStr();
+    if (day !== state.selected) {
+      select(day);
+      if (wide.matches) paneSheet?.showDay(day);
+    }
+  } finally {
+    urlSync.restoring = false;
+  }
+}));
 
 on(prevBtn, 'click', () => navigate(-1));
 on(nextBtn, 'click', () => navigate(1));
@@ -771,6 +849,22 @@ configureSheets({
 
 // ============================================================ 7. 나머지 시작
 
+// 공유·인쇄 (0.10.0): 고른 날짜와 그 날짜가 든 주 (주간 화면이면 보고 있는 주)
+safely('공유', () => initShare({
+  button: $('btn-share'),
+  menu: $('share-menu'),
+  appName: APP_NAME,
+  current: () => {
+    const date = state.selected;
+    const inWeek = state.view === 'week' && date >= state.weekStart && date < addDays(state.weekStart, 7);
+    return { date, weekStart: state.view === 'week' && !inWeek ? state.weekStart : startOfWeek(date) };
+  },
+  beforePrint: () => calendar.updateSize(),
+}));
+// 인쇄할 때는 칸이 넘쳐도 '+n'으로 접지 않고 다 보여 준다 (브라우저 메뉴의 '프린트'로 해도 같다)
+window.addEventListener('beforeprint', () => { calendar.setOption('dayMaxEvents', false); calendar.updateSize(); });
+window.addEventListener('afterprint', () => { calendar.setOption('dayMaxEvents', true); calendar.updateSize(); });
+
 safely('설정', () => initSettings({
   loginEnabled: document.body.dataset.login === '1',
   appName: APP_NAME,
@@ -850,7 +944,25 @@ function showDate(date) {
   }
   openDay(date);
 }
-if (wide.matches) safely('오른쪽 칸', () => paneSheet?.showDay(state.selected)); // 오른쪽 칸: 오늘
+// 주소에 주간 화면이 적혀 있으면(/?week=…) 그 주로 연다
+if (startUrl.week && weekView) {
+  state.view = 'week';
+  calendarEl.hidden = true;
+  weekEl.hidden = false;
+  showWeek(startUrl.week, 0, startUrl.day ? 'selected' : 'today');
+}
+urlSync.ready = true;
+syncUrl({ replace: true }); // 처음 연 화면을 주소에 적어 둔다 (기록은 쌓지 않음)
+if (wide.matches) safely('오른쪽 칸', () => paneSheet?.showDay(state.selected)); // 오른쪽 칸: 오늘 (또는 주소의 날짜)
 if (notes && !notes.loaded) notes.load(); // '기록지' 버튼의 숫자 (안 한 할 일)
+
+// 날씨 (0.10.0): 받아 오면 보이는 화면에 붙인다. 못 받아 오면 아무것도 안 한다.
+onWeather(() => safely('날씨', () => {
+  decorateMonth(calendarEl);
+  decorateWeek(weekEl);
+  paneSheet?.updateWeather();
+  modalSheet?.updateWeather();
+}));
+loadWeather();
 refreshStrip();
 safely('동기화', () => startSync(onRemoteChange));

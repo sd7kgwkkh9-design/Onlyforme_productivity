@@ -1,13 +1,16 @@
-// ⚙ 설정 메뉴: 화면 테마 / 글꼴 / 이 기기에서 로그아웃 / 앱 이름과 버전 (0.9.0)
+// ⚙ 설정 메뉴: 화면 테마 / 글꼴 / 글자 크기 / 이 기기에서 로그아웃 / 앱 이름과 버전
 //
-// - 테마와 글꼴은 기기(브라우저)마다 따로 저장된다. 폰은 다크+주아, 맥은 라이트+Pretendard처럼 쓸 수 있다.
-// - 실제 색·글꼴은 style.css가 바꾼다. 여기서는 <html data-theme="..." data-font="...">만 바꾼다.
+// - 테마·글꼴·글자 크기는 기기(브라우저)마다 따로 저장된다. 폰은 다크+주아+작게, 맥은 라이트+Pretendard+보통처럼 쓸 수 있다.
+// - 실제 색·글꼴·크기는 style.css가 바꾼다. 여기서는 <html data-theme data-font data-fs>만 바꾼다.
+// - 글자 크기(0.10.0): '보통'(지금 크기)이 기본이자 가장 크고, 작은 쪽으로만 5단계. 글씨와 함께 여백·간격도 같이 줄어서
+//   한 화면에 더 많이 보인다 (style.css의 calc(… * var(--fs))). 버튼처럼 누르는 칸의 높이는 그대로 둔다.
 // - 화면이 처음 그려지기 전에 적용하는 코드는 templates/_head.html에 따로 있다 (번쩍임 방지).
 
 import { el, icon, toast } from './utils.js';
 
 const THEME_KEY = 'my-calendar:theme';
 const FONT_KEY = 'my-calendar:font';
+const SIZE_KEY = 'my-calendar:font-size';
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
 const THEMES = [
@@ -25,11 +28,21 @@ const FONTS = [
   ['noto-sans-kr', 'Noto Sans KR', "'Noto Sans KR Variable'"],
 ];
 
+// 글자 크기: [값(%), 이름]
+const SIZES = [
+  ['100', '보통'],
+  ['95', '조금 작게'],
+  ['90', '작게'],
+  ['85', '더 작게'],
+  ['80', '가장 작게'],
+];
+
 // 휴대폰 상태 표시줄 색 (style.css의 --paper와 같은 값)
 const BAR_COLOR = { light: '#F4F6F9', dark: '#111419' };
 
 let theme = 'auto';
 let font = 'pretendard';
+let size = '100';
 let button;
 let menu;
 
@@ -78,6 +91,13 @@ function applyFont() {
   else document.documentElement.dataset.font = font;
 }
 
+function applySize() {
+  if (size === '100') delete document.documentElement.dataset.fs;
+  else document.documentElement.dataset.fs = size;
+  // 달력 칸 안에 일정이 몇 개 들어가는지('+n') 다시 계산하게 한다
+  window.dispatchEvent(new Event('resize'));
+}
+
 // ---------------------------------------------------------------- 메뉴
 function renderMenu(loginEnabled, appName, version) {
   const choice = (group, value, label, current, onPick, style) =>
@@ -99,6 +119,19 @@ function renderMenu(loginEnabled, appName, version) {
     el('div', { role: 'group', 'aria-labelledby': 'menu-label-font' },
       FONTS.map(([v, label, family]) =>
         choice('fontChoice', v, label, font, pickFont, { 'font-family': `${family}, var(--font-fallback)` }))),
+    el('p', { class: 'menu-label', id: 'menu-label-size' }, '글자 크기', el('span', { class: 'menu-size-name' }, sizeName())),
+    // 다섯 칸에 '가'를 그 크기로 보여 준다
+    el('div', { class: 'menu-sizes', role: 'group', 'aria-labelledby': 'menu-label-size' },
+      SIZES.map(([v, label]) => el('button', {
+        type: 'button',
+        role: 'menuitemradio',
+        class: 'menu-size',
+        dataset: { sizeChoice: v },
+        'aria-checked': String(v === size),
+        'aria-label': `${label} (${v}%)`,
+        title: `${label} (${v}%)`,
+        onclick: () => pickSize(v),
+      }, el('span', { style: { 'font-size': `${(18 * Number(v)) / 100}px` } }, '가')))),
     loginEnabled
       ? el('form', { class: 'menu-logout', method: 'post', action: '/logout' },
           el('button', { type: 'submit', role: 'menuitem', class: 'menu-choice danger' }, '이 기기에서 로그아웃'))
@@ -115,6 +148,22 @@ function renderMenu(loginEnabled, appName, version) {
 function refreshChecks() {
   menu.querySelectorAll('[data-theme-choice]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.themeChoice === theme)));
   menu.querySelectorAll('[data-font-choice]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.fontChoice === font)));
+  menu.querySelectorAll('[data-size-choice]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.sizeChoice === size)));
+  const name = menu.querySelector('.menu-size-name');
+  if (name) name.textContent = sizeName();
+}
+
+function sizeName() {
+  const [v, label] = SIZES.find(([x]) => x === size);
+  return v === '100' ? label : `${label} · ${v}%`;
+}
+
+function pickSize(value) {
+  size = value;
+  save(SIZE_KEY, value, '100');
+  applySize();
+  refreshChecks();
+  placeMenu(); // 메뉴 글자도 작아지니 위치를 다시 맞춘다
 }
 
 function pickTheme(value) {
@@ -145,8 +194,10 @@ export function initSettings({ loginEnabled = false, appName = '', version = '' 
   menu = document.getElementById('settings-menu');
   theme = read(THEME_KEY, ['light', 'dark'], 'auto');
   font = read(FONT_KEY, FONTS.map(([v]) => v), 'pretendard');
+  size = read(SIZE_KEY, SIZES.map(([v]) => v), '100');
   applyTheme();
   applyFont();
+  if (size !== '100') document.documentElement.dataset.fs = size; // _head.html이 이미 적용했지만 혹시 몰라서
 
   button.replaceChildren(icon(
     'M12 15.5a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7z' +
