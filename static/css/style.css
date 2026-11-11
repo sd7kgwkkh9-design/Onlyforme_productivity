@@ -1499,24 +1499,31 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
    ========================================================================== */
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
-  html, body { height: auto; background: #fff !important; color: #111 !important; overflow: visible !important; }
+  /* 화면에서는 body가 '창 높이 이상'(min-height: 100dvh)이다. Safari는 인쇄할 때도 이 높이를 브라우저 창 기준으로 계산해서
+     창이 종이보다 길면 빈 둘째 장이 생겼다 → 인쇄할 때는 내용 높이만큼만 */
+  html, body { height: auto !important; min-height: 0 !important; background: #fff !important; color: #111 !important; overflow: visible !important; }
+  body { display: block !important; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .demo-banner, .top-strip, .notes, .notes-backdrop, .pane, .fab, .toast, dialog, [popover],
   .topbar .actions, #btn-notes, #btn-prev, #btn-next, #btn-today, #btn-stats, #btn-week-layout,
   .month-title .caret, .wx-source { display: none !important; }
   .topbar { padding: 0 0 4mm !important; }
   .month-title .title-btn { padding: 0; margin: 0; }
-  .layout { display: block !important; height: auto !important; padding: 0 !important; }
-  .calendar-wrap { display: block !important; height: 175mm !important; border: 1px solid #ccc; border-radius: 0; box-shadow: none !important; }
-  #calendar { height: 100% !important; }
+  .layout { display: block !important; height: auto !important; min-height: 0 !important; padding: 0 !important; }
+  /* 달력 높이를 mm로 못 박지 않는다: 종이 여백·머리글은 브라우저마다 달라서 조금만 넘쳐도 둘째 장이 생긴다.
+     칸은 최소 높이만 주고(일정이 많으면 그 줄만 커진다), 넘치면 주 단위로 다음 장에 넘어간다. */
+  .calendar-wrap { display: block !important; height: auto !important; min-height: 0 !important; border: 1px solid #ccc; border-radius: 0; box-shadow: none !important; }
+  #calendar, .week { height: auto !important; min-height: 0 !important; border: 0 !important; border-radius: 0 !important; }
+  .fc .fc-daygrid-body tr { height: 24mm; break-inside: avoid; }
   .fc .fc-daygrid-day.is-selected { background: none !important; box-shadow: none !important; }
   .fc .fc-daygrid-event { break-inside: avoid; }
   /* FullCalendar가 화면 너비로 적어 둔 표 너비를 종이 너비에 맞춘다 */
   .fc .fc-scrollgrid, .fc table, .fc .fc-daygrid-body, .fc .fc-scrollgrid-sync-table, .fc .fc-col-header { width: 100% !important; }
   .fc .fc-scroller { overflow: visible !important; }
   /* 주간: 가로 배치는 7칸을 모두 한 장에 (화면에서처럼 옆으로 밀지 않게) */
-  .week, .week[data-layout="row"] { overflow: visible !important; height: 100% !important; }
-  .week-track.row { min-width: 0 !important; width: 100% !important; }
+  .week, .week[data-layout="row"] { overflow: visible !important; }
+  .week-track.row { min-width: 0 !important; width: 100% !important; height: auto !important; min-height: 140mm; }
+  .week-track.col { min-height: 0 !important; }
   .wk-col { min-width: 0 !important; overflow: visible !important; }
 }
 

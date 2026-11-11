@@ -861,9 +861,18 @@ safely('공유', () => initShare({
   },
   beforePrint: () => calendar.updateSize(),
 }));
-// 인쇄할 때는 칸이 넘쳐도 '+n'으로 접지 않고 다 보여 준다 (브라우저 메뉴의 '프린트'로 해도 같다)
-window.addEventListener('beforeprint', () => { calendar.setOption('dayMaxEvents', false); calendar.updateSize(); });
-window.addEventListener('afterprint', () => { calendar.setOption('dayMaxEvents', true); calendar.updateSize(); });
+// 인쇄할 때는 칸이 넘쳐도 '+n'으로 접지 않고 다 보여 준다 (브라우저 메뉴의 '프린트'로 해도 같다).
+// 높이도 '화면에 꽉 차게'가 아니라 '내용만큼'으로 → 종이 크기·여백이 달라도 빈 장이 생기지 않는다.
+window.addEventListener('beforeprint', () => {
+  calendar.setOption('dayMaxEvents', false);
+  calendar.setOption('height', 'auto');
+  calendar.updateSize();
+});
+window.addEventListener('afterprint', () => {
+  calendar.setOption('dayMaxEvents', true);
+  calendar.setOption('height', '100%');
+  calendar.updateSize();
+});
 
 safely('설정', () => initSettings({
   loginEnabled: document.body.dataset.login === '1',

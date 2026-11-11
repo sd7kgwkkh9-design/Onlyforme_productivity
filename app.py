@@ -36,7 +36,7 @@ APP_SHORT_NAME = "Onlyforme"   # 휴대폰 홈 화면 아이콘 아래 이름 (�
 
 # 버전 (유의적 버전 MAJOR.MINOR.PATCH) — ⚙ 설정 메뉴 맨 아래에 보인다.
 # 새 기능을 넣으면 가운데 숫자(0.9.0 → 0.10.0), 고치기만 했으면 끝 숫자(0.9.0 → 0.9.1)를 올린다.
-APP_VERSION = "0.10.0"
+APP_VERSION = "0.10.1"
 
 # 홈 화면 설치용 manifest 파일의 형식을 브라우저에 올바르게 알려 준다.
 mimetypes.add_type("application/manifest+json", ".webmanifest")

@@ -46,7 +46,7 @@ def test_index_has_share_menu_markdown_and_version(tmp_path):
     from app import APP_VERSION
 
     html = make_client(tmp_path).get("/").get_data(as_text=True)
-    assert APP_VERSION == "0.10.0" and 'data-version="0.10.0"' in html
+    assert APP_VERSION == "0.10.1" and 'data-version="0.10.1"' in html
     assert 'id="btn-share"' in html and 'id="share-menu"' in html
     # 마크다운 라이브러리는 지문 붙은 주소로 (처음 메모를 볼 때만 불러온다)
     assert re.search(r'data-marked="/static/vendor/marked/marked\.esm\.js\?v=[0-9a-f]{10}"', html)
@@ -76,6 +76,21 @@ def test_font_size_scales_text_but_not_tap_heights():
     assert "font-size: calc(14px * var(--fs))" in css
     # 버튼 높이(height)에는 배율을 쓰지 않는다 → 글씨를 줄여도 누르는 칸은 그대로
     assert not re.search(r"(?<![-\w])height:\s*calc\([^;]*var\(--fs\)", css)
+
+
+def test_print_height_follows_content_not_window():
+    """0.10.1: Safari에서 인쇄하면 빈 둘째 장이 나오던 문제.
+    화면용 'body는 창 높이 이상'(min-height: 100dvh)이 인쇄에도 남아 있었고, 달력 높이를 mm로 못 박아 두었다."""
+    with open(os.path.join(ROOT, "static", "css", "style.css"), encoding="utf-8") as f:
+        css = f.read()
+    start = css.index("@media print {")
+    block = css[start:css.index("\n}\n", start)]
+    assert "min-height: 0 !important" in block and "display: block !important" in block
+    assert "175mm" not in block                              # 높이를 못 박지 않는다
+    assert "break-inside: avoid" in block                    # 넘치면 주 단위로 다음 장에
+    with open(os.path.join(ROOT, "static", "js", "main.js"), encoding="utf-8") as f:
+        js = f.read()
+    assert "calendar.setOption('height', 'auto')" in js and "calendar.setOption('height', '100%')" in js
 
 
 def test_weather_uses_seoul_and_open_meteo():
