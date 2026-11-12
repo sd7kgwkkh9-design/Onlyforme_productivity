@@ -76,6 +76,10 @@ export const api = {
   updateGoal: (id, payload) => request('PUT', `/api/goals/${id}`, payload),
   deleteGoal: (id) => request('DELETE', `/api/goals/${id}`),
   reorderGoals: (ids) => request('PUT', '/api/goals/order', { ids }),
+  stepGoal: (id, delta = 1) => request('POST', `/api/goals/${id}/step`, { delta }), // 숫자 목표 +1 (0.11.0)
+
+  // 달력 꾸미기 (0.11.0): 날짜 스티커·형광펜 — 읽기는 calendar / day로 함께 받는다
+  setMark: (date, payload) => request('PUT', `/api/days/${date}/mark`, payload),
 
   // 달력 위 띠(배너·D-day), 시간 돌아보기, 빠른 입력
   overview: (today) => request('GET', `/api/overview?${q({ today })}`),

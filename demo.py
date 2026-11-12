@@ -107,6 +107,11 @@ def seed_demo(app, today=None):
     log("독서", today - timedelta(days=2), "22:00", "22:40", "30쪽")
     log("독서", today, "23:00", memo="자기 전 20쪽")
     log("영어 단어", today, memo="30개")
+    # 올해 들어 꾸준히 한 운동 (0.11.0: '운동 100번' 올해 목표가 이 기록 수로 채워진다)
+    back = 6
+    while (today - timedelta(days=back)).year == today.year:
+        log("운동", today - timedelta(days=back), "07:00", "07:40")
+        back += 5
 
     # 기록지 (7차): 첫 메모가 메인 → 배너 글귀가 달력 위에 보인다
     post("/api/notes", {
@@ -127,7 +132,27 @@ def seed_demo(app, today=None):
 
     # 기록지 — 목표 (0.9.0): 기한이 있으면 달력 위 D-day 띠에 🎯로 보인다
     month_end = (first + timedelta(days=62)).replace(day=1) - timedelta(days=1)  # 다음 달 말일
-    post("/api/goals", {"title": "풀업 15개", "due": month_end.isoformat(), "memo": "지금 8개 → 주 3회 연습"})
+    pullup = post("/api/goals", {"title": "풀업 15개", "due": month_end.isoformat(), "memo": "지금 8개 → 주 3회 연습"})
     post("/api/goals", {"title": "토익 900점", "memo": "매일 단어 30개"})
     reached = post("/api/goals", {"title": "이번 학기 지각 0번"})
     client.put(f"/api/goals/{reached['id']}", json={"done": True})   # 이룬 목표
+
+    # 인생 목표 → 올해 목표 → 기한 목표 (0.11.0)
+    #   올해 목표의 진행 방식 셋: 루틴 연결(운동 기록 수를 알아서 셈) / 숫자(+1 버튼) / 체크
+    body = post("/api/goals", {"kind": "life", "title": "건강한 몸과 마음", "memo": "오래 달릴 수 있는 사람"})
+    craft = post("/api/goals", {"kind": "life", "title": "좋아하는 일을 잘하는 사람"})
+    workout = post("/api/goals", {
+        "kind": "year", "year": today.year, "title": "운동 100번", "parent_id": body["id"],
+        "measure": "routine", "target": 100, "routine_id": routine["운동"],
+    })
+    post("/api/goals", {
+        "kind": "year", "year": today.year, "title": "책 12권", "parent_id": craft["id"],
+        "measure": "count", "target": 12, "current": 7,
+    })
+    post("/api/goals", {"kind": "year", "year": today.year, "title": "개인 프로젝트 하나 끝내기", "parent_id": craft["id"]})
+    client.put(f"/api/goals/{pullup['id']}", json={"parent_id": workout["id"]})   # '풀업 15개'는 '운동 100번' 아래에
+
+    # 달력 꾸미기 (0.11.0): 날짜 스티커와 형광펜
+    client.put(f"/api/days/{(today + timedelta(days=2)).isoformat()}/mark", json={"sticker": "🎂", "color": "pink"})
+    client.put(f"/api/days/{(today + timedelta(days=9)).isoformat()}/mark", json={"sticker": "✈️"})
+    client.put(f"/api/days/{(today - timedelta(days=4)).isoformat()}/mark", json={"color": "yellow"})

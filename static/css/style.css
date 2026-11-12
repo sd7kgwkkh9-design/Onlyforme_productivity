@@ -1447,7 +1447,7 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 .fc .fc-daygrid-day-top .wx { align-self: center; padding-right: calc(2px * var(--fs)); }
 .wk-col-head .wx, .wk-date .wx { margin-left: 0; }
 /* 칸이 좁으면 아이콘만 (휴대폰 월간, 기록지·오른쪽 칸을 다 연 노트북) */
-@container (max-width: 96px) { .wx-temp { display: none; } }
+@container (max-width: 112px) { .wx-temp { display: none; } }
 @media (max-width: 640px) { .fc .wx-temp { display: none; } }
 
 /* 하루 화면 맨 위 한 줄 */
@@ -1495,6 +1495,237 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 @media (max-width: 640px) { .routine-row .cat-count { display: none; } } /* 0.9까지와 같게: 휴대폰 루틴 편집은 기록 수 숨김 */
 
 /* ==========================================================================
+   0.11.0 — 색 테마, 인생·올해 목표, 날씨 더하기, 달력 꾸미기
+   ========================================================================== */
+
+/* ---------- 색 테마: 라이트/다크와 따로 고른다 (⚙ 설정 → 색) ----------
+   테마마다 정하는 건 포인트 색 두 개(--tint-l 라이트용, --tint-d 다크용)뿐이고,
+   바탕·창·선·눌림 색은 원래 색에 그 색을 조금씩 섞어서 만든다 → 테마마다 분위기가 달라진다.
+   '나만의 색'(custom)은 settings.js가 고른 색으로 --tint-l / --tint-d를 직접 넣는다. */
+:root[data-color="green"]  { --tint-l: #1F7A52; --tint-d: #4FC08D; }
+:root[data-color="orange"] { --tint-l: #C2571B; --tint-d: #F0935A; }
+:root[data-color="purple"] { --tint-l: #6B4FC8; --tint-d: #9D87F5; }
+:root[data-color="pink"]   { --tint-l: #C7447F; --tint-d: #F07FB0; }
+:root[data-color="mono"]   { --tint-l: #2F3541; --tint-d: #C5CAD3; }
+:root[data-color] {
+  --tint: var(--tint-l);
+  --accent: var(--tint);
+  --accent-hover: color-mix(in srgb, var(--tint) 84%, #000);
+  --on-accent: var(--on-l, #FFFFFF);
+  --paper:   color-mix(in srgb, var(--tint) 7%, #F4F6F9);
+  --surface: color-mix(in srgb, var(--tint) 2%, #FFFFFF);
+  --line:    color-mix(in srgb, var(--tint) 12%, #E0E4EB);
+  --hover:   color-mix(in srgb, var(--tint) 10%, #EEF1F6);
+  --cell-hover: color-mix(in srgb, var(--tint) 5%, #F7F9FC);
+  --seg-bg:  color-mix(in srgb, var(--tint) 12%, #E4E8EF);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-color]:not([data-theme="light"]) {
+    --tint: var(--tint-d);
+    --accent-hover: color-mix(in srgb, var(--tint) 82%, #fff);
+    --on-accent: var(--on-d, #10141A);
+    --paper:   color-mix(in srgb, var(--tint) 5%, #111419);
+    --surface: color-mix(in srgb, var(--tint) 6%, #1A1E25);
+    --line:    color-mix(in srgb, var(--tint) 12%, #2C323D);
+    --hover:   color-mix(in srgb, var(--tint) 10%, #252B35);
+    --cell-hover: color-mix(in srgb, var(--tint) 7%, #20252D);
+    --seg-bg:  color-mix(in srgb, var(--tint) 12%, #262C36);
+  }
+}
+:root[data-color][data-theme="dark"] {
+  --tint: var(--tint-d);
+  --accent-hover: color-mix(in srgb, var(--tint) 82%, #fff);
+  --on-accent: var(--on-d, #10141A);
+  --paper:   color-mix(in srgb, var(--tint) 5%, #111419);
+  --surface: color-mix(in srgb, var(--tint) 6%, #1A1E25);
+  --line:    color-mix(in srgb, var(--tint) 12%, #2C323D);
+  --hover:   color-mix(in srgb, var(--tint) 10%, #252B35);
+  --cell-hover: color-mix(in srgb, var(--tint) 7%, #20252D);
+  --seg-bg:  color-mix(in srgb, var(--tint) 12%, #262C36);
+}
+
+/* ⚙ 설정: 색 견본, 배경 사진, 스위치 */
+.menu-colors { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 2px 8px 4px; }
+.menu-color {
+  position: relative; aspect-ratio: 1; min-width: 0; padding: 0;
+  border: 2px solid var(--surface); border-radius: 50%; background: var(--sample);
+  box-shadow: 0 0 0 1px var(--line); cursor: pointer;
+}
+.menu-color:hover { box-shadow: 0 0 0 1px var(--faint); }
+.menu-color[aria-checked="true"] { box-shadow: 0 0 0 2px var(--ink); }
+.menu-color.is-custom { overflow: hidden; background: var(--sample, transparent); }
+.menu-color.is-custom[aria-checked="false"] { background: conic-gradient(#E5534B, #F0B72E, #3FA66B, #2BA5B5, #3D6FD9, #7C5CD6, #D45A9A, #E5534B); }
+.menu-color-custom { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.menu-color:focus-visible, .menu-color.is-custom:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.menu-bg { display: flex; gap: calc(6px * var(--fs)); padding: 2px 8px 4px; }
+.menu-bg .btn { flex: 1; }
+.menu-veil { display: flex; margin: 2px 8px 4px; background: var(--paper); }
+.menu-veil .seg-btn { flex: 1; padding: 0 calc(4px * var(--fs)); }
+.menu-switch { justify-content: space-between; }
+.menu-switch .switch {
+  position: relative; flex: none; width: 38px; height: 22px; border-radius: 999px;
+  background: var(--switch-off); transition: background-color .15s;
+}
+.menu-switch .switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s;
+}
+.menu-switch[aria-checked="true"] { font-weight: 400; }
+.menu-switch[aria-checked="true"] .switch { background: var(--accent); }
+.menu-switch[aria-checked="true"] .switch::after { transform: translateX(16px); }
+.menu-sub { padding-top: calc(5px * var(--fs)); padding-bottom: calc(5px * var(--fs)); font-size: calc(13px * var(--fs)); color: var(--muted); }
+
+/* ---------- 배경 사진: 달력 뒤에 은은하게 (이 기기에만) ---------- */
+:root[data-bg] { --bg-veil: 80%; }
+:root[data-bg="soft"] { --bg-veil: 89%; }
+:root[data-bg="strong"] { --bg-veil: 66%; }
+:root[data-bg] #calendar, :root[data-bg] .week {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--surface) var(--bg-veil), transparent), color-mix(in srgb, var(--surface) var(--bg-veil), transparent)),
+    var(--bg-image);
+  background-size: cover; background-position: center;
+}
+:root[data-bg] { --fc-page-bg-color: transparent; }
+:root[data-bg] .wk-col, :root[data-bg] .wk-day { background: transparent; }
+:root[data-bg] .wk-col:hover, :root[data-bg] .wk-day:hover,
+:root[data-bg] .fc .fc-daygrid-day:hover { background: color-mix(in srgb, var(--surface) 35%, transparent); }
+:root[data-bg] .wk-col.is-today, :root[data-bg] .wk-day.is-today { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+
+/* ---------- 목표: 인생 → 올해 → 기한 ---------- */
+.goal-sec { display: grid; gap: calc(6px * var(--fs)); margin-bottom: calc(18px * var(--fs)); }
+.goal-sec-side { font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
+.goal-add { color: var(--accent); }
+.goal-add svg { width: 16px; height: 16px; }
+.goal-li.is-life { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.goal-li.is-life .goal-main { padding-left: calc(12px * var(--fs)); }
+.goal-li.is-life .goal-title::before { content: '🧭'; }
+.goal-li.is-year .goal-title::before { display: none; }
+.goal-li.is-year.is-counted .goal-main { padding-left: 0; }
+.goal-li.is-nested { margin-left: calc(22px * var(--fs)); background: var(--surface); }
+.goal-emoji { flex: none; display: grid; place-items: center; width: 40px; font-size: calc(17px * var(--fs)); }
+.goal-progress { display: flex; align-items: center; gap: calc(8px * var(--fs)); margin: calc(3px * var(--fs)) 0 1px; }
+.goal-bar { flex: 1; height: 6px; min-width: 40px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, var(--paper)); overflow: hidden; }
+.goal-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .3s; }
+.goal-num { flex: none; font-size: calc(12px * var(--fs)); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.goal-li.is-done .goal-bar > span { background: color-mix(in srgb, var(--accent) 55%, var(--faint)); }
+.goal-step {
+  flex: none; align-self: center; height: 32px; min-width: 44px; margin-right: calc(8px * var(--fs)); padding: 0 calc(10px * var(--fs));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 999px;
+  background: var(--surface); color: var(--accent); font-size: calc(13px * var(--fs)); font-weight: 700;
+}
+.goal-step:hover { background: var(--accent); color: var(--on-accent); }
+.goal-measure { align-self: start; width: max-content; background: var(--paper); }
+.goal-count-row { display: flex; flex-wrap: wrap; gap: calc(8px * var(--fs)) calc(14px * var(--fs)); }
+.goal-count-row[hidden], .goal-routine-box[hidden], .goal-current[hidden] { display: none; }
+.goal-inline { display: flex; align-items: center; gap: calc(8px * var(--fs)); font-size: calc(13px * var(--fs)); color: var(--muted); }
+.goal-num-input { width: 96px; }
+.note-edit .field { display: grid; gap: calc(6px * var(--fs)); }
+
+/* ---------- 달력 위 띠: 인생 목표, 올해, 비 소식 ---------- */
+.strip-lead { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: calc(4px * var(--fs)); }
+.strip-lead .banner-quote { flex: 1 1 auto; }
+.life-line {
+  display: flex; align-items: baseline; gap: calc(6px * var(--fs)); min-width: 0;
+  padding: calc(4px * var(--fs)) calc(12px * var(--fs)); border: 0; border-radius: 8px; background: none;
+  text-align: left; font-size: calc(13px * var(--fs)); font-weight: 600; color: var(--muted);
+}
+.life-line:hover { background: var(--hover); color: var(--ink); }
+.life-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-lead > .life-line:only-child {
+  flex: 1; align-items: center; padding: calc(10px * var(--fs)) calc(16px * var(--fs));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line)); border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface)); font-size: calc(15px * var(--fs)); color: var(--ink);
+}
+.dday-chip.is-year { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.dday-chip.is-year::before, .dday-chip.is-rain::before { display: none; }
+.year-name { font-weight: 700; font-variant-numeric: tabular-nums; }
+.year-bar { flex: none; width: 44px; height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, var(--paper)); overflow: hidden; }
+.year-bar > span { display: block; height: 100%; background: var(--accent); }
+.dday-chip.is-year .dday-left { color: var(--muted); font-weight: 600; }
+.dday-chip.is-year { max-width: 340px; }
+.year-goal { padding-left: calc(8px * var(--fs)); border-left: 1px solid var(--line); }
+.year-num { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+.dday-chip.is-rain { border-color: color-mix(in srgb, var(--sat) 45%, var(--line)); color: var(--sat); }
+.dday-chip.is-rain .dday-title { color: var(--ink); }
+
+/* ---------- 날씨 더하기: 칸의 강수확률, 일정 시간의 날씨 ---------- */
+.wx-rain { margin-left: calc(2px * var(--fs)); color: var(--faint); }
+.wx-rain.is-rainy { color: var(--sat); font-weight: 700; }
+/* 칸이 좁아지면 최저기온 → 기온 → 강수확률 순서로 숨긴다 (비 올 확률이 더 쓸모 있어서 오래 남긴다) */
+@container (max-width: 132px) { .wx-min { display: none; } }
+@container (max-width: 72px) { .wx-rain { display: none; } }
+@media (max-width: 640px) { .fc .wx-rain { display: none; } }
+.wx-ev { flex: none; margin-left: auto; white-space: nowrap; font-size: calc(12px * var(--fs)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.wx-ev.is-rainy { color: var(--sat); font-weight: 600; }
+.ev .wx-ev { align-self: center; font-size: calc(11px * var(--fs)); line-height: 1; }
+.wk-time .wx-ev { margin-left: calc(6px * var(--fs)); font-weight: 500; }
+.item-meta .wx-ev { padding-left: calc(8px * var(--fs)); }
+
+/* ---------- 달력 꾸미기: 날짜 스티커·형광펜 ---------- */
+.mark-yellow { --mark: #F2C21A; } .mark-pink { --mark: #F0609A; } .mark-green { --mark: #37B36B; }
+.mark-blue { --mark: #3F8CF0; } .mark-purple { --mark: #8E63E6; } .mark-orange { --mark: #F28A2E; }
+.fc td.fc-daygrid-day.has-mark { background: color-mix(in srgb, var(--mark) 20%, transparent); }
+.wk-col.has-mark, .wk-day.has-mark { background: color-mix(in srgb, var(--mark) 16%, var(--surface)); }
+:root[data-bg] .wk-col.has-mark, :root[data-bg] .wk-day.has-mark { background: color-mix(in srgb, var(--mark) 22%, transparent); }
+.day-sticker { flex: none; font-size: calc(15px * var(--fs)); line-height: 1; }
+.fc .fc-daygrid-day-top .day-sticker { order: -1; align-self: center; margin-left: calc(3px * var(--fs)); }
+.fc .fc-daygrid-day-top { align-items: center; }
+.fc .fc-daygrid-day-top .fc-daygrid-day-number { order: -2; }
+.wk-col-head .day-sticker, .wk-date .day-sticker { font-size: calc(17px * var(--fs)); }
+@media (max-width: 640px) {
+  .fc .fc-daygrid-day-top .day-sticker { font-size: calc(12px * var(--fs)); margin-left: 1px; }
+  .fc .fc-daygrid-day-top:has(.day-sticker) .wx { display: none; } /* 휴대폰 칸은 좁아서 스티커가 있으면 날씨 아이콘은 뺀다 (하루 화면에서 보인다) */
+}
+
+.day-top { display: flex; align-items: center; gap: calc(8px * var(--fs)); margin: 0 0 calc(10px * var(--fs)); }
+.day-top .wx-line { flex: 1; min-width: 0; margin: 0; }
+.decor-btn {
+  flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: calc(5px * var(--fs));
+  min-height: 32px; padding: 0 calc(10px * var(--fs)); border: 1px dashed var(--line); border-radius: 10px;
+  background: var(--surface); font-size: calc(12.5px * var(--fs)); color: var(--muted);
+}
+.decor-btn:hover { border-style: solid; color: var(--ink); }
+.decor-btn[class*="mark-"] { border-style: solid; border-color: color-mix(in srgb, var(--mark) 60%, var(--line)); background: color-mix(in srgb, var(--mark) 20%, var(--surface)); color: var(--ink); }
+.decor-btn-sticker { font-size: calc(15px * var(--fs)); line-height: 1; }
+
+dialog.decor, dialog.weekly { width: min(360px, calc(100vw - 32px)); }
+.decor-title { margin: 0 0 calc(10px * var(--fs)); font-size: calc(16px * var(--fs)); font-weight: 700; }
+dialog.decor .menu-label { margin-left: 0; margin-right: 0; }
+.decor-stickers { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.decor-sticker {
+  aspect-ratio: 1; min-width: 0; padding: 0; border: 1px solid transparent; border-radius: 8px; background: none;
+  font-size: calc(20px * var(--fs)); line-height: 1;
+}
+.decor-sticker:hover { background: var(--hover); }
+.decor-sticker[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.decor-custom-row { display: flex; align-items: stretch; gap: calc(6px * var(--fs)); margin: calc(8px * var(--fs)) 0 calc(12px * var(--fs)); }
+.decor-custom-row .btn { height: auto; }
+.decor-custom-row .input { flex: 1; min-width: 0; }
+.decor-colors { display: flex; gap: calc(8px * var(--fs)); }
+.decor-color {
+  width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 2px solid var(--surface);
+  background: color-mix(in srgb, var(--mark) 55%, var(--surface)); box-shadow: 0 0 0 1px var(--line);
+}
+.decor-color.is-none { background: linear-gradient(135deg, transparent 46%, var(--danger) 46% 54%, transparent 54%), var(--surface); }
+.decor-color[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+.decor-foot { display: flex; align-items: center; gap: calc(6px * var(--fs)); margin-top: calc(16px * var(--fs)); }
+.decor-foot .spacer { flex: 1; }
+
+/* ---------- 이번 주 한 걸음 ---------- */
+.weekly-form { display: grid; gap: calc(8px * var(--fs)); }
+.weekly-form .decor-title { margin-bottom: 0; }
+dialog.ask p.weekly-sub { margin: 0; font-size: calc(13px * var(--fs)); color: var(--muted); }
+.weekly-goals { list-style: none; margin: calc(4px * var(--fs)) 0; padding: 0; display: grid; gap: calc(5px * var(--fs)); max-height: 40dvh; overflow-y: auto; }
+.weekly-goal {
+  display: grid; gap: 2px; width: 100%; padding: calc(9px * var(--fs)) calc(12px * var(--fs));
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: left;
+}
+.weekly-goal:hover { background: var(--hover); }
+.weekly-goal[aria-checked="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); box-shadow: inset 0 0 0 1px var(--accent); }
+.weekly-goal-title { font-size: calc(14px * var(--fs)); font-weight: 600; overflow-wrap: anywhere; }
+.weekly-form .decor-foot { flex-wrap: wrap; margin-top: calc(8px * var(--fs)); }
+
+/* ==========================================================================
    인쇄 / PDF로 저장 (0.10.0): 지금 보이는 달력(월간·주간)만, 가로 A4 한 장
    ========================================================================== */
 @media print {
@@ -1524,6 +1755,8 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
   .week, .week[data-layout="row"] { overflow: visible !important; }
   .week-track.row { min-width: 0 !important; width: 100% !important; height: auto !important; min-height: 140mm; }
   .week-track.col { min-height: 0 !important; }
+  /* 0.11.0: 배경 사진은 인쇄하지 않는다 (잉크·가독성). 형광펜·스티커는 그대로 나온다 */
+  #calendar, .week { background-image: none !important; }
   .wk-col { min-width: 0 !important; overflow: visible !important; }
 }
 

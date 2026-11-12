@@ -46,7 +46,7 @@ def test_index_has_share_menu_markdown_and_version(tmp_path):
     from app import APP_VERSION
 
     html = make_client(tmp_path).get("/").get_data(as_text=True)
-    assert APP_VERSION == "0.10.1" and 'data-version="0.10.1"' in html
+    assert f'data-version="{APP_VERSION}"' in html
     assert 'id="btn-share"' in html and 'id="share-menu"' in html
     # 마크다운 라이브러리는 지문 붙은 주소로 (처음 메모를 볼 때만 불러온다)
     assert re.search(r'data-marked="/static/vendor/marked/marked\.esm\.js\?v=[0-9a-f]{10}"', html)

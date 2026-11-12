@@ -12,6 +12,9 @@ routines     : 루틴 — 자주 하는 활동(🏃 운동, 📖 독서 …). �
 routine_logs : 루틴 기록 — 그날 그 루틴을 했다는 기록 (시간·메모는 선택). 일정(items)과는 따로 둔다 (8차)
 notes        : 기록지의 '메모' — 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
 goals        : 기록지의 '목표' — 제목 + 기한(선택). 기한이 있으면 달력 위 D-day 띠에 보인다 (0.9.0)
+               0.11.0부터 세 단계: 인생 목표(life) → 올해 목표(year) → 기한 목표(due). parent_id로 위 단계와 잇는다.
+               올해 목표는 진행 방식(measure)이 셋: 체크(check) / 숫자(count: current/target) / 루틴 연결(routine: 그 해의 루틴 기록 수)
+day_marks    : 달력 꾸미기 — 날짜에 붙인 스티커(이모지)와 형광펜 색 (0.11.0)
 
 meta        : 변경 번호(version) — 일정·카테고리·루틴·메모가 바뀔 때마다 1씩 커진다.
               다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
@@ -95,7 +98,20 @@ CREATE TABLE IF NOT EXISTS goals (
     memo        TEXT    NOT NULL DEFAULT '',
     done_at     TEXT,                         -- 이룬 시각, 아직이면 NULL
     position    INTEGER NOT NULL DEFAULT 0,
-    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    kind        TEXT    NOT NULL DEFAULT 'due',   -- 'life'(인생) | 'year'(올해) | 'due'(기한 목표) (0.11.0)
+    year        INTEGER,                          -- 올해 목표의 연도 (kind='year'일 때만)
+    parent_id   INTEGER,                          -- 위 단계 목표 (올해 → 인생, 기한 → 올해). 없으면 NULL
+    measure     TEXT    NOT NULL DEFAULT 'check', -- 올해 목표의 진행 방식: 'check' | 'count' | 'routine'
+    target      INTEGER,                          -- 목표 숫자 (count·routine)
+    current     INTEGER NOT NULL DEFAULT 0,       -- 지금까지 (count만. routine은 루틴 기록에서 센다)
+    routine_id  INTEGER                           -- 연결한 루틴 (routine)
+);
+
+CREATE TABLE IF NOT EXISTS day_marks (
+    date        TEXT PRIMARY KEY,                 -- 'YYYY-MM-DD'
+    sticker     TEXT NOT NULL DEFAULT '',         -- 이모지 하나 (없으면 '')
+    color       TEXT NOT NULL DEFAULT ''          -- 형광펜 색 이름 (없으면 '')
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -127,6 +143,8 @@ def migrate(conn):
       - routines             : 카테고리 → 이모지, 7차의 '루틴으로 넣은 일정'을 루틴 기록으로 옮김 (8차 수정)
       - items.done_at        : 할 일 완료 시각 (0.9.0)
       - goals                : 목표 표 (0.9.0) — SCHEMA의 CREATE TABLE IF NOT EXISTS가 새로 만들어 준다
+      - goals.kind 등 7칸     : 인생·올해 목표 (0.11.0). 예전 목표는 모두 '기한 목표'(due)로 남는다
+      - day_marks            : 달력 꾸미기 표 (0.11.0) — SCHEMA가 새로 만들어 준다
     """
     if "end_time" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN end_time TEXT")
@@ -140,6 +158,21 @@ def migrate(conn):
         migrate_routines_v8(conn)
     if "done_at" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN done_at TEXT")
+    goal_cols = column_names(conn, "goals")
+    for name, definition in GOAL_COLUMNS_V11:
+        if name not in goal_cols:
+            conn.execute(f"ALTER TABLE goals ADD COLUMN {name} {definition}")
+
+
+GOAL_COLUMNS_V11 = [
+    ("kind", "TEXT NOT NULL DEFAULT 'due'"),
+    ("year", "INTEGER"),
+    ("parent_id", "INTEGER"),
+    ("measure", "TEXT NOT NULL DEFAULT 'check'"),
+    ("target", "INTEGER"),
+    ("current", "INTEGER NOT NULL DEFAULT 0"),
+    ("routine_id", "INTEGER"),
+]
 
 
 # 7차 루틴 이름으로 이모지 짐작하기 (나중에 루틴 편집에서 바꿀 수 있다)

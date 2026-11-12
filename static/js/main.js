@@ -20,8 +20,10 @@
 import { api } from './api.js';
 import { openMenu } from './ctxmenu.js';
 import { pickDate } from './datepop.js';
+import { applyMark, decorateMarks, openDecor, setMarks } from './decor.js';
 import { initShare } from './share.js';
-import { decorateMonth, decorateMonthCell, decorateWeek, loadWeather, onWeather } from './weather.js';
+import { decorateMonth, decorateMonthCell, decorateOne, decorateTimed, decorateWeek, loadWeather, onWeather } from './weather.js';
+import { maybeShowWeekly } from './weekly.js';
 import { attachEdgePager } from './edgepager.js';
 import { onSwipe, slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
@@ -194,7 +196,11 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
       id: 'calendar',
       events: async (info, success, failure) => {
         try {
-          const { items, logs } = await api.calendar(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
+          const start = info.startStr.slice(0, 10);
+          const end = info.endStr.slice(0, 10);
+          const { items, logs, marks } = await api.calendar(start, end);
+          setMarks(marks, start, end);    // 날짜 스티커·형광펜 (decor.js)
+          decorateMarks(calendarEl);
           success([...items.map(toEvent), ...logs.map(toRoutineEvent)]);
           copyDrag.clearPlaceholders(); // 복사하는 동안 잠깐 보여 준 자리 표시는 진짜 복사본으로 바뀐다
         } catch (e) {
@@ -243,6 +249,13 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
     const { color, holiday, kind, occ, log } = arg.event.extendedProps;
     if (color) arg.el.style.setProperty('--cat', color);
     if (holiday || arg.event.id === COPY_PLACEHOLDER) return;
+    // 시작 시간이 있는 일정: 그 시간에 비 올 확률이 높으면 ☂ (weather.js)
+    if (occ?.start_time) {
+      Object.assign(arg.el.dataset, { wxDate: occ.date, wxTime: occ.start_time, wxCompact: '' });
+      const slot = arg.el.querySelector('.ev');
+      if (slot) slot.dataset.wxSlot = '';
+      decorateOne(arg.el);
+    }
     // 두 손가락 클릭(오른쪽 클릭) → 수정 / 다른 날로 옮기기 / 다른 날로 복사 / 삭제
     arg.el.addEventListener('contextmenu', (e) => (kind === 'routine' ? logMenu(e, log) : itemMenu(e, occ)));
   },
@@ -260,7 +273,18 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
 
   datesSet: () => safely('상단 제목', updateHeader),
   // 날짜 칸이 그려질 때 날씨(오늘부터 일주일, 서울)를 날짜 숫자 옆에 붙인다 (weather.js)
-  dayCellDidMount: (arg) => decorateMonthCell(arg.el),
+  dayCellDidMount: (arg) => { decorateMonthCell(arg.el); applyMark(arg.el); },
+});
+
+// 월간 화면의 날짜 칸(일정이 아닌 빈 곳)을 두 손가락 클릭 → 일정 추가 / 이 날 꾸미기
+calendarEl.addEventListener('contextmenu', (e) => {
+  if (e.target.closest('.fc-daygrid-event, .fc-daygrid-more-link')) return; // 일정 메뉴는 따로
+  const date = e.target.closest('td.fc-daygrid-day[data-date]')?.dataset.date;
+  if (!date) return;
+  openMenu(e, [
+    { label: '일정 추가', run: () => { select(date); const sheet = editSheet(); if (sheet) { sheet.day = date; sheet.openForm({ mode: 'create', ctxDate: date, returnTo: 'day' }); } } },
+    { label: '꾸미기 (스티커·형광펜)…', run: () => openDecor(date, refreshAll) },
+  ], { title: formatShort(date) });
 });
 
 calendar.render();
@@ -878,6 +902,16 @@ safely('설정', () => initSettings({
   loginEnabled: document.body.dataset.login === '1',
   appName: APP_NAME,
   version: document.body.dataset.version,
+  // ⚙ 설정의 '지금 카드 보기': 이번 주에 이미 봤어도 띄운다
+  onShowWeekly: async () => {
+    await refreshStrip();
+    const shown = maybeShowWeekly({
+      overview: strip?.data, force: true,
+      onAdded: async () => { await notes?.reload(); },
+      onOpenGoals: () => notes?.open({ tab: 'goal' }),
+    });
+    if (!shown) toast('아직 못 이룬 올해 목표가 없어요. 기록지의 목표 탭에서 올해 목표를 세워 보세요.');
+  },
 }));
 
 // ---- 달력 위 띠, 기록지, 빠른 입력
@@ -886,6 +920,7 @@ safely('달력 위 띠', () => {
     onOpenNote: (noteId) => notes?.open({ noteId }),
     onOpenDate: (date) => showDate(date),
     onOpenGoal: (goalId) => notes?.open({ goalId }),
+    onOpenGoals: () => notes?.open({ tab: 'goal' }),
   });
 });
 
@@ -969,9 +1004,17 @@ if (notes && !notes.loaded) notes.load(); // '기록지' 버튼의 숫자 (안 �
 onWeather(() => safely('날씨', () => {
   decorateMonth(calendarEl);
   decorateWeek(weekEl);
+  decorateTimed(calendarEl);   // 일정 시간의 날씨 (0.11.0)
+  decorateTimed(weekEl);
   paneSheet?.updateWeather();
   modalSheet?.updateWeather();
+  strip?.render();             // 오늘 비 소식 칩
 }));
 loadWeather();
-refreshStrip();
+// 달력 위 띠를 처음 받아 온 뒤: 이번 주에 아직 안 봤으면 '이번 주 한 걸음' 카드 (weekly.js)
+refreshStrip().then(() => safely('이번 주 한 걸음', () => maybeShowWeekly({
+  overview: strip?.data,
+  onAdded: async () => { await notes?.reload(); },
+  onOpenGoals: () => notes?.open({ tab: 'goal' }),
+})));
 safely('동기화', () => startSync(onRemoteChange));

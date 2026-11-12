@@ -11,7 +11,8 @@ import { api } from './api.js';
 import { slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
 import { WEEKDAYS, addDays, el, formatLong, formatTimeRange, parseDateStr, toDateStr, todayStr } from './utils.js';
-import { weatherBadge } from './weather.js';
+import { applyMark, setMarks } from './decor.js';
+import { decorateTimed, weatherBadge } from './weather.js';
 
 const LAYOUT_KEY = 'my-calendar:week-layout';
 
@@ -88,12 +89,13 @@ export class WeekView {
     const token = ++this.token;
     const keepLeft = this.root.scrollLeft;
 
-    const [{ items, logs }, holidays] = await Promise.all([
+    const [{ items, logs, marks }, holidays] = await Promise.all([
       api.calendar(start, end), // 일정 + 루틴 기록을 한 번에
       holidaysBetween(start, end),
     ]);
     if (token !== this.token) return;
 
+    setMarks(marks, start, end); // 날짜 스티커·형광펜 (decor.js)
     const holidayOf = new Map(holidays.map((h) => [h.date, h.name]));
     const itemsOf = new Map();
     for (const o of items) {
@@ -113,11 +115,13 @@ export class WeekView {
       const date = addDays(start, i);
       const node = render.call(this, date, i, itemsOf.get(date) || [], holidayOf.get(date), date === today, logsOf.get(date) || []);
       if (date === this.selected) node.classList.add('is-selected');
+      applyMark(node);
       days.push(node);
     }
 
     const track = el('div', { class: `week-track ${this.layout}` }, days);
     this.root.replaceChildren(track);
+    decorateTimed(this.root); // 일정 시간의 날씨
     this.scrollTo(scrollTo, keepLeft);
     slideIn(track, direction);
   }
@@ -153,8 +157,8 @@ export class WeekView {
       holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
       el('span', { class: 'wk-col-body' },
         items.map((o) =>
-          el('span', { class: o.dday ? 'wk-chip is-dday' : 'wk-chip', style: { '--cat': o.category.color }, oncontextmenu: (e) => this.onItemMenu(e, o) },
-            o.start_time || o.end_time ? el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)) : null,
+          el('span', { class: o.dday ? 'wk-chip is-dday' : 'wk-chip', style: { '--cat': o.category.color }, dataset: wxData(o, true), oncontextmenu: (e) => this.onItemMenu(e, o) },
+            o.start_time || o.end_time ? el('span', { class: 'wk-time', dataset: { wxSlot: '' } }, formatTimeRange(o.start_time, o.end_time)) : null,
             el('span', { class: 'wk-title' }, o.title),
           )),
         // 루틴 기록은 그날 일정 아래에 '🏃 운동'처럼
@@ -185,8 +189,8 @@ export class WeekView {
       el('span', { class: 'wk-body' },
         holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
         items.map((o) =>
-          el('span', { class: o.dday ? 'wk-item is-dday' : 'wk-item', style: { '--cat': o.category.color }, oncontextmenu: (e) => this.onItemMenu(e, o) },
-            el('span', { class: 'wk-time' }, formatTimeRange(o.start_time, o.end_time)),
+          el('span', { class: o.dday ? 'wk-item is-dday' : 'wk-item', style: { '--cat': o.category.color }, dataset: wxData(o, false), oncontextmenu: (e) => this.onItemMenu(e, o) },
+            el('span', { class: 'wk-time', dataset: { wxSlot: '' } }, formatTimeRange(o.start_time, o.end_time)),
             el('span', { class: 'wk-title' }, o.title),
             o.memo ? el('span', { class: 'wk-memo' }, o.memo.split('\n')[0]) : null,
           )),
@@ -200,6 +204,12 @@ export class WeekView {
       ),
     );
   }
+}
+
+// 시작 시간이 있는 일정에 '그 시간의 날씨'를 붙일 수 있게 표시해 둔다 (weather.js의 decorateTimed)
+function wxData(o, compact) {
+  if (!o.start_time) return {};
+  return { wxDate: o.date, wxTime: o.start_time, ...(compact ? { wxCompact: '' } : {}) };
 }
 
 function dayClasses(base, date, dow, holiday, isToday) {

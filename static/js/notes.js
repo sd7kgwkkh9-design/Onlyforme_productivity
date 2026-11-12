@@ -5,7 +5,8 @@
 //   메모  : 다시 보고 싶은 글, 그때그때 드는 생각. 위 칸에 한 줄로 바로 적거나 '새 메모'로 길게 쓴다.
 //           ★메인 메모의 '배너 글귀'는 달력 위 배너에 늘 보인다. 쓰는 대로 자동 저장.
 //           마크다운(0.10.0): [보기 | 쓰기]. 보기에서는 **굵게**, 체크리스트, 링크가 꾸며져 보이고 체크리스트를 바로 누를 수 있다.
-//   목표  : 이루고 싶은 것 + 기한(선택). 기한이 있으면 달력 위 D-day 띠에 보인다. 체크하면 '이룬 목표'로.
+//   목표  : 세 단계(0.11.0) — 인생 목표 → 올해 목표(체크·숫자·루틴 연결로 진행도) → 기한 목표(기한이 있으면 달력 위 D-day 띠에).
+//           체크하면 '이룬 목표'로.
 //   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 체크하면 '완료'로 접히고,
 //           날짜를 정하면(📅 버튼, 또는 달력으로 끌어다 놓기) 그날의 일정이 된다.
 //
@@ -35,6 +36,12 @@ const CAPTURE = {
   memo: { label: '메모', max: 300, placeholder: '생각난 것을 적고 Enter' },
   goal: { label: '목표', max: 100, placeholder: '예: 12월까지 풀업 15개' },
   todo: { label: '할 일', max: 100, placeholder: '예: 교수님께 메일 보내기' },
+};
+// 목표 탭의 입력칸: 어느 단계에 넣을지 (0.11.0)
+const GOAL_CAPTURE = {
+  year: { label: '올해', placeholder: '예: 운동 100번, 책 12권' },
+  due: { label: '기한', placeholder: '예: 12월까지 풀업 15개' },
+  life: { label: '인생', placeholder: '예: 건강한 몸 만들기' },
 };
 // 맨 앞 기호로 종류 고르기 (빠른 입력 창과 같은 규칙)
 const PREFIX = [[/^-\s+/, 'memo'], [/^\*\s+/, 'goal'], [/^\[\s*\]\s*/, 'todo']];
@@ -82,6 +89,7 @@ export class NotesPanel {
     this.pending = null;       // 저장 대기 중인 메모 { id, fields }
     this.timer = null;
     this.captureKind = 'memo'; // '전체' 탭의 입력칸이 넣을 종류
+    this.goalKind = 'year';    // '목표' 탭의 입력칸이 넣을 단계: 'year' | 'due' | 'life'
     this.memoMode = 'view';    // 메모 화면: 'view'(꾸며진 보기) | 'edit'(글 고치기)
     this.openDone = { todo: false, goal: false };
 
@@ -186,7 +194,7 @@ export class NotesPanel {
       if (!this.note(this.editingId)) this.showList();             // 다른 기기에서 지운 메모
       else if (!this.pending && !this.root.contains(document.activeElement)) this.showMemo(this.editingId);
       else this.renderMemoFoot(this.note(this.editingId));
-    } else if (this.view === 'goal' && !this.goal(this.editingId)) {
+    } else if (this.view === 'goal' && this.editingId && !this.goal(this.editingId)) {
       this.showList();
     }
   }
@@ -249,13 +257,22 @@ export class NotesPanel {
       type: 'text', class: 'input capture-input', maxlength: String(conf.max), autocomplete: 'off', enterkeyhint: 'done',
       placeholder: conf.placeholder, 'aria-label': `${conf.label} 추가`,
     });
-    const kinds = switchable
-      ? el('div', { class: 'seg capture-kinds', role: 'group', 'aria-label': '넣을 곳' },
-          Object.entries(CAPTURE).map(([k, c]) => el('button', {
-            type: 'button', class: 'seg-btn', 'aria-pressed': String(k === kind),
-            onclick: () => { this.captureKind = k; this.showList({ keepCapture: true }); this.bodyEl.querySelector('.capture-input')?.focus(); },
-          }, c.label)))
-      : null;
+    let kinds = null;
+    if (switchable) {
+      kinds = el('div', { class: 'seg capture-kinds', role: 'group', 'aria-label': '넣을 곳' },
+        Object.entries(CAPTURE).map(([k, c]) => el('button', {
+          type: 'button', class: 'seg-btn', 'aria-pressed': String(k === kind),
+          onclick: () => { this.captureKind = k; this.showList({ keepCapture: true }); this.bodyEl.querySelector('.capture-input')?.focus(); },
+        }, c.label)));
+    } else if (kind === 'goal') {
+      // 목표 탭: 어느 단계에 넣을지 (0.11.0)
+      input.placeholder = GOAL_CAPTURE[this.goalKind].placeholder;
+      kinds = el('div', { class: 'seg capture-kinds', role: 'group', 'aria-label': '목표의 단계' },
+        Object.entries(GOAL_CAPTURE).map(([k, c]) => el('button', {
+          type: 'button', class: 'seg-btn', 'aria-pressed': String(k === this.goalKind),
+          onclick: () => { this.goalKind = k; this.showList({ keepCapture: true }); this.bodyEl.querySelector('.capture-input')?.focus(); },
+        }, c.label)));
+    }
     const form = el('form', { class: 'capture', novalidate: true },
       el('div', { class: 'capture-row' },
         input,
@@ -291,6 +308,8 @@ export class NotesPanel {
       await api.createNote({ body: text });
       await this.reload();
       toast(this.tab === 'memo' ? '메모했어요' : '메모에 넣었어요');
+    } else if (kind === 'goal' && this.tab === 'goal' && this.goalKind !== 'due') {
+      await this.addBigGoal(this.goalKind, text);
     } else if (kind === 'goal') {
       // '12월까지', '이번 달 안에' 같은 기한은 빠른 입력과 같은 규칙으로 읽는다
       let title = text;
@@ -311,10 +330,47 @@ export class NotesPanel {
     }
   }
 
+  // 인생·올해 목표를 한 줄로 넣기. 올해 목표는 숫자를 읽어서 진행 방식을 알아서 정한다:
+  //   '책 12권'    → 숫자 목표 0/12
+  //   '운동 100번' → '운동' 루틴이 있으면 루틴 연결 (루틴 기록에서 자동으로 셈), 없으면 숫자 목표
+  //   '토익 800'   → 점수는 세는 게 아니라서 체크 목표 (단위가 없는 숫자)
+  async addBigGoal(kind, text) {
+    if (kind === 'life') {
+      await api.createGoal({ kind, title: text });
+      await this.reload();
+      this.onStripChanged();
+      toast('인생 목표를 넣었어요');
+      return;
+    }
+    const year = new Date().getFullYear();
+    const payload = { kind, year, title: text, measure: 'check' };
+    let note = '';
+    const m = text.match(/(\d{1,6})\s*(번|회|권|개|편|일|시간|장|곡|바퀴|km|킬로|키로)/i);
+    if (m && Number(m[1]) > 0) {
+      payload.target = Number(m[1]);
+      payload.measure = 'count';
+      let routines = [];
+      try { routines = await api.routines(); } catch { /* 루틴을 못 받으면 숫자 목표로 */ }
+      const linked = /번|회|일/.test(m[2]) ? routines.find((r) => text.includes(r.name)) : null;
+      if (linked) {
+        payload.measure = 'routine';
+        payload.routine_id = linked.id;
+        note = ` · ${linked.emoji} ${linked.name} 기록에서 자동으로 세요`;
+      }
+    }
+    const made = await api.createGoal(payload);
+    await this.reload();
+    this.onStripChanged();
+    toast(`${year} 목표를 넣었어요${note}`, 'info', { action: { label: '고치기', run: () => this.showGoal(made.id) } });
+  }
+
   // ---------------------------------------------------------------- 전체
   renderAll() {
     const todos = this.data.todos.filter((t) => !t.done);
-    const goals = this.data.goals.filter((g) => !g.done);
+    // 목표: 올해 목표 먼저, 그다음 기한 목표 (인생 목표는 목표 탭에서)
+    const thisYear = new Date().getFullYear();
+    const open = this.data.goals.filter((g) => !g.done);
+    const goals = [...open.filter((g) => g.kind === 'year' && g.year === thisYear), ...open.filter((g) => g.kind === 'due')];
     const notes = this.data.notes;
     const section = (tab, count, list, empty) =>
       el('section', { class: 'all-sec' },
@@ -478,33 +534,159 @@ export class NotesPanel {
     try { await api.clearDone(); toast('완료한 할 일을 비웠어요'); await this.reload(); } catch (e) { toast(e.message, 'error'); }
   }
 
-  // ================================================================ 목표
+  // ================================================================ 목표 (0.11.0: 인생 → 올해 → 기한, 세 단계)
+  //
+  //   인생 목표                     기한 없는 큰 방향
+  //   2026 목표   남은 50일          올해 안에 이룰 것. 진행 방식: 체크 / 숫자(+1) / 루틴 연결(루틴 기록에서 자동으로 셈)
+  //     └ 기한 목표                 올해 목표 아래에 묶은 기한 목표
+  //   기한 목표                     어디에도 묶지 않은 것 (0.9.0의 목표)
   renderGoals() {
-    const active = this.data.goals.filter((g) => !g.done);
-    const done = this.data.goals.filter((g) => g.done);
+    const goals = this.data.goals;
+    const thisYear = new Date().getFullYear();
+    const life = goals.filter((g) => g.kind === 'life');
+    const dueOpen = goals.filter((g) => g.kind === 'due' && !g.done);
+    const dueDone = goals.filter((g) => g.kind === 'due' && g.done);
+    const years = [...new Set(goals.filter((g) => g.kind === 'year').map((g) => g.year))];
     const parts = [];
-    if (!active.length) {
-      parts.push(el('div', { class: 'notes-empty' },
-        el('p', {}, done.length ? '목표를 모두 이뤘어요! 🎉' : '이루고 싶은 것을 적어 두세요.'),
-        el('p', { class: 'muted' }, "'12월까지'처럼 기한을 쓰면 달력 위에 D-day로 보여요."),
-      ));
-    } else {
-      const list = el('ul', { class: 'goal-list' }, active.map((g) => this.goalRow(g, active.length > 1)));
-      if (active.length > 1) {
-        makeSortable(list, {
-          scroller: this.bodyEl,
-          onChange: async (ids) => {
-            try { await api.reorderGoals(ids); await this.load(); } catch (e) { toast(e.message, 'error'); await this.reload(); }
-          },
-        });
-      }
-      parts.push(list);
+
+    // 1) 인생 목표
+    parts.push(this.goalSection({
+      title: '인생 목표',
+      add: () => this.showGoalForm({ kind: 'life' }),
+      addLabel: '인생 목표 추가',
+      rows: life.map((g) => this.lifeRow(g)),
+      empty: '어떤 사람이 되고 싶은지, 큰 방향을 적어 두세요.',
+    }));
+
+    // 2) 올해 목표 (11월부터는 내년 목표도 미리 세울 수 있다)
+    const showYears = [thisYear];
+    if (new Date().getMonth() >= 10 || years.includes(thisYear + 1)) showYears.push(thisYear + 1);
+    for (const y of showYears) {
+      const list = goals.filter((g) => g.kind === 'year' && g.year === y);
+      const left = daysBetween(todayStr(), `${y}-12-31`);
+      parts.push(this.goalSection({
+        title: `${y} 목표`,
+        side: y === thisYear ? `남은 ${left}일` : '미리 세우기',
+        add: () => this.showGoalForm({ kind: 'year', year: y }),
+        addLabel: `${y} 목표 추가`,
+        rows: list.flatMap((g) => [this.yearRow(g), ...dueOpen.filter((d) => d.parent_id === g.id).map((d) => this.goalRow(d, false, true))]),
+        empty: y === thisYear ? "올해 안에 이루고 싶은 것. '운동 100번'처럼 숫자를 쓰면 진행도가 보여요." : '내년에 이루고 싶은 것을 미리 적어 두세요.',
+      }));
     }
-    if (done.length) parts.push(this.doneGroup('goal', `이룬 목표 ${done.length}개`, done.map((g) => this.goalRow(g, false))));
+
+    // 3) 어디에도 묶지 않은 기한 목표
+    const loose = dueOpen.filter((d) => !d.parent_id || !goals.some((g) => g.id === d.parent_id && showYears.includes(g.year)));
+    const list = el('ul', { class: 'goal-list' }, loose.map((g) => this.goalRow(g, loose.length > 1)));
+    const sortable = loose.length > 1 && loose.every((g) => !g.parent_id);
+    if (sortable) {
+      makeSortable(list, {
+        scroller: this.bodyEl,
+        onChange: async (ids) => {
+          try { await api.reorderGoals(ids); await this.load(); } catch (e) { toast(e.message, 'error'); await this.reload(); }
+        },
+      });
+    }
+    parts.push(this.goalSection({
+      title: '기한 목표',
+      add: () => this.showGoalForm({ kind: 'due' }),
+      addLabel: '기한 목표 추가',
+      list: loose.length ? list : null,
+      empty: "'12월까지 풀업 15개'처럼 기한을 쓰면 달력 위에 D-day로 보여요.",
+    }));
+
+    if (dueDone.length) parts.push(this.doneGroup('goal', `이룬 목표 ${dueDone.length}개`, dueDone.map((g) => this.goalRow(g, false))));
+
+    // 4) 지난 해의 목표: 결과와 함께 접어 둔다
+    for (const y of years.filter((v) => v < thisYear).sort((a, b) => b - a)) {
+      const past = goals.filter((g) => g.kind === 'year' && g.year === y);
+      parts.push(el('details', { class: 'done-group' },
+        el('summary', {}, `${y} 목표 · ${past.length}개 중 ${past.filter((g) => g.done).length}개 이룸`),
+        el('ul', { class: 'goal-list' }, past.map((g) => this.yearRow(g))),
+      ));
+    }
     return parts;
   }
 
-  goalRow(g, sortable) {
+  goalSection({ title, side = null, add, addLabel, rows = [], list = null, empty }) {
+    const body = list ?? (rows.length ? el('ul', { class: 'goal-list' }, rows) : null);
+    return el('section', { class: 'goal-sec' },
+      el('header', { class: 'all-head' },
+        el('h3', {}, title, side ? el('span', { class: 'goal-sec-side' }, side) : null),
+        el('button', { type: 'button', class: 'icon-btn sm goal-add', 'aria-label': addLabel, title: addLabel, onclick: add }, icon(ICON.plus)),
+      ),
+      body ?? el('p', { class: 'all-empty' }, empty),
+    );
+  }
+
+  lifeRow(g) {
+    const kids = this.data.goals.filter((y) => y.kind === 'year' && y.parent_id === g.id && !y.done).length;
+    const li = el('li', { class: 'goal-li is-life', dataset: { id: String(g.id) } },
+      el('button', { type: 'button', class: 'goal-main', onclick: () => this.showGoal(g.id) },
+        el('span', { class: 'goal-title' }, g.title),
+        kids || g.memo ? el('span', { class: 'goal-meta' },
+          kids ? el('span', { class: 'goal-due' }, `올해 목표 ${kids}개`) : null,
+          g.memo ? el('span', { class: 'goal-memo' }, g.memo.split('\n')[0]) : null) : null,
+      ),
+    );
+    li.addEventListener('contextmenu', (e) => openMenu(e, [
+      { label: '수정', run: () => this.showGoal(g.id) },
+      { label: '이 목표를 위한 올해 목표 추가', run: () => this.showGoalForm({ kind: 'year', year: new Date().getFullYear(), parentId: g.id }) },
+      { label: '삭제', danger: true, run: () => this.deleteGoal(g) },
+    ], { title: g.title }));
+    return li;
+  }
+
+  // 올해 목표 한 줄: 체크형은 체크 버튼, 숫자·루틴형은 진행 막대
+  yearRow(g) {
+    const parent = g.parent_id ? this.goal(g.parent_id) : null;
+    const counted = g.measure !== 'check';
+    const ratio = counted ? Math.min(1, g.current / (g.target || 1)) : 0;
+    const li = el('li', { class: ['goal-li is-year', g.done ? 'is-done' : '', counted ? 'is-counted' : ''].join(' ').trim(), dataset: { id: String(g.id) } },
+      counted
+        ? el('span', { class: 'goal-emoji', 'aria-hidden': 'true' }, g.done ? '🏅' : (g.routine?.emoji || '🔢'))
+        : checkbox(g.done, `'${g.title}' ${g.done ? '이룸 취소' : '이뤘어요'}`, () => this.toggleGoal(g)),
+      el('button', { type: 'button', class: 'goal-main', onclick: () => this.showGoal(g.id) },
+        el('span', { class: 'goal-title' }, g.title),
+        counted
+          ? el('span', { class: 'goal-progress' },
+              el('span', { class: 'goal-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(g.target), 'aria-valuenow': String(g.current), 'aria-label': `${g.current} / ${g.target}` },
+                el('span', { style: { width: `${ratio * 100}%` } })),
+              el('span', { class: 'goal-num' }, `${g.current}/${g.target}`))
+          : null,
+        parent || g.measure === 'routine'
+          ? el('span', { class: 'goal-meta' },
+              g.measure === 'routine' ? el('span', { class: 'goal-due' }, g.routine ? `${g.routine.name} 기록에서 자동` : '루틴 기록에서 자동') : null,
+              parent ? el('span', { class: 'goal-memo' }, `🧭 ${parent.title}`) : null)
+          : null,
+      ),
+      g.measure === 'count' && !g.done
+        ? el('button', { type: 'button', class: 'goal-step', 'aria-label': `'${g.title}' 하나 더 (지금 ${g.current})`, title: '하나 더', onclick: () => this.stepGoal(g, 1) }, '+1')
+        : null,
+    );
+    li.addEventListener('contextmenu', (e) => openMenu(e, [
+      { label: '수정', run: () => this.showGoal(g.id) },
+      g.measure === 'count' ? { label: '+1', run: () => this.stepGoal(g, 1) } : null,
+      g.measure === 'count' && g.current > 0 ? { label: '−1 (잘못 눌렀을 때)', run: () => this.stepGoal(g, -1) } : null,
+      g.measure === 'check' ? { label: g.done ? '이룸 취소' : '이뤘어요', run: () => this.toggleGoal(g) } : null,
+      { label: '이 목표를 위한 기한 목표 추가', run: () => this.showGoalForm({ kind: 'due', parentId: g.id }) },
+      { label: '삭제', danger: true, run: () => this.deleteGoal(g) },
+    ], { title: g.title }));
+    return li;
+  }
+
+  async stepGoal(g, delta) {
+    try {
+      const next = await api.stepGoal(g.id, delta);
+      if (delta > 0 && next.done) toast(`🎉 '${g.title}' ${next.target}개를 다 채웠어요!`);
+      else if (delta > 0) toast(`${g.title} ${next.current}/${next.target}`, 'info', { action: { label: '되돌리기', run: () => this.stepGoal(next, -1) } });
+      await this.reload();
+      this.onStripChanged();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  goalRow(g, sortable, nested = false) {
+    if (g.kind === 'year') return this.yearRow(g);
+    if (g.kind === 'life') return this.lifeRow(g);
     const today = todayStr();
     let due = null;
     if (g.due) {
@@ -512,7 +694,7 @@ export class NotesPanel {
       due = el('span', { class: !g.done && left < 0 ? 'goal-due is-over' : 'goal-due' },
         `~${formatShort(g.due)}`, g.done ? null : ` · ${left < 0 ? '기한 지남' : ddayLabel(left)}`);
     }
-    const li = el('li', { class: g.done ? 'goal-li is-done' : 'goal-li', dataset: { id: String(g.id) } },
+    const li = el('li', { class: ['goal-li', g.done ? 'is-done' : '', nested ? 'is-nested' : ''].join(' ').trim(), dataset: { id: String(g.id) } },
       checkbox(g.done, `'${g.title}' ${g.done ? '이룸 취소' : '이뤘어요'}`, () => this.toggleGoal(g)),
       el('button', { type: 'button', class: 'goal-main', onclick: () => this.showGoal(g.id) },
         el('span', { class: 'goal-title' }, g.title),
@@ -544,7 +726,8 @@ export class NotesPanel {
   }
 
   async deleteGoal(g) {
-    const ok = await ask(`'${g.title}' 목표를 삭제할까요?`, [
+    const kids = this.data.goals.filter((c) => c.parent_id === g.id).length;
+    const ok = await ask(`'${g.title}' 목표를 삭제할까요?${kids ? ` 아래에 이어 둔 목표 ${kids}개는 지워지지 않고 연결만 풀려요.` : ''}`, [
       { label: '삭제', value: true, kind: 'danger-fill' },
       { label: '취소', value: null, kind: 'ghost' },
     ]);
@@ -553,50 +736,128 @@ export class NotesPanel {
       await api.deleteGoal(g.id);
       toast('목표를 삭제했어요');
       await this.load();
+      if (this.view === 'list') this.showList({ keepCapture: true });
       this.onStripChanged();
       return true;
     } catch (e) { toast(e.message, 'error'); return false; }
   }
 
-  // ---------------------------------------------------------------- 목표 수정 (저장 버튼으로)
+  // ---------------------------------------------------------------- 목표 만들기·수정 (저장 버튼으로)
   showGoal(id) {
     const g = this.goal(id);
     if (!g) return this.showList();
+    this.showGoalForm({ goal: g });
+  }
+
+  /** @param {{goal?: object, kind?: string, year?: number, parentId?: number}} o  goal이 없으면 새로 만들기 */
+  async showGoalForm({ goal = null, kind = goal?.kind || 'due', year = goal?.year || new Date().getFullYear(), parentId = goal?.parent_id || null }) {
     this.flush();
+    this.tab = 'goal';
     this.view = 'goal';
-    this.editingId = id;
-    this.titleEl.textContent = '목표';
+    this.editingId = goal?.id ?? null;
+    const KIND_NAME = { life: '인생 목표', year: `${year} 목표`, due: '기한 목표' };
+    this.titleEl.textContent = goal ? KIND_NAME[kind] : `새 ${KIND_NAME[kind]}`;
     this.backBtn.hidden = false;
     this.tabsEl.hidden = true;
+    const g = goal || { title: '', memo: '', due: null, measure: 'check', target: null, current: 0, routine_id: null };
 
-    const title = el('input', { type: 'text', class: 'input note-title-input', maxlength: '100', value: g.title, 'aria-label': '목표', placeholder: '이루고 싶은 것' });
-    const due = el('input', { type: 'date', class: 'input goal-due-input', value: g.due || '', 'aria-label': '기한' });
-    const dueHint = el('p', { class: 'field-hint' });
-    const showHint = () => {
-      dueHint.textContent = due.value
-        ? `${ddayLabel(daysBetween(todayStr(), due.value))} — 기한이 지나기 전까지 달력 위 띠에 보여요.`
-        : '기한을 정하면 달력 위 띠에 D-day로 보여요.';
-    };
-    due.addEventListener('input', showHint);
-    showHint();
-    const memo = el('textarea', { class: 'input', rows: '4', maxlength: '2000', value: g.memo, placeholder: '왜 이루고 싶은지, 어떻게 할지 (선택)', 'aria-label': '메모' });
+    const title = el('input', {
+      type: 'text', class: 'input note-title-input', maxlength: '100', value: g.title, 'aria-label': '목표',
+      placeholder: { life: '예: 건강한 몸 만들기', year: '예: 운동 100번', due: '이루고 싶은 것' }[kind],
+    });
+    const memo = el('textarea', { class: 'input', rows: '3', maxlength: '2000', value: g.memo, placeholder: '왜 이루고 싶은지, 어떻게 할지 (선택)', 'aria-label': '메모' });
     const errorEl = el('p', { class: 'form-error', role: 'alert', hidden: true });
+    const fields = [title];
+    let collect = () => ({});
 
-    const form = el('form', { id: 'goal-form', class: 'note-edit', novalidate: true },
-      title,
-      el('div', { class: 'field' },
-        el('label', { class: 'label' }, '기한'),
-        el('div', { class: 'goal-due-row' }, due,
-          el('button', { type: 'button', class: 'btn sm ghost', onclick: () => { due.value = ''; showHint(); } }, '기한 없음')),
-        dueHint),
-      el('div', { class: 'field' }, el('label', { class: 'label' }, '메모'), memo),
-      errorEl,
-    );
+    const parentSelect = (label, candidates, hint) => {
+      if (!candidates.length) return { node: null, value: () => null };
+      const select = el('select', { class: 'input', 'aria-label': label },
+        el('option', { value: '' }, '잇지 않음'),
+        candidates.map((c) => el('option', { value: String(c.id), selected: c.id === parentId }, c.title)));
+      return { node: el('div', { class: 'field' }, el('label', { class: 'label' }, label), select, el('p', { class: 'field-hint' }, hint)), value: () => (select.value ? Number(select.value) : null) };
+    };
+
+    if (kind === 'due') {
+      const due = el('input', { type: 'date', class: 'input goal-due-input', value: g.due || '', 'aria-label': '기한' });
+      const dueHint = el('p', { class: 'field-hint' });
+      const showHint = () => {
+        dueHint.textContent = due.value
+          ? `${ddayLabel(daysBetween(todayStr(), due.value))} — 기한이 지나기 전까지 달력 위 띠에 보여요.`
+          : '기한을 정하면 달력 위 띠에 D-day로 보여요.';
+      };
+      due.addEventListener('input', showHint);
+      showHint();
+      const parent = parentSelect('올해 목표에 묶기', this.data.goals.filter((y) => y.kind === 'year' && (!y.done || y.id === parentId)).map((y) => ({ id: y.id, title: `${y.year} · ${y.title}` })),
+        '묶으면 그 올해 목표 아래에 보여요.');
+      fields.push(
+        el('div', { class: 'field' },
+          el('label', { class: 'label' }, '기한'),
+          el('div', { class: 'goal-due-row' }, due,
+            el('button', { type: 'button', class: 'btn sm ghost', onclick: () => { due.value = ''; showHint(); } }, '기한 없음')),
+          dueHint),
+        parent.node,
+      );
+      collect = () => ({ due: due.value || null, parent_id: parent.value() });
+    } else if (kind === 'year') {
+      let routines = [];
+      try { routines = await api.routines(); } catch { /* 루틴을 못 받아도 체크·숫자 목표는 만들 수 있다 */ }
+      if (this.view !== 'goal') return; // 그 사이 다른 화면으로 바뀜
+      let measure = g.measure;
+      const target = el('input', { type: 'number', class: 'input goal-num-input', min: '1', max: '100000', inputmode: 'numeric', value: g.target ?? '', placeholder: '100', 'aria-label': '목표 숫자' });
+      const current = el('input', { type: 'number', class: 'input goal-num-input', min: '0', inputmode: 'numeric', value: String(g.current || 0), 'aria-label': '지금까지' });
+      const routine = el('select', { class: 'input', 'aria-label': '연결할 루틴' },
+        routines.map((r) => el('option', { value: String(r.id), selected: r.id === g.routine_id }, `${r.emoji} ${r.name}`)));
+      const countBox = el('div', { class: 'goal-count-row' },
+        el('label', { class: 'goal-inline' }, '목표', target),
+        el('label', { class: 'goal-inline goal-current' }, '지금까지', current));
+      const routineBox = el('div', { class: 'field goal-routine-box' }, routine,
+        el('p', { class: 'field-hint' }, `${year}년에 남긴 이 루틴의 기록 수를 알아서 세요. 루틴 버튼을 누를 때마다 목표가 채워져요.`));
+      const measureHint = el('p', { class: 'field-hint' });
+      const seg = el('div', { class: 'seg goal-measure', role: 'group', 'aria-label': '진행 방식' });
+      const MEASURES = [['check', '체크'], ['count', '숫자'], ['routine', '루틴 연결']];
+      const drawMeasure = () => {
+        seg.replaceChildren(...MEASURES.map(([m, label]) => el('button', {
+          type: 'button', class: 'seg-btn', 'aria-pressed': String(m === measure),
+          disabled: m === 'routine' && !routines.length,
+          title: m === 'routine' && !routines.length ? '먼저 루틴을 만들어 주세요 (하루 화면의 루틴 버튼)' : '',
+          onclick: () => { measure = m; drawMeasure(); },
+        }, label)));
+        countBox.hidden = measure === 'check';
+        countBox.querySelector('.goal-current').hidden = measure !== 'count';
+        routineBox.hidden = measure !== 'routine';
+        measureHint.textContent = {
+          check: '이뤘을 때 체크해요.',
+          count: "'+1' 버튼으로 하나씩 채워요.",
+          routine: '루틴 기록이 목표를 알아서 채워 줘요.',
+        }[measure];
+      };
+      drawMeasure();
+      const parent = parentSelect('어떤 인생 목표를 위한 건가요?', this.data.goals.filter((l) => l.kind === 'life'), '이어 두면 큰 방향과 함께 보여요.');
+      fields.push(
+        el('div', { class: 'field' }, el('label', { class: 'label' }, '진행 방식'), seg, measureHint, countBox, routineBox),
+        parent.node,
+      );
+      collect = () => ({
+        year, parent_id: parent.value(), measure,
+        ...(measure !== 'check' ? { target: Number(target.value) || 0 } : {}),
+        ...(measure === 'count' ? { current: Number(current.value) || 0 } : {}),
+        ...(measure === 'routine' ? { routine_id: Number(routine.value) || 0 } : {}),
+      });
+    } else if (goal) {
+      const kids = this.data.goals.filter((y) => y.kind === 'year' && y.parent_id === goal.id);
+      if (kids.length) fields.push(el('div', { class: 'field' }, el('label', { class: 'label' }, '이 목표를 위한 올해 목표'), el('ul', { class: 'goal-list' }, kids.map((y) => this.yearRow(y)))));
+    }
+    fields.push(el('div', { class: 'field' }, el('label', { class: 'label' }, '메모'), memo), errorEl);
+
+    const form = el('form', { id: 'goal-form', class: 'note-edit', novalidate: true }, fields.filter(Boolean));
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const payload = { title: title.value, memo: memo.value, ...collect() };
       try {
-        await api.updateGoal(id, { title: title.value, due: due.value || null, memo: memo.value });
-        toast('목표를 저장했어요');
+        if (goal) await api.updateGoal(goal.id, payload);
+        else await api.createGoal({ kind, ...payload });
+        toast(goal ? '목표를 저장했어요' : '목표를 넣었어요');
         await this.load();
         this.onStripChanged();
         this.showList();
@@ -607,11 +868,12 @@ export class NotesPanel {
     });
     this.bodyEl.replaceChildren(form);
     this.setFoot(
-      el('button', { type: 'button', class: 'btn sm ghost danger', onclick: async () => { if (await this.deleteGoal(g)) this.showList(); } }, '삭제'),
+      goal ? el('button', { type: 'button', class: 'btn sm ghost danger', onclick: async () => { if (await this.deleteGoal(goal)) this.showList(); } }, '삭제') : null,
       el('span', { class: 'spacer' }),
       el('button', { type: 'button', class: 'btn sm ghost', onclick: () => this.showList() }, '취소'),
-      el('button', { type: 'submit', form: 'goal-form', class: 'btn sm primary' }, '저장'),
+      el('button', { type: 'submit', form: 'goal-form', class: 'btn sm primary' }, goal ? '저장' : '추가'),
     );
+    if (!goal) title.focus();
   }
 
   // ================================================================ 메모

@@ -20,9 +20,10 @@ import { makeSortable } from './reorder.js';
 import { timeSelect } from './timepicker.js';
 import { routineBar, routineLogView, routineManager, routineSection } from './routines.js';
 import {
-  ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
+  addDays, ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
 } from './utils.js';
-import { weatherLine } from './weather.js';
+import { MARK_COLORS, openDecor, setMarks } from './decor.js';
+import { decorateTimed, weatherLine } from './weather.js';
 
 const PALETTE = ['#E5534B', '#F08C2E', '#D9A514', '#3FA66B', '#2BA5B5', '#3D6FD9', '#7C5CD6', '#D45A9A'];
 
@@ -110,14 +111,29 @@ export class Sheet {
 
   setBody(...nodes) { this.bodyEl.replaceChildren(...nodes.filter(Boolean)); }
 
-  // 날씨가 늦게 들어왔을 때: 하루 목록 맨 위의 날씨 줄만 넣거나 바꾼다 (목록은 다시 불러오지 않는다)
+  // 날씨가 늦게 들어왔을 때: 하루 목록 맨 위의 날씨 줄과 일정 옆 '그 시간의 날씨'만 바꾼다 (목록은 다시 불러오지 않는다)
   updateWeather() {
-    if (this.view !== 'day' || !this.bodyEl.querySelector('.item-list, .empty, .routine-day')) return;
-    const old = this.bodyEl.querySelector(':scope > .wx-line');
+    const top = this.view === 'day' ? this.bodyEl.querySelector(':scope > .day-top') : null;
+    if (!top) return;
+    top.querySelector('.wx-line')?.remove();
     const line = weatherLine(this.day);
-    if (old && line) old.replaceWith(line);
-    else if (old) old.remove();
-    else if (line) this.bodyEl.prepend(line);
+    if (line) top.prepend(line);
+    decorateTimed(this.bodyEl);
+  }
+
+  // 하루 화면 맨 위 한 줄: [그날 서울 날씨 ……… 🎨 꾸미기]
+  dayTop(date, mark) {
+    const colorName = MARK_COLORS.find(([name]) => name === mark?.color)?.[1];
+    const label = mark?.sticker || mark?.color
+      ? `이 날 꾸미기 (지금: ${[mark.sticker, colorName ? `${colorName} 형광펜` : ''].filter(Boolean).join(' ')})`
+      : '이 날 꾸미기 (스티커·형광펜)';
+    return el('div', { class: 'day-top' },
+      weatherLine(date),
+      el('button', {
+        type: 'button', class: ['decor-btn', mark?.color ? `mark-${mark.color}` : ''].join(' ').trim(), 'aria-label': label, title: label,
+        onclick: () => openDecor(date, () => shared.onDataChanged()),
+      }, mark?.sticker ? el('span', { class: 'decor-btn-sticker', 'aria-hidden': 'true' }, mark.sticker) : null, '꾸미기'),
+    );
   }
 
   setFoot(...nodes) {
@@ -167,8 +183,10 @@ export class Sheet {
     let list;
     let routines;
     let logs;
+    let mark;
     try {
-      ({ items: list, logs, routines } = await api.day(date)); // 일정 + 루틴 기록 + 루틴 버튼을 한 번에
+      ({ items: list, logs, routines, mark } = await api.day(date)); // 일정 + 루틴 기록 + 루틴 버튼 + 꾸밈을 한 번에
+      setMarks(mark ? [mark] : [], date, addDays(date, 1));
     } catch (e) { return this.failed(e); }
     if (this.view !== 'day' || this.day !== date) return; // 그 사이 다른 화면으로 바뀌었으면 무시
 
@@ -198,7 +216,8 @@ export class Sheet {
           onMenu: shared.onLogMenu ? (e, log) => shared.onLogMenu(e, log, this) : null,
         })
       : null;
-    this.setBody(weatherLine(date), ...schedule, routineDay); // 맨 위: 그날 서울 날씨 (오늘부터 일주일만)
+    this.setBody(this.dayTop(date, mark), ...schedule, routineDay); // 맨 위: 그날 서울 날씨(오늘부터 일주일만) + 꾸미기
+    decorateTimed(this.bodyEl); // 일정 옆에 그 시간의 날씨
 
     this.setFoot(
       el('div', { class: 'day-foot' },
@@ -540,13 +559,15 @@ export class Sheet {
 // 일정 한 줄 (하루 목록)
 //   showTime=false : 시간 칸을 아예 빼서 제목을 왼쪽에 붙인다 (시간 있는 일정이 하나도 없는 목록용)
 //   sortable=true  : 오른쪽에 순서 바꾸기 손잡이(≡)를 붙인다
-function itemRow({ id, title, memo, start_time, end_time, category, badge, dday = null, onclick, oncontextmenu = null, showTime = true, sortable = false }) {
-  return el('li', { class: 'item-li', dataset: { id: String(id) }, style: { '--cat': category.color }, oncontextmenu },
+function itemRow({ id, title, memo, date = null, start_time, end_time, category, badge, dday = null, onclick, oncontextmenu = null, showTime = true, sortable = false }) {
+  // 시작 시간이 있으면 '그 시간의 날씨'를 붙일 수 있게 표시해 둔다 (weather.js의 decorateTimed)
+  const wx = date && start_time ? { wxDate: date, wxTime: start_time } : {};
+  return el('li', { class: 'item-li', dataset: { id: String(id), ...wx }, style: { '--cat': category.color }, oncontextmenu },
     el('button', { type: 'button', class: showTime ? 'item-row' : 'item-row no-time', onclick },
       showTime ? timeCell(start_time, end_time) : null,
       el('span', { class: 'item-main' },
         el('span', { class: 'item-title' }, dday ? el('span', { class: 'item-dday' }, dday) : null, title),
-        el('span', { class: 'item-meta' },
+        el('span', { class: 'item-meta', dataset: { wxSlot: '' } },
           el('span', { class: 'item-cat' }, category.name),
           memo ? el('span', { class: 'item-memo' }, memo.split('\n')[0]) : null,
         ),

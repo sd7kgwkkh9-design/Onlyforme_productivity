@@ -1,6 +1,6 @@
 {# 모든 화면이 함께 쓰는 <head> 내용: 테마, 아이콘, 홈 화면 설치, 글꼴, 디자인 #}
   <script>
-    // 저장해 둔 테마(라이트/다크)·글꼴·글자 크기를 화면을 그리기 전에 먼저 적용한다.
+    // 저장해 둔 테마(라이트/다크)·색·글꼴·글자 크기·배경 사진을 화면을 그리기 전에 먼저 적용한다.
     // (나중에 적용하면 다크 모드인데 흰 화면이 잠깐 번쩍이거나 글꼴이 바뀌는 게 보인다) — 나머지는 static/js/settings.js
     (function () {
       var root = document.documentElement;
@@ -15,6 +15,24 @@
         }
         var s = localStorage.getItem('my-calendar:font-size');   // 글자 크기 (0.10.0): 95 / 90 / 85 / 80
         if (/^(95|90|85|80)$/.test(s)) root.dataset.fs = s;
+        // 색 테마 (0.11.0): green / orange / purple / pink / mono / custom(나만의 색)
+        var c = localStorage.getItem('my-calendar:color');
+        if (/^(green|orange|purple|pink|mono)$/.test(c)) root.dataset.color = c;
+        else if (c === 'custom') {
+          var t = JSON.parse(localStorage.getItem('my-calendar:color-custom') || 'null');
+          if (t && /^#[0-9a-f]{6}$/i.test(t.l) && /^#[0-9a-f]{6}$/i.test(t.d)) {
+            root.dataset.color = 'custom';
+            root.style.setProperty('--tint-l', t.l); root.style.setProperty('--tint-d', t.d);
+            root.style.setProperty('--on-l', t.ol); root.style.setProperty('--on-d', t.od);
+          }
+        }
+        // 배경 사진 (0.11.0): 이 기기에만 저장해 둔 사진을 달력 뒤에 깐다
+        var bg = localStorage.getItem('my-calendar:bg');
+        if (bg && bg.indexOf('data:image/') === 0) {
+          var v = localStorage.getItem('my-calendar:bg-veil');
+          root.dataset.bg = /^(soft|strong)$/.test(v) ? v : 'mid';
+          document.write('<style id="bg-style">:root{--bg-image:url("' + bg + '")}</style>');
+        }
       } catch (e) {}
     })();
   </script>
