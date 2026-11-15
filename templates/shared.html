@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>{{ label }} - {{ app_name }}</title>
+  {% include "_head.html" %}
+  {# 보기 전용 공유 화면 (0.12.0): 이 화면이 쓰는 모듈만 #}
+  {% set all = module_map() %}
+  {% set modules = {} %}
+  {% for key, url in all.items() %}{% if key.endswith('/utils.js') or key.endswith('/shared.js') %}{% set _ = modules.update({key: url}) %}{% endif %}{% endfor %}
+  <script type="importmap">{"imports": {{ modules|tojson }}}</script>
+</head>
+<body class="shared" data-token="{{ token }}" data-label="{{ label }}">
+  <header class="shared-top">
+    <div class="shared-who">
+      <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="36" height="36">
+      <div>
+        <h1 class="shared-label">{{ label }}</h1>
+        <p class="shared-sub">읽기 전용 · 고칠 수 없어요</p>
+      </div>
+    </div>
+    <nav class="shared-nav" aria-label="달 넘기기">
+      <button type="button" class="icon-btn" id="sh-prev" aria-label="이전 달">‹</button>
+      <h2 class="shared-month" id="sh-title" aria-live="polite"></h2>
+      <button type="button" class="icon-btn" id="sh-next" aria-label="다음 달">›</button>
+      <button type="button" class="btn sm" id="sh-today">오늘</button>
+    </nav>
+  </header>
+
+  <main class="shared-layout">
+    <section class="shared-cal" aria-label="달력"><div id="sh-calendar"></div></section>
+    <aside class="shared-day" id="sh-day" aria-live="polite"></aside>
+  </main>
+
+  <footer class="shared-foot">{{ app_name }}에서 공유한 달력이에요. 링크를 받은 사람만 볼 수 있어요.</footer>
+
+  <script src="{{ asset_url('vendor/fullcalendar/fullcalendar.min.js') }}"></script>
+  <script src="{{ asset_url('vendor/fullcalendar/ko.min.js') }}"></script>
+  <script type="module" src="{{ asset_url('js/shared.js') }}"></script>
+</body>
+</html>

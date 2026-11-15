@@ -15,6 +15,9 @@ goals        : 기록지의 '목표' — 제목 + 기한(선택). 기한이 있�
                0.11.0부터 세 단계: 인생 목표(life) → 올해 목표(year) → 기한 목표(due). parent_id로 위 단계와 잇는다.
                올해 목표는 진행 방식(measure)이 셋: 체크(check) / 숫자(count: current/target) / 루틴 연결(routine: 그 해의 루틴 기록 수)
 day_marks    : 달력 꾸미기 — 날짜에 붙인 스티커(이모지)와 형광펜 색 (0.11.0)
+links        : 밖에서 여는 주소 (0.12.0) — 보기 전용 공유 링크(share), 캘린더 구독(ics), 홈 화면 위젯(widget).
+               주소에 들어가는 무작위 토큰이 곧 열쇠다. 지우면 그 주소는 바로 막힌다.
+passkeys     : 패스키 (0.12.0) — Face ID·지문으로 로그인. 공개 키만 저장한다 (비밀 키는 기기 밖으로 나오지 않는다).
 
 meta        : 변경 번호(version) — 일정·카테고리·루틴·메모가 바뀔 때마다 1씩 커진다.
               다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
@@ -114,6 +117,27 @@ CREATE TABLE IF NOT EXISTS day_marks (
     color       TEXT NOT NULL DEFAULT ''          -- 형광펜 색 이름 (없으면 '')
 );
 
+CREATE TABLE IF NOT EXISTS links (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind        TEXT    NOT NULL,                 -- 'share' | 'ics' | 'widget'
+    token       TEXT    NOT NULL UNIQUE,          -- 주소에 들어가는 무작위 열쇠
+    label       TEXT    NOT NULL DEFAULT '',      -- 내가 알아보기 위한 이름 (예: 가족용)
+    options     TEXT    NOT NULL DEFAULT '{}',    -- JSON: 보여 줄 카테고리, 메모 공개, 알림 등
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    last_used_at TEXT                             -- 마지막으로 누가 열어 본 때 (대략)
+);
+
+CREATE TABLE IF NOT EXISTS passkeys (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    credential_id TEXT    NOT NULL UNIQUE,        -- base64url
+    public_key    BLOB    NOT NULL,
+    sign_count    INTEGER NOT NULL DEFAULT 0,
+    label         TEXT    NOT NULL DEFAULT '',    -- 예: 'iPhone', 'MacBook'
+    transports    TEXT    NOT NULL DEFAULT '[]',
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    last_used_at  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value INTEGER NOT NULL
@@ -145,6 +169,7 @@ def migrate(conn):
       - goals                : 목표 표 (0.9.0) — SCHEMA의 CREATE TABLE IF NOT EXISTS가 새로 만들어 준다
       - goals.kind 등 7칸     : 인생·올해 목표 (0.11.0). 예전 목표는 모두 '기한 목표'(due)로 남는다
       - day_marks            : 달력 꾸미기 표 (0.11.0) — SCHEMA가 새로 만들어 준다
+      - links, passkeys      : 공유 링크·구독·위젯, 패스키 (0.12.0) — SCHEMA가 새로 만들어 준다
     """
     if "end_time" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN end_time TEXT")

@@ -12,7 +12,7 @@
   {% for url in modules.values() %}<link rel="modulepreload" href="{{ url }}">
   {% endfor %}
 </head>
-<body data-view="month" data-login="{{ '1' if login_enabled else '0' }}" data-app-name="{{ app_name }}" data-version="{{ app_version }}"
+<body data-view="month" data-login="{{ '1' if login_enabled else '0' }}" data-app-name="{{ app_name }}" data-version="{{ app_version }}" data-bio-lock="{{ '1' if bio_lock else '0' }}"
       data-marked="{{ asset_url('vendor/marked/marked.esm.js') }}" data-purify="{{ asset_url('vendor/dompurify/purify.es.js') }}">
   {% if demo %}
   <p class="demo-banner" role="note">

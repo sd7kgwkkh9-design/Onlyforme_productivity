@@ -7,6 +7,9 @@
 - 비밀번호는 그대로 저장하지 않고 '해시'(되돌릴 수 없게 바꾼 값)로만 instance/auth.json에 저장한다.
 - 로그인하면 기기마다 1년 동안 유지된다 (쿠키 세션).
 - 비밀번호를 연달아 틀리면 잠시 로그인을 막는다 (무작위 대입 공격 방지).
+- 0.12.0: 패스키(Face ID·지문)로도 로그인할 수 있고, 기기마다 '열 때마다 생체 인증'을 켤 수 있다 (passkeys.py).
+  잠금을 켠 기기는 몇 분 넘게 안 쓰다가 다시 열면 /unlock 화면이 뜬다.
+- 0.12.0: 공유 링크(/v/), 캘린더 구독(/ical/), 위젯(/w/)은 비밀번호 대신 주소 안의 토큰으로 연다 (links.py).
 
 동작 방식:
 - 내 컴퓨터에서 python app.py로 실행할 때: 비밀번호를 정해 두었을 때만 로그인을 요구한다.
@@ -18,6 +21,8 @@ import os
 import secrets
 import time
 from datetime import timedelta
+
+import passkeys
 
 from flask import (
     Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for,
@@ -91,9 +96,16 @@ def login_required():
     return load_password_hash(current_app.config["DATA_DIR"]) is not None
 
 
+# 로그인 없이 열리는 주소: 토큰이 열쇠인 공유·구독·위젯, 패스키로 로그인하기
+PUBLIC_PREFIXES = ("/static/", "/v/", "/ical/", "/w/")
+PUBLIC_PATHS = ("/login", "/logout", "/auth/passkey/options", "/auth/passkey/verify")
+# 잠겨 있어도 열리는 주소: 잠금 화면과 그 화면에서 쓰는 것
+UNLOCK_PATHS = ("/unlock", "/logout", "/auth/passkey/options", "/auth/passkey/verify")
+
+
 def require_login():
     path = request.path
-    if path.startswith("/static/") or path in ("/login", "/logout"):
+    if path.startswith(PUBLIC_PREFIXES) or path in PUBLIC_PATHS:
         return None
 
     if not login_required():
@@ -105,8 +117,21 @@ def require_login():
         return None
 
     if session.get("logged_in"):
+        # 이 기기에서 '열 때마다 생체 인증'을 켜 두었고 한동안 안 썼으면 잠금 화면으로 (passkeys.py)
+        if passkeys.is_locked():
+            if path in UNLOCK_PATHS:
+                return None   # 잠금 화면과 그 화면의 확인 요청 (여기서는 '쓰는 중'으로 치지 않는다)
+            if path.startswith(("/api/", "/auth/")):
+                return jsonify(error="잠겨 있어요. Face ID·지문으로 열어 주세요.", locked=True), 401
+            nxt = request.full_path if path == "/" and request.query_string else None
+            return redirect(url_for("auth.unlock", next=nxt) if nxt else url_for("auth.unlock"))
+        # 동기화 확인(/api/version)은 화면이 알아서 보내는 것이라 '쓰는 중'으로 치지 않는다.
+        # 대신 그사이 사람이 화면을 만졌으면 X-Active 머리말을 붙여 보낸다 (sync.js)
+        passkeys.touch(path != "/api/version" or request.headers.get("X-Active") == "1")
         return None
-    if path.startswith("/api/"):
+    if path == "/unlock":
+        return redirect(url_for("auth.login"))
+    if path.startswith(("/api/", "/auth/")):
         return jsonify(error="로그인이 필요해요."), 401
     # 보던 화면 주소(/?week=…)로 들어왔으면 로그인한 뒤 그 화면으로 돌아가게 기억해 둔다 (0.10.0)
     if path == "/" and request.query_string:
@@ -168,7 +193,31 @@ def login():
             _record_fail(ip)
             error = "비밀번호가 맞지 않아요."
             status = 401
-    return render_template("login.html", error=error), status
+    return render_template("login.html", error=error, mode="login", has_passkeys=passkeys.has_passkeys()), status
+
+
+@bp.route("/unlock", methods=["GET", "POST"])
+def unlock():
+    """잠긴 화면: 패스키(Face ID·지문)로 열거나, 비밀번호로 연다. 잠금 설정은 그대로 둔다."""
+    if not passkeys.is_locked():
+        return redirect(safe_next(request.args.get("next")))
+    error = None
+    status = 200
+    if request.method == "POST":
+        ip = _client_ip()
+        wait = _locked_seconds_left(ip)
+        if wait:
+            error = f"여러 번 틀려서 잠시 막혔어요. {wait}초 뒤에 다시 시도해 주세요."
+            status = 429
+        elif check_password_hash(load_password_hash(current_app.config["DATA_DIR"]), request.form.get("password", "")):
+            _fails.pop(ip, None)
+            session["seen"] = passkeys.now()
+            return redirect(safe_next(request.args.get("next")))
+        else:
+            _record_fail(ip)
+            error = "비밀번호가 맞지 않아요."
+            status = 401
+    return render_template("login.html", error=error, mode="unlock", has_passkeys=passkeys.has_passkeys()), status
 
 
 @bp.post("/logout")

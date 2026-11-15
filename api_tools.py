@@ -707,8 +707,11 @@ def overview():
     year   : 올해가 얼마나 지났는지 + 올해 목표들 (0.11.0) — 화면이 날마다 하나씩 돌아가며 보여 준다
     life   : 인생 목표들 (0.11.0)
     """
-    db = get_db()
-    today = today_arg()
+    return jsonify(overview_data(get_db(), today_arg()))
+
+
+def overview_data(db, today):
+    """/api/overview의 내용 (홈 화면 위젯도 같이 쓴다 — links.py)"""
     main = db.execute("SELECT id, banner FROM notes WHERE is_main = 1").fetchone()
     banner = {"note_id": main["id"], "text": main["banner"]} if main and main["banner"] else None
 
@@ -759,7 +762,7 @@ def overview():
     # 해가 바뀌었는데 새해 목표가 아직 없으면 화면이 '목표 세우기'를 권한다
     year["nudge"] = not year_goals and any(g["kind"] == "year" and g["year"] == today.year - 1 for g in every)
     life = [{"id": g["id"], "title": g["title"]} for g in every if g["kind"] == "life" and not g["done"]]
-    return jsonify(banner=banner, ddays=ddays[:MAX_DDAYS], year=year, life=life)
+    return {"banner": banner, "ddays": ddays[:MAX_DDAYS], "year": year, "life": life}
 
 
 # ======================================================================== 달력 꾸미기: 날짜 스티커·형광펜 (0.11.0)

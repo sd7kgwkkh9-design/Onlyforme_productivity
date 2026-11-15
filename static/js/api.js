@@ -3,8 +3,19 @@
 // 저장·삭제 응답에 담겨 오는 '변경 번호'를 동기화(sync.js)에 알려 주는 연결 고리
 export const hooks = { onVersion: null };
 
-async function request(method, url, body) {
+// 사람이 화면을 만졌는지 (0.12.0): 동기화 확인에 'X-Active'로 알려서, '열 때마다 생체 인증'의 잠금 시간을 늦춘다.
+// 화면을 그냥 띄워만 두면 몇 분 뒤 잠긴다 (passkeys.py).
+let active = false;
+for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+  window.addEventListener(type, () => { active = true; }, { passive: true, capture: true });
+}
+
+async function request(method, url, body, { poll = false } = {}) {
   const options = { method, headers: {} };
+  if (poll && active) {
+    options.headers['X-Active'] = '1';
+    active = false;
+  }
   if (body !== undefined) {
     options.headers['Content-Type'] = 'application/json';
     options.body = JSON.stringify(body);
@@ -17,10 +28,14 @@ async function request(method, url, body) {
     throw new Error('서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.');
   }
 
-  // 로그인이 풀렸으면(다른 기기에서 비밀번호를 바꾼 경우 등) 로그인 화면으로
+  // 로그인이 풀렸으면(다른 기기에서 비밀번호를 바꾼 경우 등) 로그인 화면으로.
+  // '열 때마다 생체 인증'으로 잠겼으면 잠금 화면으로 (보던 화면 주소를 기억해서 연 뒤에 돌아온다)
   if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('로그인이 필요해요.');
+    const data = await res.json().catch(() => ({}));
+    const here = `${location.pathname}${location.search}`;
+    if (data.locked) window.location.href = `/unlock${location.search ? `?next=${encodeURIComponent(here)}` : ''}`;
+    else window.location.href = '/login';
+    throw new Error(data.error || '로그인이 필요해요.');
   }
 
   const data = await res.json().catch(() => ({}));
@@ -87,7 +102,22 @@ export const api = {
   parse: (text, today) => request('GET', `/api/parse?${q({ text, today })}`),
 
   // 동기화
-  version: () => request('GET', '/api/version'),
+  version: () => request('GET', '/api/version', undefined, { poll: true }),
+
+  // 공유 링크·캘린더 구독·홈 화면 위젯 (0.12.0)
+  links: () => request('GET', '/api/links'),
+  createLink: (payload) => request('POST', '/api/links', payload),
+  updateLink: (id, payload) => request('PUT', `/api/links/${id}`, payload),
+  deleteLink: (id) => request('DELETE', `/api/links/${id}`),
+
+  // 패스키 (0.12.0) — /auth/passkey 아래 (passkeys.py)
+  passkeys: () => request('GET', '/auth/passkey/list'),
+  passkeyRegisterOptions: () => request('POST', '/auth/passkey/register/options', {}),
+  passkeyRegister: (credential, label) => request('POST', '/auth/passkey/register/verify', { credential, label }),
+  deletePasskey: (id) => request('DELETE', `/auth/passkey/${id}`),
+  passkeyOptions: (purpose) => request('POST', '/auth/passkey/options', { purpose }),
+  passkeyVerify: (purpose, credential) => request('POST', '/auth/passkey/verify', { purpose, credential }),
+  setLock: (on) => request('POST', '/auth/passkey/lock', { on }),
 
   // 공휴일
   holidays: (start, end) => request('GET', `/api/holidays?${q({ start, end })}`),

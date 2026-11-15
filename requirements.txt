@@ -1,2 +1,4 @@
 Flask>=3.0,<4
 holidays>=0.50
+icalendar>=6,<7      # 캘린더 구독(.ics) 만들기 (0.12.0)
+webauthn>=2.2,<3     # 패스키(Face ID·지문) 로그인 (0.12.0)

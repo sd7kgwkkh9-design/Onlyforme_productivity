@@ -21,6 +21,8 @@ import { api } from './api.js';
 import { openMenu } from './ctxmenu.js';
 import { pickDate } from './datepop.js';
 import { applyMark, decorateMarks, openDecor, setMarks } from './decor.js';
+import { openLinks } from './links.js';
+import { openSecurity } from './security.js';
 import { initShare } from './share.js';
 import { decorateMonth, decorateMonthCell, decorateOne, decorateTimed, decorateWeek, loadWeather, onWeather } from './weather.js';
 import { maybeShowWeekly } from './weekly.js';
@@ -878,6 +880,7 @@ safely('공유', () => initShare({
   button: $('btn-share'),
   menu: $('share-menu'),
   appName: APP_NAME,
+  onOpenLinks: (tab) => openLinks(tab),
   current: () => {
     const date = state.selected;
     const inWeek = state.view === 'week' && date >= state.weekStart && date < addDays(state.weekStart, 7);
@@ -902,6 +905,9 @@ safely('설정', () => initSettings({
   loginEnabled: document.body.dataset.login === '1',
   appName: APP_NAME,
   version: document.body.dataset.version,
+  onOpenLinks: (tab) => openLinks(tab),          // 공유 링크·캘린더 구독·위젯 (0.12.0)
+  onOpenSecurity: () => openSecurity(),          // Face ID·패스키 (0.12.0)
+  bioLock: document.body.dataset.bioLock === '1',
   // ⚙ 설정의 '지금 카드 보기': 이번 주에 이미 봤어도 띄운다
   onShowWeekly: async () => {
     await refreshStrip();

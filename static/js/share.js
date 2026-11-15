@@ -90,7 +90,7 @@ export function printCalendar(beforePrint) {
  * @param {string} o.appName
  * @param {() => void} o.beforePrint  인쇄 전에 달력 크기 맞추기
  */
-export function initShare({ button, menu, current, appName, beforePrint }) {
+export function initShare({ button, menu, current, appName, beforePrint, onOpenLinks = null }) {
   if (!button || !menu) return;
   const item = (label, sub, run) => el('button', {
     type: 'button', role: 'menuitem', class: 'menu-choice share-choice',
@@ -107,6 +107,9 @@ export function initShare({ button, menu, current, appName, beforePrint }) {
       el('p', { class: 'menu-label' }, '보내기'),
       item(`${dayLabel(date)} 일정`, '카톡·메시지로 보내기', async () => sendText(`${dayLabel(date)} 일정`, await dayText(date, appName))),
       item('이 주 일정', `${formatShort(weekStart)} ~ ${formatShort(end)}`, async () => sendText('이번 주 일정', await weekText(weekStart, appName))),
+      onOpenLinks ? el('p', { class: 'menu-label share-sep' }, '링크로') : null,
+      onOpenLinks ? item('보기 전용 링크', '받은 사람은 보기만, 언제든 끊기', () => onOpenLinks('share')) : null,
+      onOpenLinks ? item('캘린더 구독 · 위젯', '아이폰 기본 캘린더, 홈 화면 위젯', () => onOpenLinks('ics')) : null,
       el('p', { class: 'menu-label share-sep' }, '종이·파일로'),
       item('인쇄 / PDF로 저장', '지금 보이는 달력 그대로', () => printCalendar(beforePrint)),
     );

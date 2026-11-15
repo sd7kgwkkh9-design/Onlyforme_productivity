@@ -18,13 +18,15 @@ import mimetypes
 import os
 import sys
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import api_tools  # noqa: F401  루틴·루틴 기록·기록지·D-day·시간 돌아보기·빠른 입력 주소를 같은 /api 묶음에 등록
 import auth
 import db
 import demo
+import links  # 공유 링크·캘린더 구독·위젯 (0.12.0) — 관리 주소는 /api 묶음에, 공개 주소는 links.public에
+import passkeys
 from api import bp as api_bp
 from assets import Assets
 
@@ -36,7 +38,7 @@ APP_SHORT_NAME = "Onlyforme"   # 휴대폰 홈 화면 아이콘 아래 이름 (�
 
 # 버전 (유의적 버전 MAJOR.MINOR.PATCH) — ⚙ 설정 메뉴 맨 아래에 보인다.
 # 새 기능을 넣으면 가운데 숫자(0.9.0 → 0.10.0), 고치기만 했으면 끝 숫자(0.9.0 → 0.9.1)를 올린다.
-APP_VERSION = "0.11.0"
+APP_VERSION = "0.12.0"
 
 # 홈 화면 설치용 manifest 파일의 형식을 브라우저에 올바르게 알려 준다.
 mimetypes.add_type("application/manifest+json", ".webmanifest")
@@ -62,6 +64,8 @@ def create_app(database_path=None, production=False, demo_mode=False):
     os.makedirs(data_dir, exist_ok=True)
     app.config["DATABASE"] = database_path
     app.config["DEMO"] = demo_mode
+    app.config["APP_NAME"] = APP_NAME
+    app.config["APP_SHORT_NAME"] = APP_SHORT_NAME
 
     if production:
         # 서버 앞단(프록시)을 거쳐 들어오므로, 실제 접속한 기기의 IP와 https 여부를 헤더에서 읽는다.
@@ -72,6 +76,8 @@ def create_app(database_path=None, production=False, demo_mode=False):
     assets = Assets(app)  # 지문 붙은 주소(오래 저장) + 압축 — assets.py
     auth.init_auth(app, data_dir, production)
     app.register_blueprint(api_bp)
+    app.register_blueprint(links.public)
+    app.register_blueprint(passkeys.bp)
 
     @app.context_processor
     def app_names():
@@ -80,7 +86,10 @@ def create_app(database_path=None, production=False, demo_mode=False):
 
     @app.get("/")
     def index():
-        return render_template("index.html", login_enabled=auth.login_required(), demo=app.config["DEMO"])
+        return render_template(
+            "index.html", login_enabled=auth.login_required(), demo=app.config["DEMO"],
+            bio_lock=bool(session.get("bio_lock")),
+        )
 
     @app.after_request
     def after(response):

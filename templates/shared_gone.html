@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>링크가 없어요 - {{ app_name }}</title>
+  {% include "_head.html" %}
+</head>
+<body class="gate">
+  <main class="gate-card">
+    <img class="gate-icon" src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" width="64" height="64">
+    <h1 class="gate-title">링크가 없거나 끊겼어요</h1>
+    <p class="gate-text">공유한 사람이 이 링크를 끊었거나, 주소가 잘못 복사되었을 수 있어요. 보낸 사람에게 새 링크를 받아 주세요.</p>
+  </main>
+</body>
+</html>

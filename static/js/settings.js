@@ -125,6 +125,12 @@ function luminance(hex) {
 const textOn = (hex) => (luminance(hex) > 0.4 ? '#10141A' : '#FFFFFF');
 
 /** 고른 색 하나 → 라이트용(너무 밝으면 조금 어둡게)·다크용(조금 밝게) 포인트 색과 그 위 글자색 */
+/** 지금 고른 색 테마의 포인트 색 (라이트용) — 홈 화면 위젯도 같은 색으로 (links.js) */
+export function accentHex() {
+  if (color === 'custom' && custom?.l) return custom.l;
+  return (COLORS.find(([v]) => v === color) || COLORS[0])[2];
+}
+
 export function customTints(hex) {
   let l = hex;
   for (let i = 0; i < 6 && luminance(l) > 0.45; i++) l = mix(l, '#000000', 0.15); // 흰 바탕에서 보이게
@@ -309,6 +315,15 @@ function renderMenu(loginEnabled, appName, version) {
     hooks.onShowWeekly
       ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice menu-sub', onclick: () => { menu.hidePopover?.(); hooks.onShowWeekly(); } }, '지금 카드 보기')
       : null,
+    // 0.12.0: 밖에서 보기(공유 링크·캘린더 구독·홈 화면 위젯), 패스키
+    el('p', { class: 'menu-label' }, '연결'),
+    hooks.onOpenLinks
+      ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onOpenLinks('share'); } }, '공유 링크 · 캘린더 구독 · 위젯…')
+      : null,
+    loginEnabled && hooks.onOpenSecurity
+      ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onOpenSecurity(); } },
+          'Face ID · 패스키…', hooks.bioLock ? el('span', { class: 'menu-size-name' }, '🔒 이 기기 잠금') : null)
+      : null,
     loginEnabled
       ? el('form', { class: 'menu-logout', method: 'post', action: '/logout' },
           el('button', { type: 'submit', role: 'menuitem', class: 'menu-choice danger' }, '이 기기에서 로그아웃'))
@@ -407,10 +422,10 @@ function placeMenu() {
   menu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
 }
 
-export function initSettings({ loginEnabled = false, appName = '', version = '', onShowWeekly = null } = {}) {
+export function initSettings({ loginEnabled = false, appName = '', version = '', onShowWeekly = null, onOpenLinks = null, onOpenSecurity = null, bioLock = false } = {}) {
   button = document.getElementById('btn-settings');
   menu = document.getElementById('settings-menu');
-  hooks = { onShowWeekly };
+  hooks = { onShowWeekly, onOpenLinks, onOpenSecurity, bioLock };
   menuArgs = [loginEnabled, appName, version];
   color = read(COLOR_KEY, [...COLORS.map(([v]) => v), 'custom'], 'blue');
   try { custom = JSON.parse(localStorage.getItem(CUSTOM_KEY) || 'null'); } catch { custom = null; }
