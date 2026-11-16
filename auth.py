@@ -22,12 +22,19 @@ import secrets
 import time
 from datetime import timedelta
 
-import passkeys
-
 from flask import (
-    Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for,
+    Blueprint,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
+
+import passkeys
 
 bp = Blueprint("auth", __name__)
 

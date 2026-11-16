@@ -115,7 +115,8 @@ def test_saves_report_new_version(client):
     v0 = version(client)
     res = client.post("/api/notes", json={"title": "메모"})
     assert res.headers["X-Data-Version"] == str(v0 + 1)
-    assert "X-Data-Version" not in client.get("/api/notes").headers
+    # 0.12.1: 읽기 응답에는 '읽기 시작할 때의 번호'가 붙는다 (화면이 받은 내용을 기억해 둘지 판단)
+    assert client.get("/api/notes").headers["X-Data-Version"] == str(v0 + 1)
 
 
 def test_api_responses_are_not_cached(client):
@@ -124,7 +125,7 @@ def test_api_responses_are_not_cached(client):
 
 # ---------------------------------------------------------------- 시연용 (--demo)
 def test_demo_calendar_is_filled_around_today(tmp_path):
-    from datetime import date, timedelta
+    from datetime import date
 
     import demo
 

@@ -17,11 +17,13 @@ import getpass
 import mimetypes
 import os
 import sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from flask import Flask, render_template, request, session
+from flask import Flask, g, render_template, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-import api_tools  # noqa: F401  루틴·루틴 기록·기록지·D-day·시간 돌아보기·빠른 입력 주소를 같은 /api 묶음에 등록
+import api_tools  # 루틴·루틴 기록·기록지·D-day·시간 돌아보기·빠른 입력 주소를 같은 /api 묶음에 등록
 import auth
 import db
 import demo
@@ -38,7 +40,9 @@ APP_SHORT_NAME = "Onlyforme"   # 휴대폰 홈 화면 아이콘 아래 이름 (�
 
 # 버전 (유의적 버전 MAJOR.MINOR.PATCH) — ⚙ 설정 메뉴 맨 아래에 보인다.
 # 새 기능을 넣으면 가운데 숫자(0.9.0 → 0.10.0), 고치기만 했으면 끝 숫자(0.9.0 → 0.9.1)를 올린다.
-APP_VERSION = "0.12.0"
+APP_VERSION = "0.12.1"
+
+KST = ZoneInfo("Asia/Seoul")  # 첫 화면에 실어 보낼 '오늘' (서버 시계는 한국이 아닐 수 있다)
 
 # 홈 화면 설치용 manifest 파일의 형식을 브라우저에 올바르게 알려 준다.
 mimetypes.add_type("application/manifest+json", ".webmanifest")
@@ -86,10 +90,28 @@ def create_app(database_path=None, production=False, demo_mode=False):
 
     @app.get("/")
     def index():
+        # 첫 화면에 바로 필요한 내용을 페이지에 같이 실어 보낸다 (0.12.1, api_tools.boot_data)
+        # → 페이지를 받은 뒤 서버에 다시 묻는 왕복이 없어서 열자마자 일정이 보인다. 실패해도 페이지는 그대로 연다.
+        try:
+            boot = api_tools.boot_data(db.get_db(), request.args, datetime.now(KST).date())
+        except Exception:
+            app.logger.exception("첫 화면 내용을 만들지 못했어요 (화면이 따로 받아 옵니다)")
+            boot = None
         return render_template(
             "index.html", login_enabled=auth.login_required(), demo=app.config["DEMO"],
-            bio_lock=bool(session.get("bio_lock")),
+            bio_lock=bool(session.get("bio_lock")), boot=boot,
         )
+
+    @app.before_request
+    def remember_version():
+        # 읽기(GET) 응답에 '읽기 시작할 때의 변경 번호'를 붙인다 (0.12.1).
+        # 화면은 이 번호가 지금 번호와 같은 동안 받은 내용을 다시 묻지 않고 그대로 쓴다 (api.js의 기억해 두기).
+        # 읽는 도중에 다른 저장이 끼어들어도, 시작할 때의 번호를 붙이므로 그 내용은 곧 '옛것'으로 판정된다.
+        if request.method == "GET" and request.path.startswith("/api/"):
+            try:
+                g.data_version = db.current_version(db.get_db())
+            except Exception:  # 데이터 파일을 못 여는 경우 등: 번호 없이 그대로 응답
+                g.data_version = None
 
     @app.after_request
     def after(response):
@@ -102,6 +124,8 @@ def create_app(database_path=None, production=False, demo_mode=False):
             db.bump_version(db.get_db())
             # 이 저장으로 몇 번이 됐는지 알려 준다 → 화면이 '내가 바꾼 것만 있었는지'를 정확히 판단 (sync.js)
             response.headers["X-Data-Version"] = str(db.current_version(db.get_db()))
+        elif request.method == "GET" and g.get("data_version") is not None and response.status_code == 200:
+            response.headers["X-Data-Version"] = str(g.data_version)
 
         # 2) 저장 기간 정하기 + 압축 (assets.py)
         #    지문 붙은 JS/CSS는 1년 저장, 첫 화면은 매번 확인(no-cache), API는 저장 안 함(no-store)

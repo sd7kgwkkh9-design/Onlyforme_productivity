@@ -18,17 +18,19 @@ def test_index_uses_fingerprinted_urls_and_import_map(client):
     assert f"/static/css/style.css?v={digest('css/style.css')}" in html
     assert f"/static/js/main.js?v={digest('js/main.js')}" in html
     assert '<script type="importmap">' in html
-    # 모든 JS 모듈이 import map과 미리 불러오기에 들어 있다
+    # 모든 JS 모듈이 import map에 들어 있고, 첫 화면에 쓰는 모듈만 미리 불러온다 (0.12.1: 누를 때만 쓰는 모듈은 나중에)
+    later = {"links.js", "security.js", "webauthn.js", "stats.js", "weekly.js", "gate.js", "shared.js"}
     for name in os.listdir(os.path.join(STATIC, "js")):
         assert f'"/static/js/{name}": "/static/js/{name}?v={digest("js/" + name)}"' in html
-        assert f'rel="modulepreload" href="/static/js/{name}?v=' in html
+        preloaded = f'rel="modulepreload" href="/static/js/{name}?v=' in html
+        assert preloaded == (name not in later), name
 
 
 def test_cache_headers(client):
     v = digest("css/style.css")
     assert client.get(f"/static/css/style.css?v={v}").headers["Cache-Control"] == "public, max-age=31536000, immutable"
     assert client.get("/static/css/style.css").headers["Cache-Control"] == "no-cache"   # 지문 없는 주소는 매번 확인
-    assert client.get("/").headers["Cache-Control"] == "no-cache"
+    assert client.get("/").headers["Cache-Control"] == "no-store"   # 0.12.1: 첫 화면에 일정 내용이 실려 있다
     assert client.get("/api/version").headers["Cache-Control"] == "no-store"
     font = next(n for n in os.listdir(os.path.join(STATIC, "vendor/fonts/jua/files")) if n.endswith(".woff2"))
     assert client.get(f"/static/vendor/fonts/jua/files/{font}").headers["Cache-Control"] == "public, max-age=2592000"

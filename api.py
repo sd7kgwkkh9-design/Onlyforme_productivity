@@ -95,7 +95,7 @@ def parse_date(value, field="날짜"):
     try:
         Date.fromisoformat(value)
     except ValueError:
-        raise ApiError(f"존재하지 않는 {field}예요: {value}")
+        raise ApiError(f"존재하지 않는 {field}예요: {value}") from None
     return value
 
 
@@ -138,7 +138,7 @@ def parse_item_payload(data, db):
         try:
             category_id = int(category_id)
         except (TypeError, ValueError):
-            raise ApiError("카테고리 값이 올바르지 않아요.")
+            raise ApiError("카테고리 값이 올바르지 않아요.") from None
         if not db.execute("SELECT 1 FROM categories WHERE id = ?", (category_id,)).fetchone():
             raise ApiError("카테고리를 찾을 수 없어요.", 404)
 
@@ -641,16 +641,19 @@ def korean_holidays(year):
     return {d.isoformat(): name for d, name in sorted(kr.items())}
 
 
-@bp.get("/holidays")
-def list_holidays():
-    start, end = parse_range()
+def holiday_list(start, end):
+    """[start, end) 기간의 공휴일 [{date, name}] (holidays 패키지가 없으면 빈 목록)"""
     if holidays_lib is None:
         current_app.logger.warning("holidays 패키지가 없어 공휴일을 표시하지 않아요. pip install -r requirements.txt")
-        return jsonify([])
+        return []
+    return [
+        {"date": d, "name": name}
+        for year in range(int(start[:4]), int(end[:4]) + 1)
+        for d, name in korean_holidays(year).items()
+        if start <= d < end
+    ]
 
-    result = []
-    for year in range(int(start[:4]), int(end[:4]) + 1):
-        for d, name in korean_holidays(year).items():
-            if start <= d < end:
-                result.append({"date": d, "name": name})
-    return jsonify(result)
+
+@bp.get("/holidays")
+def list_holidays():
+    return jsonify(holiday_list(*parse_range()))

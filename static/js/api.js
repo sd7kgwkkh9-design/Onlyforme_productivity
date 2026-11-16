@@ -10,7 +10,69 @@ for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
   window.addEventListener(type, () => { active = true; }, { passive: true, capture: true });
 }
 
-async function request(method, url, body, { poll = false } = {}) {
+// ---------------------------------------------------------------- 받은 내용 기억해 두기 (0.12.1)
+// 서버는 읽기 응답마다 '읽기 시작할 때의 변경 번호'를 붙여 준다(X-Data-Version).
+// 그 번호가 지금 알고 있는 최신 번호와 같으면 그 뒤로 아무것도 바뀌지 않은 것이므로, 같은 주소는 서버에 다시 묻지 않고
+// 기억해 둔 내용을 바로 쓴다 → 가 봤던 달·날짜는 기다림 없이 바로 열린다.
+// - 이 기기에서 저장하면(응답의 새 번호) 또는 다른 기기에서 바뀐 것을 알아채면(sync.js) 번호가 바뀌어 기억한 내용은 모두 '옛것'이 된다.
+// - 같은 주소를 동시에 두 번 부르면(미리 받기 + 누르기) 한 번만 보낸다.
+// - 기억한 내용은 복사본을 돌려준다(부른 쪽이 고쳐도 기억한 내용은 그대로).
+let latest = null;          // 지금 알고 있는 최신 변경 번호
+const memo = new Map();     // 주소 → { v: 변경 번호, data }
+const inflight = new Map(); // 주소 → 보내는 중인 요청
+const MEMO_MAX = 80;
+
+const clone = (data) => (typeof structuredClone === 'function' ? structuredClone(data) : JSON.parse(JSON.stringify(data)));
+
+/** 동기화 확인(sync.js)이 받은 서버의 지금 번호 */
+export function setLatestVersion(v) {
+  if (Number.isFinite(v)) latest = v;
+}
+
+function raiseVersion(v) {
+  if (Number.isFinite(v) && (latest === null || v > latest)) latest = v;
+}
+
+function remember(url, v, data) {
+  memo.delete(url); // 맨 뒤로 (가장 최근)
+  memo.set(url, { v, data });
+  if (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value);
+}
+
+// 첫 화면에 필요한 내용은 서버가 페이지에 같이 실어 보낸다 (index.html의 #boot, api_tools.boot_data).
+// 받은 내용처럼 기억해 두면, 화면이 처음 부르는 요청들이 서버에 가지 않고 바로 끝난다.
+// (기기 날짜가 한국과 다르거나 주소가 달라 글자가 안 맞으면 평소처럼 서버에서 받는다)
+export let bootVersion = null;
+try {
+  const boot = JSON.parse(document.getElementById('boot')?.textContent || 'null');
+  if (boot && Number.isFinite(boot.v)) {
+    bootVersion = latest = boot.v;
+    for (const [url, data] of Object.entries(boot.get)) remember(url, boot.v, data);
+  }
+} catch {
+  // 실린 내용이 깨졌으면 무시하고 평소처럼 받는다
+}
+
+/** 기억해 둔 내용이 아직 최신이면 그것을, 아니면 서버에서 받아 온다 */
+function cachedGet(url) {
+  const hit = memo.get(url);
+  if (hit && latest !== null && hit.v === latest) return Promise.resolve(clone(hit.data));
+  let pending = inflight.get(url);
+  if (!pending) {
+    pending = request('GET', url, undefined, { keep: true }).finally(() => inflight.delete(url));
+    inflight.set(url, pending);
+  }
+  return pending.then(clone);
+}
+
+/** 화면이 곧 쓸 것 같은 내용을 미리 받아 두기 (실패해도 조용히) */
+function prefetchGet(url) {
+  const hit = memo.get(url);
+  if ((hit && latest !== null && hit.v === latest) || inflight.has(url)) return;
+  cachedGet(url).catch(() => {});
+}
+
+async function request(method, url, body, { poll = false, keep = false } = {}) {
   const options = { method, headers: {} };
   if (poll && active) {
     options.headers['X-Active'] = '1';
@@ -40,18 +102,34 @@ async function request(method, url, body, { poll = false } = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `요청이 실패했어요. (${res.status})`);
-  const version = res.headers.get('X-Data-Version');
-  if (version && hooks.onVersion) hooks.onVersion(Number(version));
+  const header = res.headers.get('X-Data-Version');
+  const version = header === null ? NaN : Number(header);
+  if (method === 'GET') {
+    // 읽기: 그 사이 다른 기기에서 바뀌었으면 번호가 올라가 있다 → 기억한 다른 내용도 옛것이 된다
+    raiseVersion(version);
+    if (keep && Number.isFinite(version)) remember(url, version, data);
+  } else if (Number.isFinite(version)) {
+    // 저장·삭제: 기억한 내용은 모두 옛것 + 동기화에 '내가 바꾼 것'이라고 알린다
+    raiseVersion(version);
+    hooks.onVersion?.(version);
+  }
   return data;
 }
 
 const q = (params) => new URLSearchParams(params).toString();
 
+/** 곧 열 것 같은 화면의 내용을 미리 받아 둔다 (0.12.1) — 달을 넘기거나 날짜를 누르는 순간 바로 보이게 */
+export const prefetch = {
+  calendar: (start, end) => prefetchGet(`/api/calendar?${q({ start, end })}`),
+  day: (date) => prefetchGet(`/api/day/${date}`),
+};
+
 export const api = {
   // 화면별로 묶어 받기 (요청 수 줄이기)
-  calendar: (start, end) => request('GET', `/api/calendar?${q({ start, end })}`), // 월간·주간: 일정 + 루틴 기록
-  day: (date) => request('GET', `/api/day/${date}`),                              // 하루: 일정 + 루틴 기록 + 루틴 버튼
-  inbox: () => request('GET', '/api/inbox'),                                       // 기록지: 메모 + 목표 + 할 일
+  // (cachedGet: 바뀐 것이 없으면 서버에 다시 묻지 않는다 — 위 '받은 내용 기억해 두기')
+  calendar: (start, end) => cachedGet(`/api/calendar?${q({ start, end })}`), // 월간·주간: 일정 + 루틴 기록
+  day: (date) => cachedGet(`/api/day/${date}`),                              // 하루: 일정 + 루틴 기록 + 루틴 버튼
+  inbox: () => cachedGet('/api/inbox'),                                       // 기록지: 메모 + 목표 + 할 일
 
   // 일정 (날짜 없는 일정 = 할 일)
   undated: () => request('GET', '/api/items/undated'),
@@ -67,7 +145,7 @@ export const api = {
   copyItem: (id, dates) => request('POST', `/api/items/${id}/copy`, { dates }),
 
   // 루틴
-  routines: (date) => request('GET', date ? `/api/routines?${q({ date })}` : '/api/routines'),
+  routines: (date) => cachedGet(date ? `/api/routines?${q({ date })}` : '/api/routines'),
   createRoutine: (payload) => request('POST', '/api/routines', payload),
   updateRoutine: (id, payload) => request('PUT', `/api/routines/${id}`, payload),
   deleteRoutine: (id) => request('DELETE', `/api/routines/${id}`),
@@ -97,7 +175,7 @@ export const api = {
   setMark: (date, payload) => request('PUT', `/api/days/${date}/mark`, payload),
 
   // 달력 위 띠(배너·D-day), 시간 돌아보기, 빠른 입력
-  overview: (today) => request('GET', `/api/overview?${q({ today })}`),
+  overview: (today) => cachedGet(`/api/overview?${q({ today })}`),
   stats: (start, end) => request('GET', `/api/stats?${q({ start, end })}`),
   parse: (text, today) => request('GET', `/api/parse?${q({ text, today })}`),
 
@@ -120,10 +198,10 @@ export const api = {
   setLock: (on) => request('POST', '/auth/passkey/lock', { on }),
 
   // 공휴일
-  holidays: (start, end) => request('GET', `/api/holidays?${q({ start, end })}`),
+  holidays: (start, end) => cachedGet(`/api/holidays?${q({ start, end })}`),
 
   // 카테고리
-  categories: () => request('GET', '/api/categories'),
+  categories: () => cachedGet('/api/categories'),
   createCategory: (payload) => request('POST', '/api/categories', payload),
   updateCategory: (id, payload) => request('PUT', `/api/categories/${id}`, payload),
   deleteCategory: (id) => request('DELETE', `/api/categories/${id}`),

@@ -325,7 +325,11 @@ function renderMenu(loginEnabled, appName, version) {
           'Face ID · 패스키…', hooks.bioLock ? el('span', { class: 'menu-size-name' }, '🔒 이 기기 잠금') : null)
       : null,
     loginEnabled
-      ? el('form', { class: 'menu-logout', method: 'post', action: '/logout' },
+      ? el('form', {
+          class: 'menu-logout', method: 'post', action: '/logout',
+          // 이 기기에 기억해 둔 띠 내용(배너 글귀·목표)은 로그아웃할 때 지운다 (strip.js)
+          onsubmit: () => { try { localStorage.removeItem('my-calendar:strip'); } catch { /* 무시 */ } },
+        },
           el('button', { type: 'submit', role: 'menuitem', class: 'menu-choice danger' }, '이 기기에서 로그아웃'))
       : null, // 로그인을 쓰지 않으면(비밀번호 없이 내 컴퓨터에서 실행) 로그아웃은 없다
     // 맨 아래: 앱 이름과 버전 (app.py의 APP_VERSION)

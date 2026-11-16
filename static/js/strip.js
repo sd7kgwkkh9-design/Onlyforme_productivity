@@ -8,10 +8,15 @@
 // - D-day 칩을 누르면 그 날짜가 열린다. 🎯 목표 칩(0.9.0)을 누르면 기록지의 그 목표가 열린다.
 // - 오늘 비 소식(강수확률 50% 이상인 시간)이 있으면 ☂ 칩으로 알려 준다 (weather.js).
 // - 아무것도 없으면 띠 전체를 숨긴다.
+// - 0.12.1: 마지막으로 받은 띠 내용을 이 기기에 기억해 두었다가, 앱을 열면 서버 응답을 기다리지 않고 먼저 그린다.
+//   (예전에는 응답이 온 뒤에 띠가 생기면서 달력이 아래로 밀렸다 → 화면이 덜컹거림) 그다음 새 내용으로 조용히 바꾼다.
+//   로그아웃하면 지운다 (settings.js).
 
 import { api } from './api.js';
 import { ddayLabel, el, formatShort, todayStr } from './utils.js';
 import { rainAlert } from './weather.js';
+
+export const STRIP_KEY = 'my-calendar:strip';
 
 // 날마다 바뀌는 순번: 목록에서 오늘 보여 줄 하나를 고른다
 function pickToday(list) {
@@ -41,11 +46,19 @@ export class TopStrip {
     this.onOpenGoal = onOpenGoal;
     this.onOpenGoals = onOpenGoals;
     this.data = null; // 마지막으로 받은 /api/overview (날씨만 바뀌었을 때 다시 그리려고)
+    try {
+      const saved = JSON.parse(localStorage.getItem(STRIP_KEY) || 'null');
+      if (saved?.today === todayStr()) {
+        this.data = saved.data;
+        this.render();
+      }
+    } catch { /* 기억한 게 없거나 못 읽으면 서버 응답을 기다린다 */ }
   }
 
   async refresh() {
     this.data = await api.overview(todayStr());
     this.render();
+    try { localStorage.setItem(STRIP_KEY, JSON.stringify({ today: todayStr(), data: this.data })); } catch { /* 무시 */ }
     return this.data;
   }
 

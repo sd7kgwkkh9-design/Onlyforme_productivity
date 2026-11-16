@@ -7,7 +7,7 @@
 // 날짜를 누르면 월간 화면과 똑같이 그 날짜의 일정이 열린다.
 // 일정·루틴 기록을 두 손가락 클릭(오른쪽 클릭)하면 메뉴가 뜬다 (0.9.0, 메뉴 내용은 main.js).
 
-import { api } from './api.js';
+import { api, prefetch } from './api.js';
 import { slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
 import { WEEKDAYS, addDays, el, formatLong, formatTimeRange, parseDateStr, toDateStr, todayStr } from './utils.js';
@@ -94,6 +94,13 @@ export class WeekView {
       holidaysBetween(start, end),
     ]);
     if (token !== this.token) return;
+    // 지난주·다음 주를 미리 받아 둔다 → 넘기는 순간 바로 보인다 (0.12.1, api.js)
+    idle(() => {
+      for (const range of [[end, addDays(end, 7)], [addDays(start, -7), start]]) {
+        prefetch.calendar(...range);
+        holidaysBetween(...range);
+      }
+    });
 
     setMarks(marks, start, end); // 날짜 스티커·형광펜 (decor.js)
     const holidayOf = new Map(holidays.map((h) => [h.date, h.name]));
@@ -205,6 +212,9 @@ export class WeekView {
     );
   }
 }
+
+// 브라우저가 한가할 때 하기 (사파리처럼 requestIdleCallback이 없으면 잠깐 뒤에)
+const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 300));
 
 // 시작 시간이 있는 일정에 '그 시간의 날씨'를 붙일 수 있게 표시해 둔다 (weather.js의 decorateTimed)
 function wxData(o, compact) {

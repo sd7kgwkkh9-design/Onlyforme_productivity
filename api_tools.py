@@ -58,8 +58,18 @@ from datetime import timedelta
 from flask import jsonify, request
 
 import quickadd
-from api import ApiError, bp, json_body, occurrence_list, parse_date, parse_range, parse_time, undated_items
-from db import get_db
+from api import (
+    ApiError,
+    bp,
+    holiday_list,
+    json_body,
+    occurrence_list,
+    parse_date,
+    parse_range,
+    parse_time,
+    undated_items,
+)
+from db import current_version, get_db
 
 MAX_ROUTINES = 30
 MAX_ROUTINE_NAME = 30
@@ -312,37 +322,100 @@ def logs_between(db, start, end):
     return [log_dict(r) for r in log_rows(db, "WHERE l.date >= ? AND l.date < ?", (start, end))]
 
 
+def calendar_data(db, start, end):
+    return {"items": occurrence_list(db, start, end), "logs": logs_between(db, start, end), "marks": marks_between(db, start, end)}
+
+
+def day_data(db, day):
+    nxt = (Date.fromisoformat(day) + timedelta(days=1)).isoformat()
+    return {
+        "items": occurrence_list(db, day, nxt),
+        "logs": logs_between(db, day, nxt),
+        "routines": [routine_dict(r) for r in routine_rows(db, day)],
+        "mark": next(iter(marks_between(db, day, nxt)), None),
+    }
+
+
+def inbox_data(db):
+    return {
+        "notes": [note_dict(r) for r in db.execute("SELECT * FROM notes ORDER BY position, id")],
+        "goals": goal_list(db),
+        "todos": undated_items(db),
+    }
+
+
 @bp.get("/calendar")
 def calendar_range():
     """월간·주간 화면: [start, end) 기간의 일정(날짜별) + 루틴 기록 + 날짜 꾸밈(스티커·형광펜)"""
-    db = get_db()
     start, end = parse_range()
-    return jsonify(items=occurrence_list(db, start, end), logs=logs_between(db, start, end), marks=marks_between(db, start, end))
+    return jsonify(calendar_data(get_db(), start, end))
 
 
 @bp.get("/day/<day>")
 def day_detail(day):
     """하루 화면: 그날 일정 + 루틴 기록 + 루틴 버튼(그날 기준 마지막으로 기록한 날) + 그날의 꾸밈(스티커·형광펜)"""
-    db = get_db()
-    day = parse_date(day)
-    nxt = (Date.fromisoformat(day) + timedelta(days=1)).isoformat()
-    return jsonify(
-        items=occurrence_list(db, day, nxt),
-        logs=logs_between(db, day, nxt),
-        routines=[routine_dict(r) for r in routine_rows(db, day)],
-        mark=next(iter(marks_between(db, day, nxt)), None),
-    )
+    return jsonify(day_data(get_db(), parse_date(day)))
 
 
 @bp.get("/inbox")
 def inbox():
     """기록지 한 번에: 메모(notes) + 목표(goals) + 할 일(날짜 없는 일정)"""
-    db = get_db()
-    return jsonify(
-        notes=[note_dict(r) for r in db.execute("SELECT * FROM notes ORDER BY position, id")],
-        goals=goal_list(db),
-        todos=undated_items(db),
-    )
+    return jsonify(inbox_data(get_db()))
+
+
+# ======================================================================== 첫 화면에 실어 보내기 (0.12.1)
+# 인터넷 서버는 멀리 있어서, 페이지를 받은 뒤 다시 '일정 주세요'를 묻는 데 왕복 시간이 한 번 더 든다.
+# 첫 화면에 바로 필요한 내용(그 달 일정, 오른쪽 칸의 하루, 위쪽 띠, 기록지, 공휴일)을 페이지에 같이 실어 보낸다.
+# 화면(api.js)은 이것을 '이미 받은 내용'으로 기억해 두고, 같은 주소를 부르면 서버에 묻지 않고 바로 쓴다.
+# 주소는 화면이 만드는 것과 글자 하나까지 같아야 한다 (static/js/api.js).
+def _month(value):
+    try:
+        y, m = (int(x) for x in value.split("-"))
+        return Date(y, m, 1)
+    except (AttributeError, ValueError):
+        return None
+
+
+def _day(value):
+    try:
+        return Date.fromisoformat(value) if value and len(value) == 10 else None
+    except ValueError:
+        return None
+
+
+def _sunday(d):
+    """그 날이 든 주의 일요일 (달력은 일요일부터)"""
+    return d - timedelta(days=(d.weekday() + 1) % 7)
+
+
+def month_range(first):
+    """월간 화면이 받아 오는 기간: 1일이 든 주의 일요일 ~ 말일이 든 주의 다음 일요일 (main.js의 monthRange와 같다)"""
+    nxt = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return _sunday(first), _sunday(nxt - timedelta(days=1)) + timedelta(days=7)
+
+
+def boot_data(db, args, today):
+    """첫 화면용 {v: 변경 번호, get: {주소: 내용}} — 주소(args)의 ?month= ?week= ?day= 를 화면과 같은 규칙으로 읽는다"""
+    version = current_version(db)  # 읽기 전에 (읽는 도중 바뀌면 화면이 곧 옛것으로 판정하도록)
+    day = _day(args.get("day"))
+    first = _month(args.get("month")) or (day or today).replace(day=1)
+    ranges = [month_range(first)]
+    week = _day(args.get("week"))
+    if week:
+        ranges.append((_sunday(week), _sunday(week) + timedelta(days=7)))
+
+    get = {}
+    years = set()
+    for start, end in ranges:
+        get[f"/api/calendar?start={start}&end={end}"] = calendar_data(db, start.isoformat(), end.isoformat())
+        years.update(range(start.year, (end - timedelta(days=1)).year + 1))
+    for y in sorted(years):
+        get[f"/api/holidays?start={y}-01-01&end={y + 1}-01-01"] = holiday_list(f"{y}-01-01", f"{y + 1}-01-01")
+    selected = (day or today).isoformat()
+    get[f"/api/day/{selected}"] = day_data(db, selected)
+    get[f"/api/overview?today={today}"] = overview_data(db, today)
+    get["/api/inbox"] = inbox_data(db)
+    return {"v": version, "get": get}
 
 
 # ======================================================================== 기록지

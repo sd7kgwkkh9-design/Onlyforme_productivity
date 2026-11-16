@@ -6,7 +6,7 @@ import pytest
 # 테스트 파일에서 프로젝트 루트의 app.py, db.py를 import할 수 있게 경로 추가
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import create_app  # noqa: E402
+from app import create_app
 
 
 @pytest.fixture

@@ -67,7 +67,7 @@ def test_routine_logs_crud_order_and_last_date(client):
     assert res.get_json()["start_time"] is None
 
     assert client.delete(f"/api/routine-logs/{a['id']}").status_code == 200
-    assert client.get(f"/api/routines?date=2026-11-30").get_json()[0]["log_count"] == 1
+    assert client.get("/api/routines?date=2026-11-30").get_json()[0]["log_count"] == 1
 
 
 def test_routine_logs_are_separate_from_schedules(client):

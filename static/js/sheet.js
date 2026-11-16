@@ -177,8 +177,11 @@ export class Sheet {
   async renderDay({ keepContent = true } = {}) {
     const date = this.day;
     this.setHead(formatLong(date), date === todayStr() ? '오늘' : '');
-    // 같은 날짜를 새로 고칠 때는 '불러오는 중'으로 깜빡이지 않게 기존 내용을 그대로 둔다
-    if (!keepContent || !this.bodyEl.querySelector('.item-list, .empty, .routine-day')) this.loading();
+    // 0.12.1: 다른 날짜로 바꿀 때도 '불러오는 중'으로 비우지 않고, 보던 목록을 흐리게 둔 채 새 내용으로 바꾼다
+    // (미리 받아 둔 날짜는 바로 바뀌어서 흐려지는 것도 보이지 않는다 — api.js의 기억해 두기, main.js의 미리 받기)
+    const hasList = this.bodyEl.querySelector('.item-list, .empty, .routine-day');
+    if (!hasList) this.loading();
+    else if (!keepContent) this.bodyEl.classList.add('is-busy');
 
     let list;
     let routines;
@@ -187,8 +190,12 @@ export class Sheet {
     try {
       ({ items: list, logs, routines, mark } = await api.day(date)); // 일정 + 루틴 기록 + 루틴 버튼 + 꾸밈을 한 번에
       setMarks(mark ? [mark] : [], date, addDays(date, 1));
-    } catch (e) { return this.failed(e); }
+    } catch (e) {
+      this.bodyEl.classList.remove('is-busy');
+      return this.failed(e);
+    }
     if (this.view !== 'day' || this.day !== date) return; // 그 사이 다른 화면으로 바뀌었으면 무시
+    this.bodyEl.classList.remove('is-busy');
 
     // 1) 일정
     let schedule;

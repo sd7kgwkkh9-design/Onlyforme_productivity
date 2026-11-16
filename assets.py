@@ -73,14 +73,17 @@ class Assets:
 
     def cache_headers(self, response):
         path = request.path
-        if path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"     # 동기화가 늘 최신 값을 보도록
+        if path == "/api/holidays":
+            response.headers["Cache-Control"] = "private, max-age=86400"   # 공휴일은 하루 동안 브라우저가 기억 (0.12.1)
+        elif path.startswith("/api/") or path == "/":
+            # 동기화가 늘 최신 값을 보도록. 첫 화면(/)도 0.12.1부터 일정 내용을 실어 보내므로 같은 규칙
+            response.headers["Cache-Control"] = "no-store"
         elif path.startswith("/static/") and request.args.get("v"):
             response.headers["Cache-Control"] = LONG_CACHE
         elif path.startswith("/static/") and path.endswith(".woff2"):
             response.headers["Cache-Control"] = FONT_CACHE
-        elif path == "/" or path.startswith("/static/"):
-            # 지문이 없는 주소(첫 화면, 아이콘 등): 쓰기 전에 바뀌었는지 서버에 물어보기
+        elif path.startswith("/static/"):
+            # 지문이 없는 주소(아이콘, manifest 등): 쓰기 전에 바뀌었는지 서버에 물어보기
             response.headers["Cache-Control"] = "no-cache"
 
     def compress(self, response):

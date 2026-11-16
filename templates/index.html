@@ -9,10 +9,12 @@
       + 모듈을 처음부터 한꺼번에 받기 시작 (modulepreload — main.js를 다 읽은 뒤에야 다음 파일을 아는 '줄줄이 받기'를 막는다) #}
   {% set modules = module_map() %}
   <script type="importmap">{"imports": {{ modules|tojson }}}</script>
-  {% for url in modules.values() %}<link rel="modulepreload" href="{{ url }}">
+  {#- 0.12.1: 누를 때만 쓰는 모듈(공유·구독·위젯, 패스키, 돌아보기, 한 걸음 카드)과 다른 화면 전용 모듈은 미리 받지 않는다 #}
+  {% set later = ['links.js', 'security.js', 'webauthn.js', 'stats.js', 'weekly.js', 'gate.js', 'shared.js'] %}
+  {% for key, url in modules.items() if key.rsplit('/', 1)[-1] not in later %}<link rel="modulepreload" href="{{ url }}">
   {% endfor %}
 </head>
-<body data-view="month" data-login="{{ '1' if login_enabled else '0' }}" data-app-name="{{ app_name }}" data-version="{{ app_version }}" data-bio-lock="{{ '1' if bio_lock else '0' }}"
+<body class="is-booting" data-view="month" data-login="{{ '1' if login_enabled else '0' }}" data-app-name="{{ app_name }}" data-version="{{ app_version }}" data-bio-lock="{{ '1' if bio_lock else '0' }}"
       data-marked="{{ asset_url('vendor/marked/marked.esm.js') }}" data-purify="{{ asset_url('vendor/dompurify/purify.es.js') }}">
   {% if demo %}
   <p class="demo-banner" role="note">
@@ -214,6 +216,10 @@
     setTimeout(function () { if (!window.__appReady) showBootError(); }, 8000);
   </script>
 
+  {% if boot %}
+  <!-- 첫 화면에 필요한 내용 (0.12.1): 페이지를 받자마자 서버에 다시 묻지 않고 그린다 (api.js) -->
+  <script type="application/json" id="boot">{{ boot|tojson }}</script>
+  {% endif %}
   <!-- 오픈소스: FullCalendar v6.1.22 (MIT) — static/vendor/fullcalendar/LICENSE.md -->
   <script src="{{ asset_url('vendor/fullcalendar/fullcalendar.min.js') }}" onerror="showBootError()"></script>
   <script src="{{ asset_url('vendor/fullcalendar/ko.min.js') }}"></script>

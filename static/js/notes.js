@@ -201,7 +201,42 @@ export class NotesPanel {
 
   async reload() {
     await this.load();
+    this.redrawList();
+  }
+
+  redrawList() {
     if (this.isOpen && this.view === 'list') this.showList({ keepCapture: true });
+  }
+
+  // 누르는 즉시 화면부터 바꾸고(낙관적 갱신), 저장은 뒤에서 한다 (0.12.1).
+  // 서버가 멀어서 응답이 0.3~0.5초 걸려도 체크·+1이 바로 보인다. 저장이 실패하면 원래대로 되돌리고 알려 준다.
+  //   change(): this.data를 바로 고친다 / undo(): 되돌린다 / save(): 서버에 저장 (Promise)
+  async optimistic({ change, undo, save }) {
+    change();
+    this.updateBadge();
+    this.redrawList();
+    this.saving = (this.saving || 0) + 1;
+    try {
+      const result = await save();
+      this.saving -= 1;
+      // 서버가 정한 순서·시각으로 맞춘다 (기다리지 않음). 그사이 또 누른 것이 저장 중이면 그 결과를 덮지 않게 건너뛴다.
+      if (!this.saving) {
+        api.inbox().then((data) => {
+          if (this.saving) return;
+          this.data = data;
+          this.updateBadge();
+          this.redrawList();
+        }).catch(() => {});
+      }
+      return result;
+    } catch (e) {
+      this.saving -= 1;
+      undo();
+      this.updateBadge();
+      this.redrawList();
+      toast(e.message, 'error');
+      return undefined;
+    }
   }
 
   setTab(tab) {
@@ -474,15 +509,20 @@ export class NotesPanel {
   }
 
   async toggleTodo(item) {
-    try {
-      await api.setDone(item.id, !item.done);
-      if (!item.done) toast(`'${item.title}' 완료!`, 'info', { action: { label: '되돌리기', run: () => this.undoDone(item) } });
-      await this.reload();
-    } catch (e) { toast(e.message, 'error'); }
+    const next = !item.done;
+    const local = this.data.todos.find((t) => t.id === item.id) || item;
+    const before = { done: local.done, done_at: local.done_at };
+    const saved = await this.optimistic({
+      change: () => Object.assign(local, { done: next, done_at: next ? new Date().toISOString() : null }),
+      undo: () => Object.assign(local, before),
+      save: () => api.setDone(item.id, next),
+    });
+    if (saved !== undefined && next) toast(`'${item.title}' 완료!`, 'info', { action: { label: '되돌리기', run: () => this.undoDone(item) } });
   }
 
   async undoDone(item) {
-    try { await api.setDone(item.id, item.done); await this.reload(); } catch (e) { toast(e.message, 'error'); }
+    const local = this.data.todos.find((t) => t.id === item.id);
+    if (local && local.done) await this.toggleTodo(local);
   }
 
   async pickTodoDate(item) {
@@ -675,13 +715,20 @@ export class NotesPanel {
   }
 
   async stepGoal(g, delta) {
-    try {
-      const next = await api.stepGoal(g.id, delta);
-      if (delta > 0 && next.done) toast(`🎉 '${g.title}' ${next.target}개를 다 채웠어요!`);
-      else if (delta > 0) toast(`${g.title} ${next.current}/${next.target}`, 'info', { action: { label: '되돌리기', run: () => this.stepGoal(next, -1) } });
-      await this.reload();
-      this.onStripChanged();
-    } catch (e) { toast(e.message, 'error'); }
+    const local = this.goal(g.id) || g;
+    const before = { current: local.current, done: local.done };
+    const next = await this.optimistic({
+      change: () => {
+        local.current = Math.max(0, local.current + delta);
+        local.done = local.current >= (local.target || 1);
+      },
+      undo: () => Object.assign(local, before),
+      save: () => api.stepGoal(g.id, delta),
+    });
+    if (next === undefined) return;
+    if (delta > 0 && next.done) toast(`🎉 '${g.title}' ${next.target}개를 다 채웠어요!`);
+    else if (delta > 0) toast(`${g.title} ${next.current}/${next.target}`, 'info', { action: { label: '되돌리기', run: () => this.stepGoal(next, -1) } });
+    this.onStripChanged();
   }
 
   goalRow(g, sortable, nested = false) {
@@ -713,16 +760,22 @@ export class NotesPanel {
   }
 
   async toggleGoal(g) {
-    try {
-      await api.updateGoal(g.id, { done: !g.done });
-      if (!g.done) toast(`🎉 '${g.title}' 이뤘어요!`, 'info', { action: { label: '되돌리기', run: () => this.undoGoal(g) } });
-      await this.reload();
-      this.onStripChanged();
-    } catch (e) { toast(e.message, 'error'); }
+    const local = this.goal(g.id) || g;
+    const next = !local.done;
+    const before = { done: local.done, done_at: local.done_at };
+    const saved = await this.optimistic({
+      change: () => Object.assign(local, { done: next, done_at: next ? new Date().toISOString() : null }),
+      undo: () => Object.assign(local, before),
+      save: () => api.updateGoal(g.id, { done: next }),
+    });
+    if (saved === undefined) return;
+    if (next) toast(`🎉 '${g.title}' 이뤘어요!`, 'info', { action: { label: '되돌리기', run: () => this.undoGoal(g) } });
+    this.onStripChanged();
   }
 
   async undoGoal(g) {
-    try { await api.updateGoal(g.id, { done: g.done }); await this.reload(); this.onStripChanged(); } catch (e) { toast(e.message, 'error'); }
+    const local = this.goal(g.id);
+    if (local && local.done) await this.toggleGoal(local);
   }
 
   async deleteGoal(g) {

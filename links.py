@@ -25,12 +25,30 @@
 import json
 import os
 import secrets
-from datetime import date as Date, datetime, time as Time, timedelta, timezone
+from datetime import date as Date
+from datetime import datetime, timedelta, timezone
+from datetime import time as Time
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    jsonify,
+    render_template,
+    request,
+)
 
-from api import ApiError, bp as api_bp, json_body, korean_holidays, holidays_lib, occurrence_list, parse_range
+from api import (
+    ApiError,
+    holidays_lib,
+    json_body,
+    korean_holidays,
+    occurrence_list,
+    parse_range,
+)
+from api import bp as api_bp
 from api_tools import overview_data
 from db import get_db
 
@@ -231,21 +249,20 @@ def not_found(err):
 # ---------------------------------------------------------------- 보기 전용 공유 링크
 @public.get("/v/<token>")
 def shared_page(token):
-    row, opts = find_link("share", token)
+    row, _ = find_link("share", token)
     return private_headers(Response(render_template("shared.html", label=row["label"], token=token)))
 
 
 @public.get("/v/<token>/events")
 def shared_events(token):
     """공유 화면의 달력이 부른다: 기간의 일정(옵션에 맞게) + 공휴일. 메모는 옵션을 켰을 때만."""
-    row, opts = find_link("share", token)
+    _, opts = find_link("share", token)
     try:
         start, end = parse_range()
     except ApiError as e:
         return private_headers(jsonify(error=e.message)), 400
-    items = []
-    for o in visible_items(get_db(), opts, start, end):
-        items.append({
+    items = [
+        {
             "date": o["date"],
             "title": o["title"],
             "memo": o["memo"] if opts.get("memo") else "",
@@ -253,7 +270,9 @@ def shared_events(token):
             "end_time": o["end_time"],
             "category": {"name": o["category"]["name"], "color": o["category"]["color"]},
             "dday": o["dday"],
-        })
+        }
+        for o in visible_items(get_db(), opts, start, end)
+    ]
     holidays = []
     if holidays_lib is not None:
         for year in range(int(start[:4]), int(end[:4]) + 1):
@@ -335,7 +354,7 @@ def ical_feed(token):
 
     cal.add_missing_timezones()
     res = Response(cal.to_ical(), mimetype="text/calendar")
-    res.headers["Content-Disposition"] = f'inline; filename="onlyforme.ics"'
+    res.headers["Content-Disposition"] = 'inline; filename="onlyforme.ics"'
     res.headers["Cache-Control"] = "no-cache"
     res.headers["X-Robots-Tag"] = "noindex, nofollow"
     return res

@@ -17,15 +17,12 @@
 // 안전 장치: 달력을 가장 먼저 그리고, 나머지 기능은 하나씩 safely()로 감싸서 켠다.
 // 어느 한 기능에 문제가 생겨도(예: 서버를 새 버전으로 바꿨는데 화면 파일 일부가 예전 것) 달력은 계속 보인다.
 
-import { api } from './api.js';
+import { api, prefetch } from './api.js';
 import { openMenu } from './ctxmenu.js';
 import { pickDate } from './datepop.js';
 import { applyMark, decorateMarks, openDecor, setMarks } from './decor.js';
-import { openLinks } from './links.js';
-import { openSecurity } from './security.js';
 import { initShare } from './share.js';
 import { decorateMonth, decorateMonthCell, decorateOne, decorateTimed, decorateWeek, loadWeather, onWeather } from './weather.js';
-import { maybeShowWeekly } from './weekly.js';
 import { attachEdgePager } from './edgepager.js';
 import { onSwipe, slideIn } from './gestures.js';
 import { holidaysBetween } from './holidays.js';
@@ -34,11 +31,29 @@ import { NotesPanel, dragState } from './notes.js';
 import { QuickAdd } from './quick.js';
 import { initSettings } from './settings.js';
 import { Sheet, configureSheets } from './sheet.js';
-import { statsView } from './stats.js';
 import { TopStrip } from './strip.js';
 import { startSync } from './sync.js';
 import { addDays, ask, el, formatShort, formatTimeRange, icon, toDateStr, toast, todayStr } from './utils.js';
 import { WeekView, startOfWeek, weekTitle } from './week.js';
+
+// ============================================================ 필요할 때 불러오는 모듈 (0.12.1)
+// 공유·구독·위젯 창, 패스키 창, 시간 돌아보기, '이번 주 한 걸음' 카드는 누를 때(또는 띄울 때)만 받아 온다.
+// 첫 화면이 읽어야 할 코드가 줄어서 휴대폰에서 더 빨리 뜬다. (주소는 import map이 지문 붙은 주소로 바꿔 준다)
+const later = {
+  links: () => import('./links.js'),
+  security: () => import('./security.js'),
+  stats: () => import('./stats.js'),
+  weekly: () => import('./weekly.js'),
+};
+const openLinks = (tab) => later.links().then((m) => m.openLinks(tab)).catch(loadFailed);
+const openSecurity = () => later.security().then((m) => m.openSecurity()).catch(loadFailed);
+function loadFailed(e) {
+  console.error(e);
+  toast('화면을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.', 'error');
+}
+
+// 브라우저가 한가할 때 하기 (사파리처럼 requestIdleCallback이 없으면 잠깐 뒤에)
+const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 300));
 
 // ============================================================ 안전 장치
 
@@ -205,6 +220,7 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
           decorateMarks(calendarEl);
           success([...items.map(toEvent), ...logs.map(toRoutineEvent)]);
           copyDrag.clearPlaceholders(); // 복사하는 동안 잠깐 보여 준 자리 표시는 진짜 복사본으로 바뀐다
+          idle(prefetchNeighborMonths); // 지난달·다음 달을 미리 받아 둔다 → 넘기는 순간 바로 보인다 (0.12.1)
         } catch (e) {
           failure(e);
           toast(e.message, 'error');
@@ -289,12 +305,49 @@ calendarEl.addEventListener('contextmenu', (e) => {
   ], { title: formatShort(date) });
 });
 
+// 월간 화면이 그 달에 받아 오는 기간: 1일이 든 주의 일요일 ~ 말일이 든 주의 다음 일요일 (fixedWeekCount: false)
+function monthRange(year, month) {
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const start = addDays(toDateStr(first), -first.getDay());
+  const end = addDays(toDateStr(last), 7 - last.getDay());
+  return [start, end];
+}
+
+function prefetchNeighborMonths() {
+  const d = calendar.view.currentStart;
+  for (const step of [1, -1]) {
+    const range = monthRange(d.getFullYear(), d.getMonth() + step);
+    prefetch.calendar(...range);
+    holidaysBetween(...range); // 12월 → 1월처럼 해가 바뀌면 다음 해 공휴일도 (달력은 모든 자료가 와야 한꺼번에 그린다)
+  }
+}
+
 calendar.render();
 window.__appReady = true; // 달력이 그려졌으면 '화면을 불러오지 못했어요' 안내는 띄우지 않는다 (index.html)
+// 첫 화면 보여 주기 (0.12.1): 이 파일의 나머지(띠·하루 칸·기록지)와 페이지에 실려 온 내용까지 다 그린 뒤,
+// 화면에 처음 그려지기 직전에 한 번에 보여 준다 → 띠가 늦게 생기면서 달력이 밀려 내려가는 덜컹거림이 없다.
+requestAnimationFrame(() => document.body.classList.remove('is-booting'));
 safely('상단 제목', updateHeader);
 phone.addEventListener('change', () => safely('상단 제목', updateHeader));
 
 // ============================================================ 2. 날짜 열기 (오른쪽 칸 / 팝업)
+
+// 날짜 칸에 마우스를 올리거나 손가락을 대는 순간 그날 내용을 미리 받아 둔다 (0.12.1).
+// 누르기까지 걸리는 짧은 시간(보통 0.1~0.3초) 동안 받아 와서, 눌렀을 때 하루 화면이 기다림 없이 바로 열린다.
+const DAY_SELECTOR = 'td.fc-daygrid-day[data-date], .wk-day[data-date], .wk-col[data-date]';
+let hoverTimer = 0;
+function warmDay(e) {
+  const date = e.target.closest?.(DAY_SELECTOR)?.dataset.date;
+  if (!date) return;
+  clearTimeout(hoverTimer);
+  if (e.type === 'pointerdown') prefetch.day(date);
+  else hoverTimer = setTimeout(() => prefetch.day(date), 60); // 칸 위를 스쳐 지나갈 때는 받지 않는다
+}
+for (const host of [calendarEl, weekEl]) {
+  host.addEventListener('pointerover', warmDay, { passive: true });
+  host.addEventListener('pointerdown', warmDay, { passive: true });
+}
 
 // 날짜를 누르면: 넓은 화면은 오른쪽 칸이 그 날짜로 바뀌고, 좁은 화면은 팝업이 뜬다.
 function openDay(date) {
@@ -340,10 +393,11 @@ safely('주간 화면', () => {
 });
 
 function showWeek(start, direction = 0, scrollTo = 'today') {
-  if (!weekView) return;
+  if (!weekView) return Promise.resolve();
   state.weekStart = start;
-  weekView.show(start, direction, scrollTo).catch((e) => toast(e.message, 'error'));
+  const shown = weekView.show(start, direction, scrollTo).catch((e) => toast(e.message, 'error'));
   safely('상단 제목', updateHeader);
+  return shown;
 }
 
 // 가로 ⇄ 세로 배치 버튼
@@ -379,13 +433,30 @@ safely('주 넘기기', () => attachEdgePager(weekEl, {
 
 // ============================================================ 4. 보기 전환과 이동
 
+// 화면이 바뀌는 순간을 부드럽게 (View Transitions API: 크롬 111+, 사파리 18+. 없으면 그냥 바꾼다)
+// 바뀐 화면이 그려질 때까지 기다리되, 오래 걸리면(서버가 느리면) 0.15초만 기다리고 넘어간다
+// (전환하는 동안에는 화면이 멈춰 있으므로 오래 붙잡지 않는다)
+function smoothly(change) {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!document.startViewTransition || reduce) { change(); return; }
+  document.startViewTransition(() => Promise.race([
+    Promise.resolve(change()),
+    new Promise((resolve) => { setTimeout(resolve, 150); }),
+  ]));
+}
+
 function setView(view) {
+  if (view === state.view && !(view === 'week' && state.weekStart !== startOfWeek(todayStr()))) return;
+  smoothly(() => applyView(view));
+}
+
+function applyView(view) {
   if (view === 'week' && weekView) {
     // '이번 주' 버튼은 언제 눌러도 오늘이 들어 있는 주로 간다.
     state.view = 'week';
     calendarEl.hidden = true;
     weekEl.hidden = false;
-    showWeek(startOfWeek(todayStr()));
+    return showWeek(startOfWeek(todayStr()));
   } else {
     if (state.view === 'week') calendar.gotoDate(addDays(state.weekStart, 3)); // 보던 주가 속한 달로
     state.view = 'month';
@@ -509,7 +580,7 @@ on($('btn-stats'), 'click', () => {
   const anchor = state.view === 'week'
     ? (todayStr() >= state.weekStart && todayStr() < addDays(state.weekStart, 7) ? todayStr() : state.weekStart)
     : (sameMonth(calendar.view.currentStart, new Date()) ? todayStr() : toDateStr(calendar.view.currentStart));
-  modalSheet.showView('stats', statsView({ mode: state.view, anchor }));
+  later.stats().then(({ statsView }) => modalSheet.showView('stats', statsView({ mode: state.view, anchor }))).catch(loadFailed);
 });
 const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 
@@ -595,11 +666,12 @@ document.addEventListener('dragend', () => setDropTarget(null));
 function flashDate(date) {
   requestAnimationFrame(() => {
     const cell = calendarEl.querySelector(`td.fc-daygrid-day[data-date="${date}"]`) || weekEl.querySelector(`[data-date="${date}"]`);
-    if (!cell) return;
-    cell.classList.remove('is-flash');
-    void cell.offsetWidth; // 같은 칸을 연달아 반짝일 때 애니메이션을 처음부터
-    cell.classList.add('is-flash');
-    setTimeout(() => cell.classList.remove('is-flash'), 1200);
+    if (!cell?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // Web Animations API: 같은 칸을 연달아 반짝여도 처음부터 다시 (예전처럼 클래스를 뗐다 붙이며 화면을 다시 계산시키지 않는다)
+    const accent = getComputedStyle(cell).getPropertyValue('--accent').trim() || '#2347C8';
+    const on = { background: `color-mix(in srgb, ${accent} 22%, transparent)`, boxShadow: `inset 0 0 0 2px ${accent}` };
+    cell.animate([on, { ...on, offset: 0.35 }, { background: 'transparent', boxShadow: 'inset 0 0 0 2px transparent' }],
+      { duration: 1100, easing: 'ease-out' });
   });
 }
 
@@ -629,6 +701,7 @@ const copyDrag = {
   },
   start(info) {
     this.active = true;
+    this.listen(true);
     this.source = info.el.closest('.fc-daygrid-event-harness');
     this.source?.classList.add('is-copy-source');
     this.set(this.isKey(info.jsEvent));
@@ -636,6 +709,7 @@ const copyDrag = {
   stop(info) {
     this.decided = this.on || this.isKey(info.jsEvent);
     this.active = false;
+    this.listen(false);
     this.source?.classList.remove('is-copy-source');
     this.source = null;
     this.set(false);
@@ -671,7 +745,14 @@ const copyDrag = {
     });
   },
 };
-for (const type of ['keydown', 'keyup', 'pointermove', 'mousemove']) document.addEventListener(type, copyDrag.track, true);
+// 키 상태는 끄는 동안에만 지켜본다 (평소 마우스를 움직일 때마다 함수가 불리지 않게)
+const COPY_KEYS_EVENTS = ['keydown', 'keyup', 'pointermove', 'mousemove'];
+copyDrag.listen = (on) => {
+  for (const type of COPY_KEYS_EVENTS) {
+    if (on) document.addEventListener(type, copyDrag.track, true);
+    else document.removeEventListener(type, copyDrag.track, true);
+  }
+};
 
 // 월간 화면에서 일정을 다른 날짜로 끌어다 놓았을 때 (FullCalendar의 eventDrop)
 //   그냥 놓기             → 그 날짜만 옮긴다 (여러 날짜 일정이면 나머지 날짜는 그대로)
@@ -844,12 +925,15 @@ async function deleteLog(log) {
 // ============================================================ 6. 새로 고침과 동기화
 
 // 보이는 화면(월간·주간·오른쪽 칸 목록·기록지)을 모두 새로 불러온다.
+// 0.12.1: 하나씩 차례로 기다리지 않고 한꺼번에 보낸다 (서버가 멀수록 차이가 크다).
 async function reloadViews() {
   calendar.refetchEvents();
-  if (state.view === 'week') await weekView?.refresh();
-  paneSheet?.refreshList();  // 편집 중이면 건드리지 않는다
-  await notes?.refresh();    // 할 일(날짜 없는 일정)이 바뀌었을 수 있다 (쓰고 있는 칸은 건드리지 않는다)
-  await refreshStrip();      // D-day가 바뀌었을 수 있다
+  await Promise.allSettled([
+    state.view === 'week' ? weekView?.refresh() : null,
+    paneSheet?.refreshList(),  // 편집 중이면 건드리지 않는다
+    notes?.refresh(),          // 할 일(날짜 없는 일정)이 바뀌었을 수 있다 (쓰고 있는 칸은 건드리지 않는다)
+    refreshStrip(),            // D-day가 바뀌었을 수 있다
+  ]);
 }
 
 async function refreshStrip() {
@@ -911,6 +995,7 @@ safely('설정', () => initSettings({
   // ⚙ 설정의 '지금 카드 보기': 이번 주에 이미 봤어도 띄운다
   onShowWeekly: async () => {
     await refreshStrip();
+    const { maybeShowWeekly } = await later.weekly();
     const shown = maybeShowWeekly({
       overview: strip?.data, force: true,
       onAdded: async () => { await notes?.reload(); },
@@ -1018,9 +1103,24 @@ onWeather(() => safely('날씨', () => {
 }));
 loadWeather();
 // 달력 위 띠를 처음 받아 온 뒤: 이번 주에 아직 안 봤으면 '이번 주 한 걸음' 카드 (weekly.js)
-refreshStrip().then(() => safely('이번 주 한 걸음', () => maybeShowWeekly({
-  overview: strip?.data,
-  onAdded: async () => { await notes?.reload(); },
-  onOpenGoals: () => notes?.open({ tab: 'goal' }),
-})));
+// (카드를 띄울 차례일 때만 weekly.js를 받아 온다)
+refreshStrip().then(async () => {
+  if (!strip?.data?.year?.goals?.length || !weeklyDue()) return;
+  const { maybeShowWeekly } = await later.weekly();
+  safely('이번 주 한 걸음', () => maybeShowWeekly({
+    overview: strip?.data,
+    onAdded: async () => { await notes?.reload(); },
+    onOpenGoals: () => notes?.open({ tab: 'goal' }),
+  }));
+}).catch(() => {});
+
+// '이번 주 한 걸음'을 띄울 차례인지 (weekly.js와 같은 저장 키: 꺼 두었거나 이번 주에 이미 봤으면 아님)
+function weeklyDue() {
+  try {
+    if (localStorage.getItem('my-calendar:weekly-card') === 'off') return false;
+    const t = new Date();
+    const monday = addDays(todayStr(), t.getDay() === 0 ? -6 : 1 - t.getDay());
+    return localStorage.getItem('my-calendar:weekly-seen') !== monday;
+  } catch { return false; }
+}
 safely('동기화', () => startSync(onRemoteChange));

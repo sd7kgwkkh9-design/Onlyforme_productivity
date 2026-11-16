@@ -20,12 +20,15 @@ function loadYear(year) {
 }
 
 // [start, end) 기간의 공휴일 목록 → [{ date, name }]
+// 기간이 해를 넘어가면(12월 화면은 1월 초까지 보인다) 두 해를 동시에 받는다.
+// end는 그날을 포함하지 않으므로 'YYYY-01-01'로 끝나면 그 해는 받지 않는다.
 export async function holidaysBetween(start, end) {
-  const out = [];
-  for (let y = Number(start.slice(0, 4)); y <= Number(end.slice(0, 4)); y++) {
-    for (const [date, name] of await loadYear(y)) {
-      if (date >= start && date < end) out.push({ date, name });
-    }
-  }
-  return out;
+  const first = Number(start.slice(0, 4));
+  const last = Number(end.slice(0, 4)) - (end.slice(5) === '01-01' ? 1 : 0);
+  const years = [];
+  for (let y = first; y <= last; y++) years.push(loadYear(y));
+  return (await Promise.all(years))
+    .flatMap((map) => [...map])
+    .filter(([date]) => date >= start && date < end)
+    .map(([date, name]) => ({ date, name }));
 }

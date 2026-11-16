@@ -7,11 +7,13 @@
 //   - 앱/탭으로 돌아오는 순간, 창에 다시 포커스할 때, 인터넷이 다시 연결될 때: 바로 확인
 //   - 화면이 안 보이면(다른 앱 사용 중) 확인하지 않음 → 배터리·데이터 절약
 
-import { api, hooks } from './api.js';
+import { api, bootVersion, hooks, setLatestVersion } from './api.js';
 
 const POLL_MS = 4000;
 
-let known = null;      // 마지막으로 반영한 변경 번호
+// 마지막으로 반영한 변경 번호. 첫 화면 내용을 페이지에 실어 받았으면 그 번호부터
+// (페이지를 받은 뒤 첫 확인 사이에 다른 기기에서 바뀌어도 놓치지 않는다)
+let known = bootVersion;
 let checking = false;
 let onRemoteChange = async () => {};
 
@@ -39,6 +41,7 @@ async function check() {
   checking = true;
   try {
     const { version } = await api.version();
+    setLatestVersion(version); // 받은 내용 기억해 두기(api.js)가 이 번호와 같은 것만 그대로 쓴다
     if (known !== null && version !== known) {
       known = version;
       await onRemoteChange();

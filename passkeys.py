@@ -67,7 +67,7 @@ def lib():
         import webauthn
         from webauthn.helpers import structs
     except ImportError:
-        raise PasskeyError("서버에 webauthn 패키지가 없어요. pip install -r requirements.txt 를 실행해 주세요.", 503)
+        raise PasskeyError("서버에 webauthn 패키지가 없어요. pip install -r requirements.txt 를 실행해 주세요.", 503) from None
     return webauthn, structs
 
 
@@ -123,7 +123,7 @@ def rows():
 def has_passkeys():
     try:
         return get_db().execute("SELECT 1 FROM passkeys LIMIT 1").fetchone() is not None
-    except Exception:  # noqa: BLE001 — 표가 아직 없는 아주 예전 데이터 파일
+    except Exception:  # 표가 아직 없는 아주 예전 데이터 파일
         return False
 
 
@@ -197,9 +197,9 @@ def register_verify():
             expected_origin=origin(),
             require_user_verification=True,
         )
-    except Exception as e:  # noqa: BLE001 — 형식이 틀렸거나 서명이 맞지 않음
+    except Exception as e:  # 형식이 틀렸거나 서명이 맞지 않음
         current_app.logger.info("passkey register failed: %s", e)
-        raise PasskeyError("패스키를 확인하지 못했어요. 다시 시도해 주세요.")
+        raise PasskeyError("패스키를 확인하지 못했어요. 다시 시도해 주세요.") from None
     transports = (data.get("credential") or {}).get("response", {}).get("transports") or []
     label = str(data.get("label") or "").strip()[:30] or guess_label()
     db = get_db()
@@ -296,10 +296,10 @@ def auth_verify():
             credential_current_sign_count=row["sign_count"],
             require_user_verification=True,
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         current_app.logger.info("passkey verify failed: %s", e)
         auth._record_fail(ip)
-        raise PasskeyError("패스키를 확인하지 못했어요. 다시 시도해 주세요.", 401)
+        raise PasskeyError("패스키를 확인하지 못했어요. 다시 시도해 주세요.", 401) from None
 
     auth._fails.pop(ip, None)
     db.execute(
