@@ -5,7 +5,7 @@
 // 비밀번호·PIN·패스키·공유 링크는 파일에 들어가지 않는다 (열쇠라서).
 
 import { api } from './api.js';
-import { ask, el, toast } from './utils.js';
+import { ask, el, fillDialog, toast } from './utils.js';
 
 let dialog = null;
 
@@ -22,7 +22,7 @@ export function openBackup() {
 function draw(message = null) {
   const file = el('input', { type: 'file', accept: 'application/json,.json', hidden: true });
   file.addEventListener('change', () => pick(file.files?.[0]));
-  dialog.replaceChildren(el('div', { class: 'dlg-inner' },
+  fillDialog(dialog, el('div', { class: 'dlg-inner' },
     el('header', { class: 'lk-head' },
       el('h2', { id: 'backup-title' }, '백업 · 되살리기'),
       el('button', { type: 'button', class: 'icon-btn', 'aria-label': '닫기', onclick: () => dialog.close() }, '✕')),

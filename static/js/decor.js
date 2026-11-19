@@ -6,7 +6,7 @@
 // - 0.11.0의 형광펜(칸 배경 칠하기)은 0.14.0에서 뺐다. 테마·배경 사진은 기기마다 따로라서 settings.js에 있다.
 
 import { api } from './api.js';
-import { el, formatLong, toast } from './utils.js';
+import { el, fillDialog, formatLong, toast } from './utils.js';
 
 const STICKERS = [
   '⭐', '❤️', '🎂', '🎉', '✈️', '📚', '📝', '💪',
@@ -85,7 +85,7 @@ export function openDecor(date, onChanged = () => {}) {
       el('button', { type: 'submit', class: 'btn sm' }, '붙이기'));
     customForm.addEventListener('submit', (e) => { e.preventDefault(); if (custom.value.trim()) save({ sticker: custom.value.trim() }); });
 
-    dialog.replaceChildren(
+    fillDialog(dialog,
       el('h2', { class: 'decor-title', id: 'decor-title' }, `${formatLong(date)} 스티커`),
       el('div', { class: 'decor-stickers', role: 'group', 'aria-label': '스티커' },
         STICKERS.map((s) => el('button', {

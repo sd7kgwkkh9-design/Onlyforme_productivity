@@ -6,7 +6,7 @@
 //   기본 테마(만년필 파랑)는 data-palette가 없다. 화면이 그려지기 전에 붙이는 코드는 templates/_head.html에 따로 있다.
 // - 기기(브라우저)마다 따로 저장된다. 0.11.0의 '색 테마'(포인트 색 6가지 + 나만의 색)는 이걸로 바꿨다.
 
-import { el } from './utils.js';
+import { el, fillDialog } from './utils.js';
 
 export const LIGHT_KEY = 'my-calendar:theme-light';
 export const DARK_KEY = 'my-calendar:theme-dark';
@@ -98,7 +98,7 @@ export function openThemePicker({ mode, setMode, isDark, onChanged }) {
     const note = m === 'auto'
       ? `기기 설정을 따라가요. 지금은 ${dark ? '어두운' : '밝은'} 화면이라 '${dark ? '어두울 때' : '밝을 때'}' 테마가 보여요.`
       : `지금은 ${m === 'dark' ? '다크' : '라이트'}로 고정이에요. 다른 쪽 테마를 누르면 그쪽으로 바뀌어요.`;
-    dialog.replaceChildren(el('div', { class: 'themes-inner' },
+    fillDialog(dialog, el('div', { class: 'themes-inner' },
       el('header', { class: 'themes-head' },
         el('h2', { id: 'themes-title' }, '테마'),
         el('button', { type: 'button', class: 'icon-btn', 'aria-label': '닫기', onclick: () => dialog.close() }, '✕')),

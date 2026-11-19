@@ -6,7 +6,7 @@
 // 쓰는 곳: 일정 메뉴의 '다른 날로 옮기기·복사', 메모장 할 일의 '날짜 정하기'.
 // 키보드: 화살표로 하루·한 주씩 움직이고 Enter로 고른다. Esc나 바깥을 누르면 취소.
 
-import { WEEKDAYS, addDays, el, formatShort, icon, parseDateStr, todayStr } from './utils.js';
+import { WEEKDAYS, addDays, el, fillDialog, formatShort, icon, parseDateStr, todayStr } from './utils.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -62,7 +62,7 @@ export function pickDate({ title, from = null, hint = '' } = {}) {
       // 이번 달에 focus 날짜가 없으면 1일에 포커스가 가도록
       if (!grid.querySelector('[tabindex="0"]')) grid.querySelector('.picker-day')?.setAttribute('tabindex', '0');
 
-      dialog.replaceChildren(
+      fillDialog(dialog,
         el('div', { class: 'datepop-head' },
           el('h2', { id: 'datepop-title' }, title),
           el('button', { type: 'button', class: 'icon-btn sm', 'aria-label': '닫기', onclick: () => finish(null) }, icon('M6 6l12 12M18 6L6 18')),

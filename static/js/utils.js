@@ -147,12 +147,27 @@ export function topLayerHost() {
   return modals.at(-1) || document.body;
 }
 
+/**
+ * 창(dialog)의 내용을 통째로 바꾼다. 그 창 안으로 옮겨 둔 알림(#toast)은 지우지 않고 남겨 둔다.
+ * (0.14.1 고침: 창 내용을 replaceChildren()으로 통째로 바꾸면 알림 상자까지 같이 지워져서,
+ *  그 뒤로 알림을 띄울 때마다 'box.parentElement' 오류가 났다 — 테마 고르기 창에서 화면 모드를 바꾼 뒤 등)
+ */
+export function fillDialog(dialog, ...nodes) {
+  const keep = dialog.querySelector(':scope > #toast');
+  dialog.replaceChildren(...nodes.filter(Boolean));
+  if (keep) dialog.append(keep);
+}
+
 // ------------------------------------------------------------------ 알림
 // toast('옮겼어요', 'info', { action: { label: '되돌리기', run: () => ... } })
 //   action을 주면 알림 안에 버튼이 생기고, 조금 더 오래(5초) 떠 있다.
 let toastTimer;
 export function toast(message, kind = 'info', { action = null } = {}) {
-  const box = document.getElementById('toast');
+  let box = document.getElementById('toast');
+  if (!box) { // 알림 상자가 어떤 이유로든 사라졌으면 새로 만든다 (알림 하나 때문에 저장이 실패한 것처럼 보이지 않게)
+    box = el('div', { class: 'toast', id: 'toast', popover: 'manual', role: 'status', 'aria-live': 'polite' });
+    document.body.append(box);
+  }
   const host = topLayerHost(); // '되돌리기' 버튼을 팝업 창이 열려 있을 때도 누를 수 있게
   if (box.parentElement !== host) {
     if (box.matches?.(':popover-open')) box.hidePopover();

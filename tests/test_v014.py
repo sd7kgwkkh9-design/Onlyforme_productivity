@@ -132,7 +132,8 @@ def test_backup_download_has_my_data_but_no_keys(client):
     res = client.get("/api/backup")
     assert res.status_code == 200 and "attachment" in res.headers["Content-Disposition"] and ".json" in res.headers["Content-Disposition"]
     data = json.loads(res.data)
-    assert data["app"] == "my-calendar" and data["format"] == 1 and data["version"] == "0.14.0"
+    from app import APP_VERSION
+    assert data["app"] == "my-calendar" and data["format"] == 1 and data["version"] == APP_VERSION
     tables = data["tables"]
     assert {"items", "notes", "diaries", "timetable_blocks", "habits", "anniversaries", "projects"} <= set(tables)
     assert "links" not in tables and "passkeys" not in tables and "meta" not in tables   # 열쇠는 들어가지 않는다
@@ -245,3 +246,20 @@ def test_demo_has_diaries_and_search_finds_them(tmp_path):
     assert c.get("/api/diaries").get_json()["total"] >= 2
     res = c.get("/api/search?q=텀프로젝트&today=2026-11-20").get_json()
     assert {g["kind"] for g in res["groups"]} >= {"event", "project", "diary"}
+
+
+# ================================================================ 0.14.1: 창을 다시 그려도 알림 상자가 사라지지 않게
+def test_dialogs_keep_the_toast_when_redrawn():
+    """0.14.0: 테마 창에서 화면 모드를 바꾸면 알림(#toast)이 그 창 안으로 옮겨진 채 창이 다시 그려져서 함께 지워졌고,
+    그 뒤로 알림을 띄우는 모든 곳(목표 저장 등)에서 'box.parentElement' 오류가 났다."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    folder = os.path.join(root, "static", "js")
+    for name in os.listdir(folder):
+        with open(os.path.join(folder, name), encoding="utf-8") as f:
+            code = f.read()
+        if name != "utils.js":                                       # fillDialog 자기 자신은 빼고
+            assert "dialog.replaceChildren(" not in code, name       # 창은 fillDialog()로 다시 그린다
+    with open(os.path.join(folder, "utils.js"), encoding="utf-8") as f:
+        utils = f.read()
+    assert "export function fillDialog" in utils and "querySelector(':scope > #toast')" in utils
+    assert "if (!box) {" in utils[utils.index("export function toast"):]   # 그래도 없으면 새로 만든다
