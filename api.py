@@ -23,7 +23,7 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   POST   /api/items/<id>/move             한 날짜를 다른 날짜로 옮기기 (달력에서 끌어서 놓기)
   POST   /api/items/<id>/copy             같은 내용으로 새 일정 만들기 (Option/Alt 누르고 끌기)
 
-루틴·루틴 기록·메모장·D-day·시간 돌아보기·빠른 입력 → api_tools.py
+루틴·루틴 기록·메모장·D-day·빠른 입력 → api_tools.py / 일기 → diary.py / 검색 → search.py / 백업 → backup.py (0.14.0)
 
 동기화
   GET    /api/version                     변경 번호 (저장·삭제할 때마다 1씩 커짐)

@@ -83,8 +83,9 @@ export function leavePage(url) {
   window.location.replace(url);
 }
 
-async function request(method, url, body, { poll = false, keep = false } = {}) {
+async function request(method, url, body, { poll = false, keep = false, keepalive = false } = {}) {
   const options = { method, headers: {} };
+  if (keepalive) options.keepalive = true; // 창을 닫는 중에도 끝까지 보내기 (0.14.0: 일기 자동 저장)
   if (poll && active) {
     options.headers['X-Active'] = '1';
     active = false;
@@ -223,13 +224,20 @@ export const api = {
   setPin: (pin, password) => request('POST', '/auth/lock/pin', { pin, password }),
   deletePin: () => request('DELETE', '/auth/lock/pin'),
 
-  // 달력 꾸미기 (0.11.0): 날짜 스티커·형광펜 — 읽기는 calendar / day로 함께 받는다
+  // 달력 꾸미기 (0.11.0): 날짜 스티커 — 읽기는 calendar / day로 함께 받는다
   setMark: (date, payload) => request('PUT', `/api/days/${date}/mark`, payload),
 
-  // 달력 위 띠(배너·D-day), 시간 돌아보기, 빠른 입력
+  // 달력 위 띠(배너·D-day), 빠른 입력
   overview: (today) => cachedGet(`/api/overview?${q({ today })}`),
-  stats: (start, end) => request('GET', `/api/stats?${q({ start, end })}`),
   parse: (text, today) => request('GET', `/api/parse?${q({ text, today })}`),
+
+  // 0.14.0: 일기 (달력의 표시는 calendar, 하루 화면은 day로 함께 받는다), 검색, 백업
+  diaries: (before = '', limit = 40) => request('GET', `/api/diaries?${q({ before, limit })}`),
+  diary: (date) => request('GET', `/api/diaries/${date}`),
+  saveDiary: (date, payload, opts) => request('PUT', `/api/diaries/${date}`, payload, opts),
+  deleteDiary: (date) => request('DELETE', `/api/diaries/${date}`),
+  search: (text, today) => request('GET', `/api/search?${q({ q: text, today })}`),
+  restoreBackup: (data) => request('POST', '/api/backup/restore', data),
 
   // 동기화
   version: () => request('GET', '/api/version', undefined, { poll: true }),

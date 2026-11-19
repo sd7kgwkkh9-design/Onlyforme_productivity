@@ -881,10 +881,10 @@ export class NotesPanel {
     const fields = [title];
     let collect = () => ({});
 
-    const parentSelect = (label, candidates, hint) => {
+    const parentSelect = (label, candidates, hint, none) => {
       if (!candidates.length) return { node: null, value: () => null };
       const select = el('select', { class: 'input', 'aria-label': label },
-        el('option', { value: '' }, '잇지 않음'),
+        el('option', { value: '' }, none),
         candidates.map((c) => el('option', { value: String(c.id), selected: c.id === parentId }, c.title)));
       return { node: el('div', { class: 'field' }, el('label', { class: 'label' }, label), select, el('p', { class: 'field-hint' }, hint)), value: () => (select.value ? Number(select.value) : null) };
     };
@@ -900,7 +900,7 @@ export class NotesPanel {
       due.addEventListener('input', showHint);
       showHint();
       const parent = parentSelect('올해 목표에 묶기', this.data.goals.filter((y) => y.kind === 'year' && (!y.done || y.id === parentId)).map((y) => ({ id: y.id, title: `${y.year} · ${y.title}` })),
-        '묶으면 그 올해 목표 아래에 보여요.');
+        '묶으면 그 올해 목표 아래에 보여요.', '연결되는 올해 목표 없음');
       fields.push(
         el('div', { class: 'field' },
           el('label', { class: 'label' }, '기한'),
@@ -944,7 +944,7 @@ export class NotesPanel {
         }[measure];
       };
       drawMeasure();
-      const parent = parentSelect('어떤 인생 목표를 위한 건가요?', this.data.goals.filter((l) => l.kind === 'life'), '이어 두면 큰 방향과 함께 보여요.');
+      const parent = parentSelect('어떤 인생 목표를 위한 건가요?', this.data.goals.filter((l) => l.kind === 'life'), '이어 두면 큰 방향과 함께 보여요.', '연결되는 인생 목표 없음');
       fields.push(
         el('div', { class: 'field' }, el('label', { class: 'label' }, '진행 방식'), seg, measureHint, countBox, routineBox),
         parent.node,

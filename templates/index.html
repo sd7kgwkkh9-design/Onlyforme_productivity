@@ -9,8 +9,8 @@
       + 모듈을 처음부터 한꺼번에 받기 시작 (modulepreload — main.js를 다 읽은 뒤에야 다음 파일을 아는 '줄줄이 받기'를 막는다) #}
   {% set modules = module_map() %}
   <script type="importmap">{"imports": {{ modules|tojson }}}</script>
-  {#- 0.12.1: 누를 때만 쓰는 모듈(공유·구독·위젯, 패스키, 돌아보기, 한 걸음 카드)과 다른 화면 전용 모듈은 미리 받지 않는다 #}
-  {% set later = ['links.js', 'security.js', 'webauthn.js', 'stats.js', 'weekly.js', 'gate.js', 'shared.js'] %}
+  {#- 0.12.1: 누를 때만 쓰는 모듈(공유·구독·위젯, 패스키, 습관·기념일 창, 검색, 백업)과 다른 화면 전용 모듈은 미리 받지 않는다 #}
+  {% set later = ['links.js', 'security.js', 'webauthn.js', 'habits.js', 'annivs.js', 'search.js', 'backup.js', 'gate.js', 'shared.js'] %}
   {% for key, url in modules.items() if key.rsplit('/', 1)[-1] not in later %}<link rel="modulepreload" href="{{ url }}">
   {% endfor %}
 </head>
@@ -29,6 +29,12 @@
         <span class="tool-label">메모장</span>
         <span class="count tool-count" id="todo-count" hidden>0</span>
       </button>
+      <!-- 챙기기 (0.14.0): 루틴 · 습관 · 기념일 — 반복해서 챙기는 것 (⚙ 설정에 있던 습관·기념일을 꺼냈다) -->
+      <button class="text-btn tool-btn" id="btn-care" type="button" popovertarget="care-menu"
+              aria-haspopup="menu" aria-expanded="false" aria-label="챙기기 (루틴·습관·기념일)" title="챙기기 (루틴·습관·기념일)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/></svg>
+        <span class="tool-label">챙기기</span>
+      </button>
       <button class="icon-btn" id="btn-prev" type="button" aria-label="이전 달">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
       </button>
@@ -41,15 +47,19 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
       </button>
       <button class="text-btn" id="btn-today" type="button">오늘</button>
-      <!-- 시간 돌아보기: 이번 주·이번 달에 시간을 어디에 썼는지 -->
-      <button class="text-btn tool-btn" id="btn-stats" type="button" aria-label="시간 돌아보기" title="시간 돌아보기">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
-        <span class="tool-label">돌아보기</span>
+      <!-- 일기 모아 보기 (0.14.0, '시간 돌아보기' 자리): 쓰는 곳은 하루 화면 아래 (diary.js) -->
+      <button class="text-btn tool-btn" id="btn-diary" type="button" aria-label="일기 모아 보기" title="일기 모아 보기">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6M9 11h4"/></svg>
+        <span class="tool-label">일기</span>
       </button>
       <!-- 주간 화면에서만 보임: 가로(7칸 나란히) ⇄ 세로(위에서 아래로) -->
       <button class="icon-btn layout-btn" id="btn-week-layout" type="button"></button>
     </div>
     <div class="actions">
+      <!-- 검색 (0.14.0, 단축키 /): 일정·노트·할 일·목표·프로젝트·일기 (search.js) -->
+      <button class="icon-btn settings-btn" id="btn-search" type="button" aria-label="검색 (/)" title="검색 (/)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4.2-4.2"/></svg>
+      </button>
       <!-- 빠른 입력: "내일 3시 스터디 #과제" 한 줄로 일정 추가 (단축키 N) -->
       <button class="text-btn tool-btn quick-btn" id="btn-quick" type="button" aria-label="빠른 입력" title="빠른 입력 (N)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
@@ -82,6 +92,7 @@
        popover: 바깥을 누르거나 Esc를 누르면 저절로 닫힌다) -->
   <div class="settings-menu" id="settings-menu" popover role="menu" aria-label="설정"></div>
   <div class="settings-menu share-menu" id="share-menu" popover role="menu" aria-label="공유·인쇄"></div>
+  <div class="settings-menu care-menu" id="care-menu" popover role="menu" aria-label="챙기기"></div>
 
   <!-- 제목을 눌렀을 때 뜨는 빠른 이동 (내용은 jump.js가 그린다) -->
   <div class="jump-menu" id="jump-menu" popover role="dialog" aria-label="날짜로 이동"></div>
@@ -140,7 +151,7 @@
     </aside>
   </div>
 
-  <!-- 팝업 편집 창: 좁은 화면의 날짜 일정, 카테고리 관리, 시간 돌아보기 -->
+  <!-- 팝업 편집 창: 좁은 화면의 날짜 일정, 카테고리 관리, 루틴·습관·기념일, 일기 모아 보기 -->
   <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
     <div class="sheet-inner">
       <header class="sheet-head">

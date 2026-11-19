@@ -91,7 +91,7 @@ export class WeekView {
     const token = ++this.token;
     const keepLeft = this.root.scrollLeft;
 
-    const [{ items, logs, marks, classes = [], annivs = [] }, holidays] = await Promise.all([
+    const [{ items, logs, marks, classes = [], annivs = [], diaries = [] }, holidays] = await Promise.all([
       api.calendar(start, end), // 일정 + 루틴 기록을 한 번에
       holidaysBetween(start, end),
     ]);
@@ -104,7 +104,7 @@ export class WeekView {
       }
     });
 
-    setMarks(marks, start, end); // 날짜 스티커·형광펜 (decor.js)
+    setMarks(marks, start, end, diaries); // 날짜 스티커, 일기 쓴 날 (decor.js)
     const holidayOf = new Map(holidays.map((h) => [h.date, h.name]));
     const itemsOf = new Map();
     for (const o of items) {

@@ -128,30 +128,27 @@ def test_overview_has_year_progress_goals_and_life(client):
 
 
 # ---------------------------------------------------------------- 달력 꾸미기
-def test_day_marks_sticker_and_highlight(client):
-    put(client, "/api/days/2026-11-14/mark", {"sticker": "🎂", "color": "pink"})
-    put(client, "/api/days/2026-11-20/mark", {"color": "yellow"})
+def test_day_marks_sticker(client):
+    put(client, "/api/days/2026-11-14/mark", {"sticker": "🎂"})
+    put(client, "/api/days/2026-11-20/mark", {"sticker": "✈️", "color": "yellow"})   # 형광펜(0.14.0에서 뺌)은 무시
     month = client.get("/api/calendar?start=2026-11-01&end=2026-12-01").get_json()
-    assert month["marks"] == [
-        {"date": "2026-11-14", "sticker": "🎂", "color": "pink"},
-        {"date": "2026-11-20", "sticker": "", "color": "yellow"},
-    ]
+    assert month["marks"] == [{"date": "2026-11-14", "sticker": "🎂"}, {"date": "2026-11-20", "sticker": "✈️"}]
     assert client.get("/api/day/2026-11-14").get_json()["mark"]["sticker"] == "🎂"
     assert client.get("/api/day/2026-11-15").get_json()["mark"] is None
 
-    # 보낸 칸만 바뀐다. 둘 다 비우면 꾸밈이 사라진다
-    assert put(client, "/api/days/2026-11-14/mark", {"sticker": "✈️"}) == {"date": "2026-11-14", "sticker": "✈️", "color": "pink"}
-    put(client, "/api/days/2026-11-14/mark", {"sticker": "", "color": ""})
+    # 비우면 스티커가 떨어진다. 예전 화면이 형광펜만 보내도 아무 일 없다
+    assert put(client, "/api/days/2026-11-14/mark", {"sticker": "⭐"}) == {"date": "2026-11-14", "sticker": "⭐"}
+    put(client, "/api/days/2026-11-14/mark", {"sticker": ""})
+    put(client, "/api/days/2026-11-15/mark", {"color": "pink"})
     assert [m["date"] for m in client.get("/api/calendar?start=2026-11-01&end=2026-12-01").get_json()["marks"]] == ["2026-11-20"]
 
     put(client, "/api/days/2026-11-14/mark", {"sticker": "생일"}, status=400)          # 글자는 스티커가 아니다
-    put(client, "/api/days/2026-11-14/mark", {"color": "#ff0000"}, status=400)
-    put(client, "/api/days/2026-02-30/mark", {"color": "pink"}, status=400)
+    put(client, "/api/days/2026-02-30/mark", {"sticker": "⭐"}, status=400)
 
 
 def test_marks_change_bumps_sync_version(client):
     before = client.get("/api/version").get_json()["version"]
-    put(client, "/api/days/2026-11-14/mark", {"color": "blue"})
+    put(client, "/api/days/2026-11-14/mark", {"sticker": "⭐"})
     assert client.get("/api/version").get_json()["version"] == before + 1
 
 
@@ -183,14 +180,16 @@ def test_v10_database_keeps_goals_as_due_goals(tmp_path):
 
 
 # ---------------------------------------------------------------- 화면 장치
-def test_color_themes_and_background_apply_before_paint(client):
+def test_themes_and_background_apply_before_paint(client):
     html = client.get("/").get_data(as_text=True)
-    for key in ("my-calendar:color", "my-calendar:color-custom", "my-calendar:bg"):
+    for key in ("my-calendar:theme-light", "my-calendar:theme-dark", "my-calendar:bg"):
         assert key in html                                   # _head.html이 화면을 그리기 전에 적용 (번쩍임 방지)
     css = read("static", "css", "style.css")
-    for name in ("green", "orange", "purple", "pink", "mono"):
-        assert f':root[data-color="{name}"]' in css
-    assert ':root[data-color][data-theme="dark"]' in css and ":root[data-bg]" in css
+    # 0.14.0: 색 테마(data-color)는 에디터 테마(data-palette)로 바뀌었다
+    assert "data-color" not in css and "my-calendar:color" not in html
+    for name in ("tokyo-night", "tokyo-storm", "mocha", "nord", "dracula", "latte", "tokyo-day", "rose-dawn", "solarized-light"):
+        assert f':root[data-palette="{name}"]' in css and name in html and f"'{name}'" in read("static", "js", "themes.js")
+    assert ":root[data-bg]" in css
     assert "background-image: none !important" in css[css.index("@media print {"):]   # 배경 사진은 인쇄하지 않는다
 
 
@@ -204,5 +203,6 @@ def test_weather_asks_hourly_forecast_for_event_times():
 
 def test_new_modules_are_in_import_map(client):
     html = client.get("/").get_data(as_text=True)
-    for name in ("decor.js", "weekly.js"):
+    for name in ("decor.js",):
         assert f"/static/js/{name}?v=" in html
+    assert "weekly.js" not in html and "stats.js" not in html   # 한 걸음 카드·시간 돌아보기는 0.14.0에서 뺐다

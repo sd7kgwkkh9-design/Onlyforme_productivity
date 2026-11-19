@@ -175,26 +175,17 @@ def test_copy_item(client):
     assert client.get(f"/api/items/{item['id']}").get_json()["dates"] == ["2026-11-05"]  # 원래 일정은 그대로
 
 
-# ---------------------------------------------------------------- 시간 돌아보기
-def test_stats(client):
-    study = make_category(client, "공부", "#3D6FD9")
-    work = make_category(client, "알바", "#3FA66B")
+# ---------------------------------------------------------------- 루틴 횟수 (0.14.0: '시간 돌아보기'를 없애고 루틴 창에)
+def test_routine_week_and_month_counts(client):
     run = make_routine(client)
-    make_item(client, title="회로 공부", category_id=study["id"], dates=["2026-11-02", "2026-11-03"], start_time="09:00", end_time="10:30")
-    make_item(client, title="카페", category_id=work["id"], dates=["2026-11-06"], start_time="18:00", end_time="22:00")
-    make_item(client, title="다음 주", category_id=study["id"], dates=["2026-11-09"], start_time="09:00", end_time="10:00")
-    make_log(client, run["id"], "2026-11-03", start_time="07:00", end_time="07:40")
-    make_log(client, run["id"], "2026-11-05")                        # 시간 없음 → 횟수만
-
-    s = client.get("/api/stats?start=2026-11-01&end=2026-11-08").get_json()
-    assert s["schedule_minutes"] == 90 * 2 + 240 and s["routine_minutes"] == 40
-    assert s["total_minutes"] == 90 * 2 + 240 + 40
-    assert s["item_count"] == 3 and s["timed_count"] == 3 and s["log_count"] == 2
-    by_name = {c["name"]: c for c in s["categories"]}
-    assert by_name["알바"]["minutes"] == 240 and by_name["공부"]["minutes"] == 180 and by_name["공부"]["count"] == 2
-    assert s["categories"][0]["name"] == "알바"                       # 시간 많은 순
-    assert s["routines"] == [{"id": run["id"], "name": "운동", "emoji": "🏃", "count": 2, "minutes": 40}]
-    assert s["days"][1] == {"date": "2026-11-03", "by_category": {str(study["id"]): 90}, "routine": 40}
+    for d in ("2026-10-30", "2026-11-01", "2026-11-03", "2026-11-05", "2026-11-09"):
+        make_log(client, run["id"], d)
+    r = next(x for x in client.get("/api/routines?date=2026-11-05").get_json() if x["id"] == run["id"])
+    # 11/5(목)가 든 주는 11/1(일)부터 → 11/1, 11/3, 11/5 = 3번. 11월은 그날까지 3번 (11/9는 아직)
+    assert (r["week_count"], r["month_count"], r["log_count"], r["last_date"]) == (3, 3, 5, "2026-11-05")
+    r = next(x for x in client.get("/api/routines?date=2026-10-31").get_json() if x["id"] == run["id"])
+    assert (r["week_count"], r["month_count"]) == (1, 1)
+    assert client.get("/api/stats?start=2026-11-01&end=2026-11-08").status_code == 404   # 시간 돌아보기는 0.14.0에서 뺐다
 
 
 # ---------------------------------------------------------------- 빠른 입력

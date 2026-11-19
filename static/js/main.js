@@ -1,17 +1,17 @@
 // 앱 시작점: 화면 요소들을 만들고 서로 연결한다.
 //
-//   상단 바      ─ 메모장, 이전/다음, 제목(눌러서 이동), 오늘, 돌아보기, 주간 배치, 빠른 입력, [월간 | 이번 주 | 시간표], 카테고리, 🔒, ⚙ 설정
+//   상단 바      ─ 메모장, 챙기기, 이전/다음, 제목(눌러서 이동), 오늘, 일기, 주간 배치, 🔍 검색, 빠른 입력, [월간 | 이번 주 | 시간표], 카테고리, 🔒, ⚙ 설정
 //   월간 화면    ─ FullCalendar (오픈소스)
 //   주간 화면    ─ week.js (직접 구현) + edgepager.js (끝에서 당겨 주 넘기기)
 //   시간표 화면  ─ timetable.js (0.13.0: 매주 반복되는 틀. 달력에 어떻게 보일지는 기기마다 고른다)
 //   오른쪽 칸    ─ 넓은 화면: 고른 날짜의 일정 (sheet.js의 pane)
-//   팝업 창      ─ 좁은 화면의 날짜 일정, 카테고리 관리, 돌아보기 (sheet.js의 modal)
+//   팝업 창      ─ 좁은 화면의 날짜 일정, 카테고리 관리, 루틴·습관·기념일, 일기 모아 보기 (sheet.js의 modal)
 //   빠른 이동    ─ jump.js
 //   ⚙ 설정       ─ settings.js (화면 테마, 글꼴, 로그아웃, 버전)
 //   동기화       ─ sync.js (다른 기기에서 바꾼 내용을 몇 초 안에 반영)
 //   생산성 도구
 //     메모장     ─ notes.js (왼쪽 칸/창: 메모·목표·할 일)   달력 위 띠 ─ strip.js (배너 글귀 + D-day + 목표)
-//     빠른 입력  ─ quick.js (+ quickadd.py, 반복 일정)       돌아보기   ─ stats.js
+//     빠른 입력  ─ quick.js (+ quickadd.py, 반복 일정)       0.14.0     ─ 일기 diary.js · 검색 search.js · 백업 backup.js · 테마 themes.js
 //     루틴       ─ routines.js (일정과 따로 저장되는 루틴 기록)
 //     0.13.0     ─ 습관 habits.js · 기념일 annivs.js · 프로젝트 projects.js · 캘린더만 잠그기 (아래 8번, 서버는 lock.py)
 //     끌어서 옮기기 / Option 누르고 끌어서 복사 / 오른쪽 클릭 메뉴 ─ 아래 5번 (ctxmenu.js, datepop.js)
@@ -23,6 +23,7 @@ import { api, leavePage, prefetch } from './api.js';
 import { openMenu } from './ctxmenu.js';
 import { pickDate } from './datepop.js';
 import { applyMark, decorateMarks, openDecor, setMarks } from './decor.js';
+import { diaryEditor, diaryList } from './diary.js';
 import { initShare } from './share.js';
 import { decorateMonth, decorateMonthCell, decorateOne, decorateTimed, decorateWeek, loadWeather, onWeather } from './weather.js';
 import { attachEdgePager } from './edgepager.js';
@@ -31,6 +32,7 @@ import { holidaysBetween } from './holidays.js';
 import { initJump } from './jump.js';
 import { NotesPanel, dragState } from './notes.js';
 import { QuickAdd } from './quick.js';
+import { routineManager } from './routines.js';
 import { initSettings } from './settings.js';
 import { Sheet, configureSheets } from './sheet.js';
 import { STRIP_KEY, TopStrip } from './strip.js';
@@ -40,15 +42,15 @@ import { TimetableView, displayMode } from './timetable.js';
 import { WeekView, startOfWeek, weekTitle } from './week.js';
 
 // ============================================================ 필요할 때 불러오는 모듈 (0.12.1)
-// 공유·구독·위젯 창, 패스키 창, 시간 돌아보기, '이번 주 한 걸음' 카드는 누를 때(또는 띄울 때)만 받아 온다.
+// 공유·구독·위젯 창, 패스키 창, 습관·기념일 창, 검색, 백업은 누를 때만 받아 온다.
 // 첫 화면이 읽어야 할 코드가 줄어서 휴대폰에서 더 빨리 뜬다. (주소는 import map이 지문 붙은 주소로 바꿔 준다)
 const later = {
   links: () => import('./links.js'),
   security: () => import('./security.js'),
-  stats: () => import('./stats.js'),
-  weekly: () => import('./weekly.js'),
   habits: () => import('./habits.js'),   // 습관 관리 창 (0.13.0)
   annivs: () => import('./annivs.js'),   // 기념일 창 (0.13.0)
+  search: () => import('./search.js'),   // 검색 (0.14.0)
+  backup: () => import('./backup.js'),   // 백업 · 되살리기 (0.14.0)
 };
 const openLinks = (tab) => later.links().then((m) => m.openLinks(tab)).catch(loadFailed);
 const openSecurity = () => later.security().then((m) => m.openSecurity()).catch(loadFailed);
@@ -254,8 +256,8 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
         try {
           const start = info.startStr.slice(0, 10);
           const end = info.endStr.slice(0, 10);
-          const { items, logs, marks, classes = [], annivs = [] } = await api.calendar(start, end);
-          setMarks(marks, start, end);    // 날짜 스티커·형광펜 (decor.js)
+          const { items, logs, marks, classes = [], annivs = [], diaries = [] } = await api.calendar(start, end);
+          setMarks(marks, start, end, diaries);    // 날짜 스티커, 일기 쓴 날 (decor.js)
           decorateMarks(calendarEl);
           success([
             ...annivs.map(toAnnivEvent),
@@ -338,14 +340,14 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
   dayCellDidMount: (arg) => { decorateMonthCell(arg.el); applyMark(arg.el); },
 });
 
-// 월간 화면의 날짜 칸(일정이 아닌 빈 곳)을 두 손가락 클릭 → 일정 추가 / 이 날 꾸미기
+// 월간 화면의 날짜 칸(일정이 아닌 빈 곳)을 두 손가락 클릭 → 일정 추가 / 스티커 / 기념일
 calendarEl.addEventListener('contextmenu', (e) => {
   if (e.target.closest('.fc-daygrid-event, .fc-daygrid-more-link')) return; // 일정 메뉴는 따로
   const date = e.target.closest('td.fc-daygrid-day[data-date]')?.dataset.date;
   if (!date) return;
   openMenu(e, [
     { label: '일정 추가', run: () => { select(date); const sheet = editSheet(); if (sheet) { sheet.day = date; sheet.openForm({ mode: 'create', ctxDate: date, returnTo: 'day' }); } } },
-    { label: '꾸미기 (스티커·형광펜)…', run: () => openDecor(date, refreshAll) },
+    { label: '스티커 붙이기…', run: () => openDecor(date, refreshAll) },
     { label: '이 날을 기념일로…', run: () => openAnnivs(date) },
   ], { title: formatShort(date) });
 });
@@ -438,6 +440,41 @@ function openHabits() {
 function openAnnivs(date = null) {
   later.annivs().then(({ annivManager }) => modalSheet?.showView('annivs', annivManager({ onChanged: refreshAll, date }))).catch(loadFailed);
 }
+function openRoutines() {
+  modalSheet?.showView('routines', routineManager({ onChanged: refreshAll, returnTo: null }));
+}
+
+// 챙기기 (0.14.0): 상단 메모장 옆 버튼 → [🏃 루틴 / 💧 습관 / 🎂 기념일]
+// 반복해서 챙기는 것을 한곳에 모았다. 0.13.0까지 습관·기념일은 ⚙ 설정 안에 있었다 ('설정은 설정만').
+safely('챙기기', () => {
+  const button = $('btn-care');
+  const menu = $('care-menu');
+  if (!button || !menu) return;
+  const item = (emoji, label, sub, run) => el('button', {
+    type: 'button', role: 'menuitem', class: 'menu-choice care-choice',
+    onclick: () => { menu.hidePopover?.(); run(); },
+  },
+    el('span', { class: 'care-emoji', 'aria-hidden': 'true' }, emoji),
+    el('span', { class: 'care-text' }, el('span', { class: 'share-main' }, label), el('span', { class: 'share-sub' }, sub)));
+  menu.replaceChildren(
+    item('🏃', '루틴', '할 때마다 시간·메모를 남기는 활동', openRoutines),
+    item('💧', '습관', '하루에 몇 번 했는지만 세기 (물 8잔)', openHabits),
+    item('🎂', '기념일', '생일·기념일·만난 날 세기 (음력도)', () => openAnnivs()),
+  );
+  if (typeof menu.showPopover === 'function') {
+    menu.addEventListener('beforetoggle', (e) => {
+      const open = e.newState === 'open';
+      button.setAttribute('aria-expanded', String(open));
+      if (!open) return;
+      const r = button.getBoundingClientRect(); // 버튼 아래, 왼쪽 끝을 맞춰서
+      menu.style.top = `${r.bottom + 6}px`;
+      menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 268))}px`;
+    });
+  } else {
+    button.removeAttribute('popovertarget');
+    button.addEventListener('click', openRoutines);
+  }
+});
 
 // 넓은 ↔ 좁은 화면으로 바뀌는 순간 (창 크기 조절, 아이패드 돌리기)
 wide.addEventListener('change', () => {
@@ -659,15 +696,24 @@ on(weekBtn, 'click', () => setView('week'));
 on(ttBtn, 'click', () => setView('timetable'));
 on($('btn-categories'), 'click', () => modalSheet?.showCategories());
 
-// 시간 돌아보기: 지금 보고 있는 주/달을 기준으로 연다
-on($('btn-stats'), 'click', () => {
-  if (!modalSheet) return;
-  const anchor = state.view === 'week'
-    ? (todayStr() >= state.weekStart && todayStr() < addDays(state.weekStart, 7) ? todayStr() : state.weekStart)
-    : (sameMonth(calendar.view.currentStart, new Date()) ? todayStr() : toDateStr(calendar.view.currentStart));
-  later.stats().then(({ statsView }) => modalSheet.showView('stats', statsView({ mode: state.view, anchor }))).catch(loadFailed);
-});
-const sameMonth = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+// 검색 (0.14.0, 단축키 /): 고른 결과를 그 자리에서 연다
+function openSearchBox() {
+  later.search().then(({ openSearch }) => openSearch({
+    onOpenDate: (date) => showDate(date),
+    onOpenNotes: (opts) => notes?.open(opts),
+    onOpenDiary: (date) => modalSheet?.showView('diary', diaryEditor({ date, onChanged: refreshAll, returnTo: null })),
+    onOpenBlock: (id) => editClassBlock(id),
+    onOpenAnnivs: () => openAnnivs(),
+  })).catch(loadFailed);
+}
+on($('btn-search'), 'click', openSearchBox);
+
+// 일기 모아 보기 (0.14.0, '시간 돌아보기' 자리). 쓰는 곳은 하루 화면 아래
+on($('btn-diary'), 'click', () => modalSheet?.showView('diaries', diaryList({
+  onChanged: refreshAll,
+  onOpenDate: (date) => { modalSheet.close(); showDate(date); },
+})));
+
 
 // 제목을 눌러 원하는 달·주로
 safely('빠른 이동', () => initJump({
@@ -708,6 +754,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
   if (e.code === 'KeyN') { e.preventDefault(); quick?.open(); return; } // N = 빠른 입력 (한글 자판이어도)
   if (e.code === 'KeyL' && lockConfig.login) { e.preventDefault(); lockNow(); return; } // L = 지금 잠그기 (0.13.0)
+  if (e.code === 'Slash') { e.preventDefault(); openSearchBox(); return; } // / = 검색 (0.14.0)
   if (e.target.closest?.('.pane, .notes')) return;
   if (e.key === 'ArrowLeft') navigate(-1);
   else if (e.key === 'ArrowRight') navigate(1);
@@ -1085,19 +1132,7 @@ safely('설정', () => initSettings({
   onOpenSecurity: () => openSecurity(),          // 잠금 · 패스키 (0.12.0, 0.13.0에서 잠금 설정을 더함)
   bioLock: document.body.dataset.bioLock === '1' || lockConfig.auto,
   onLockNow: lockConfig.login ? () => lockNow() : null,
-  onOpenHabits: () => openHabits(),               // 0.13.0
-  onOpenAnnivs: () => openAnnivs(),
-  // ⚙ 설정의 '지금 카드 보기': 이번 주에 이미 봤어도 띄운다
-  onShowWeekly: async () => {
-    await refreshStrip();
-    const { maybeShowWeekly } = await later.weekly();
-    const shown = maybeShowWeekly({
-      overview: strip?.data, force: true,
-      onAdded: async () => { await notes?.reload(); },
-      onOpenGoals: () => notes?.open({ tab: 'goal' }),
-    });
-    if (!shown) toast('아직 못 이룬 올해 목표가 없어요. 메모장의 목표 탭에서 올해 목표를 세워 보세요.');
-  },
+  onOpenBackup: () => later.backup().then((m) => m.openBackup()).catch(loadFailed),   // 내 데이터 (0.14.0)
 }));
 
 // ---- 달력 위 띠, 메모장, 빠른 입력
@@ -1207,27 +1242,7 @@ onWeather(() => safely('날씨', () => {
   strip?.render();             // 오늘 비 소식 칩
 }));
 loadWeather();
-// 달력 위 띠를 처음 받아 온 뒤: 이번 주에 아직 안 봤으면 '이번 주 한 걸음' 카드 (weekly.js)
-// (카드를 띄울 차례일 때만 weekly.js를 받아 온다)
-refreshStrip().then(async () => {
-  if (!strip?.data?.year?.goals?.length || !weeklyDue()) return;
-  const { maybeShowWeekly } = await later.weekly();
-  safely('이번 주 한 걸음', () => maybeShowWeekly({
-    overview: strip?.data,
-    onAdded: async () => { await notes?.reload(); },
-    onOpenGoals: () => notes?.open({ tab: 'goal' }),
-  }));
-}).catch(() => {});
-
-// '이번 주 한 걸음'을 띄울 차례인지 (weekly.js와 같은 저장 키: 꺼 두었거나 이번 주에 이미 봤으면 아님)
-function weeklyDue() {
-  try {
-    if (localStorage.getItem('my-calendar:weekly-card') === 'off') return false;
-    const t = new Date();
-    const monday = addDays(todayStr(), t.getDay() === 0 ? -6 : 1 - t.getDay());
-    return localStorage.getItem('my-calendar:weekly-seen') !== monday;
-  } catch { return false; }
-}
+refreshStrip().catch(() => {});
 safely('동기화', () => startSync(onRemoteChange));
 
 // ============================================================ 8. 캘린더만 잠그기 (0.13.0, 서버는 lock.py)

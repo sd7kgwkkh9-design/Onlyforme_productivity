@@ -161,10 +161,18 @@ def seed_demo(app, today=None):
 
     seed_v013(client, post, today, cat)
 
-    # 달력 꾸미기 (0.11.0): 날짜 스티커와 형광펜
-    client.put(f"/api/days/{(today + timedelta(days=2)).isoformat()}/mark", json={"sticker": "🎂", "color": "pink"})
+    # 일기 (0.14.0): 가끔 쓴 날만 — 쓴 날은 달력에 작은 점
+    for days_ago, mood, body in (
+        (1, "😊", ("텀프로젝트 시간표 화면을 처음 써 봤다. 매주 수업을 일정으로 안 넣어도 되니 달력이 깔끔하다.\n"
+                   "내일은 회로이론 4장 연습문제부터.")),
+        (6, "😴", "알바 끝나고 너무 피곤했다. 그래도 물 8잔은 채웠다 💧"),
+        (17, "", "선형대수 퀴즈 공부. 1~3장 다시 보니까 행렬식이 이제 좀 보인다."),
+    ):
+        client.put(f"/api/diaries/{(today - timedelta(days=days_ago)).isoformat()}", json={"mood": mood, "body": body})
+
+    # 달력 꾸미기 (0.11.0): 날짜 스티커
+    client.put(f"/api/days/{(today + timedelta(days=2)).isoformat()}/mark", json={"sticker": "🎂"})
     client.put(f"/api/days/{(today + timedelta(days=9)).isoformat()}/mark", json={"sticker": "✈️"})
-    client.put(f"/api/days/{(today - timedelta(days=4)).isoformat()}/mark", json={"color": "yellow"})
 
 
 def seed_v013(client, post, today, cat):

@@ -185,7 +185,7 @@ export function routineManager({ onChanged, returnTo }) {
     if (!sheet.bodyEl.querySelector('.routine-list, .routine-add')) sheet.loading();
 
     let routines;
-    try { routines = await api.routines(); } catch (e) { return sheet.failed(e); }
+    try { routines = await api.routines(todayStr()); } catch (e) { return sheet.failed(e); } // 0.14.0: 이번 주·이번 달 횟수도
     if (sheet.view !== 'routines') return;
 
     const changed = async () => {
@@ -238,8 +238,11 @@ export function routineManager({ onChanged, returnTo }) {
       return el('li', { class: 'routine-row', dataset: { id: String(r.id) } },
         el('span', { class: 'routine-row-emoji', 'aria-hidden': 'true' }, r.emoji),
         el('span', { class: 'routine-row-main' },
-          el('span', { class: 'cat-name' }, r.name),
-          el('span', { class: 'cat-count' }, r.log_count ? `기록 ${r.log_count}개` : '기록 없음'),
+          el('span', { class: 'routine-row-name' }, r.name),
+          // 0.14.0: 없앤 '시간 돌아보기'에서 쓸모 있던 부분 — 이번 주·이번 달에 몇 번 했는지
+          el('span', { class: 'routine-row-last' }, r.log_count
+            ? `이번 주 ${r.week_count ?? 0}번 · 이번 달 ${r.month_count ?? 0}번 · 모두 ${r.log_count}번`
+            : '아직 기록 없음'),
         ),
         el('span', { class: 'cat-actions' },
           el('button', { type: 'button', class: 'btn sm ghost', disabled: editingId !== null, onclick: () => { editingId = r.id; render(sheet); } }, '수정'),

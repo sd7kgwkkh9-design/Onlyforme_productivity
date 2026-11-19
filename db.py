@@ -10,11 +10,11 @@ item_dates  : 일정이 들어간 날짜들 (일정 하나에 날짜 여러 개 
 
 routines     : 루틴 — 자주 하는 활동(🏃 운동, 📖 독서 …). 카테고리 대신 이모지 하나 (8차에서 바뀜)
 routine_logs : 루틴 기록 — 그날 그 루틴을 했다는 기록 (시간·메모는 선택). 일정(items)과는 따로 둔다 (8차)
-notes        : 메모장의 '메모' — 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
+notes        : 메모장의 '노트'(0.12까지 '메모') — 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
 goals        : 메모장의 '목표' — 제목 + 기한(선택). 기한이 있으면 달력 위 D-day 띠에 보인다 (0.9.0)
                0.11.0부터 세 단계: 인생 목표(life) → 올해 목표(year) → 기한 목표(due). parent_id로 위 단계와 잇는다.
                올해 목표는 진행 방식(measure)이 셋: 체크(check) / 숫자(count: current/target) / 루틴 연결(routine: 그 해의 루틴 기록 수)
-day_marks    : 달력 꾸미기 — 날짜에 붙인 스티커(이모지)와 형광펜 색 (0.11.0)
+day_marks    : 달력 꾸미기 — 날짜에 붙인 스티커(이모지) (0.11.0. color 칸은 0.14.0에서 뺀 형광펜의 흔적)
 links        : 밖에서 여는 주소 (0.12.0) — 보기 전용 공유 링크(share), 캘린더 구독(ics), 홈 화면 위젯(widget).
                주소에 들어가는 무작위 토큰이 곧 열쇠다. 지우면 그 주소는 바로 막힌다.
 passkeys     : 패스키 (0.12.0) — Face ID·지문으로 로그인. 공개 키만 저장한다 (비밀 키는 기기 밖으로 나오지 않는다).
@@ -28,6 +28,9 @@ anniversaries         : 기념일 — 생일·기념일(매년, 음력 가능), 
 projects              : 프로젝트 — 몇 월까지 진행하는 일. 기간(정확한 날짜 또는 '1월 중'처럼 대략), 상태.
                         세부 할 일과 연결한 일정은 items.project_id로 잇는다
 items.urgent          : 급한 할 일(⚡) — 첫 화면 '오늘 챙길 것' 줄에 보인다
+
+0.14.0에서 늘어난 표
+diaries               : 일기 — 날짜마다 하나(쓰고 싶은 날만). 본문 + 기분 이모지(선택). 공유 링크·구독·위젯에는 나가지 않는다
 
 meta        : 변경 번호(version) — 일정·카테고리·루틴·메모가 바뀔 때마다 1씩 커진다.
               다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
@@ -124,7 +127,7 @@ CREATE TABLE IF NOT EXISTS goals (
 CREATE TABLE IF NOT EXISTS day_marks (
     date        TEXT PRIMARY KEY,                 -- 'YYYY-MM-DD'
     sticker     TEXT NOT NULL DEFAULT '',         -- 이모지 하나 (없으면 '')
-    color       TEXT NOT NULL DEFAULT ''          -- 형광펜 색 이름 (없으면 '')
+    color       TEXT NOT NULL DEFAULT ''          -- 0.11.0~0.13.0의 형광펜 색 (0.14.0에서 뺐다 — 늘 '')
 );
 
 CREATE TABLE IF NOT EXISTS links (
@@ -221,6 +224,14 @@ CREATE TABLE IF NOT EXISTS projects (
     done_at     TEXT
 );
 
+CREATE TABLE IF NOT EXISTS diaries (
+    date        TEXT PRIMARY KEY,                  -- 'YYYY-MM-DD' (하루에 하나)
+    body        TEXT    NOT NULL DEFAULT '',
+    mood        TEXT    NOT NULL DEFAULT '',       -- 기분 이모지 하나 (고르지 않으면 '')
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value INTEGER NOT NULL
@@ -254,6 +265,8 @@ def migrate(conn):
       - day_marks            : 달력 꾸미기 표 (0.11.0) — SCHEMA가 새로 만들어 준다
       - links, passkeys      : 공유 링크·구독·위젯, 패스키 (0.12.0) — SCHEMA가 새로 만들어 준다
       - items.urgent, items.project_id : 급한 할 일, 프로젝트 (0.13.0). 습관·시간표·기념일·프로젝트 표는 SCHEMA가 만든다
+      - day_marks.color      : 형광펜을 0.14.0에서 뺐다 → 칠해 둔 색을 비우고, 스티커 없이 색만 있던 날은 지운다
+      - diaries              : 일기 (0.14.0) — SCHEMA가 새로 만들어 준다
     """
     if "end_time" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN end_time TEXT")
@@ -276,6 +289,8 @@ def migrate(conn):
     for name, definition in GOAL_COLUMNS_V11:
         if name not in goal_cols:
             conn.execute(f"ALTER TABLE goals ADD COLUMN {name} {definition}")
+    conn.execute("DELETE FROM day_marks WHERE sticker = ''")
+    conn.execute("UPDATE day_marks SET color = '' WHERE color != ''")
 
 
 GOAL_COLUMNS_V11 = [

@@ -8,7 +8,7 @@
 //   form       : 일정 추가/수정            ─┘ 저장/취소하면 원래 화면으로 돌아감
 //                (메모장의 '할 일'을 눌렀을 때도 이 form으로 수정한다)
 //   categories : 카테고리 관리 (팝업만)
-//   그 밖      : 다른 파일이 이 창에 그리는 화면 (routines.js의 루틴 편집, stats.js의 시간 돌아보기) → showView()
+//   그 밖      : 다른 파일이 이 창에 그리는 화면 (routines.js의 루틴 편집, habits.js·annivs.js, diary.js의 일기 모아 보기) → showView()
 //
 // 하루 화면: 위에는 일정, 그 아래에 '오늘의 루틴'(그날의 루틴 기록)이 따로 보인다.
 // 0.13.0: 맨 위에 그날의 기념일(🎂 엄마 생신), 시간표의 수업은 보기 설정에 따라 일정 위(같이) 또는 아래(아래)에.
@@ -24,7 +24,8 @@ import { routineBar, routineLogView, routineManager, routineSection } from './ro
 import {
   addDays, ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
 } from './utils.js';
-import { MARK_COLORS, openDecor, setMarks } from './decor.js';
+import { openDecor, setMarks } from './decor.js';
+import { diaryEditor, diarySection } from './diary.js';
 import { decorateTimed, weatherLine } from './weather.js';
 import { classSection, displayMode } from './timetable.js';
 
@@ -85,7 +86,7 @@ export class Sheet {
     if (kind === 'modal') {
       root.querySelector('.sheet-close').addEventListener('click', () => root.close());
       root.addEventListener('click', (e) => { if (e.target === root) root.close(); }); // 배경 클릭
-      root.addEventListener('close', () => { this.view = null; });
+      root.addEventListener('close', () => { this.leave(); this.custom = null; this.view = null; });
     }
   }
 
@@ -128,18 +129,15 @@ export class Sheet {
     decorateTimed(this.bodyEl);
   }
 
-  // 하루 화면 맨 위 한 줄: [그날 서울 날씨 ……… 🎨 꾸미기]
+  // 하루 화면 맨 위 한 줄: [그날 서울 날씨 ……… ⭐ 스티커]
   dayTop(date, mark) {
-    const colorName = MARK_COLORS.find(([name]) => name === mark?.color)?.[1];
-    const label = mark?.sticker || mark?.color
-      ? `이 날 꾸미기 (지금: ${[mark.sticker, colorName ? `${colorName} 형광펜` : ''].filter(Boolean).join(' ')})`
-      : '이 날 꾸미기 (스티커·형광펜)';
+    const label = mark?.sticker ? `이 날 스티커 (지금: ${mark.sticker})` : '이 날 스티커 붙이기';
     return el('div', { class: 'day-top' },
       weatherLine(date),
       el('button', {
-        type: 'button', class: ['decor-btn', mark?.color ? `mark-${mark.color}` : ''].join(' ').trim(), 'aria-label': label, title: label,
+        type: 'button', class: 'decor-btn', 'aria-label': label, title: label,
         onclick: () => openDecor(date, () => shared.onDataChanged()),
-      }, mark?.sticker ? el('span', { class: 'decor-btn-sticker', 'aria-hidden': 'true' }, mark.sticker) : null, '꾸미기'),
+      }, mark?.sticker ? el('span', { class: 'decor-btn-sticker', 'aria-hidden': 'true' }, mark.sticker) : null, '스티커'),
     );
   }
 
@@ -161,19 +159,29 @@ export class Sheet {
     else if (this.custom?.refresh) this.custom.refresh(this);
   }
 
-  // 다른 파일이 이 창 안에 그리는 화면 (루틴 편집, 시간 돌아보기)
+  // 다른 파일이 이 창 안에 그리는 화면 (루틴 편집, 습관, 기념일, 일기 모아 보기)
   //   render(sheet)   : 화면을 그린다 (sheet.setHead / setBody / setFoot 사용)
   //   refresh(sheet)  : 다른 기기에서 바뀐 내용이 들어왔을 때 (없으면 그대로 둔다)
   //   returnTo        : 뒤로(←)를 누르면 돌아갈 곳 ('day' 등). 없으면 창을 닫는다.
-  async showView(name, { render, refresh = null, returnTo = null }) {
+  //   onBack(sheet)   : (0.14.0) 뒤로(←)를 누르면 returnTo 대신 이걸 부른다 (일기 모아 보기 → 목록으로)
+  //   onLeave()       : (0.14.0) 다른 화면으로 가기 전에 마무리 (일기의 마지막 글자 저장)
+  async showView(name, view) {
+    await this.leave();
     this.form = null;
-    this.custom = { render, refresh, returnTo };
+    this.custom = { refresh: null, returnTo: null, ...view };
     this.open(name);
-    await render(this);
+    await view.render(this);
+  }
+
+  async leave() {
+    const c = this.custom;
+    if (c?.onLeave) { try { await c.onLeave(); } catch (e) { console.error(e); } }
   }
 
   // ---------------------------------------------------------------- day
   async showDay(date) {
+    await this.leave();
+    this.custom = null;
     const sameDay = this.view === 'day' && this.day === date;
     this.day = date;
     this.form = null;
@@ -196,10 +204,11 @@ export class Sheet {
     let mark;
     let classes;
     let annivs;
+    let diary;
     try {
-      // 일정 + 루틴 기록 + 루틴 버튼 + 꾸밈 + (0.13.0) 수업 + 기념일을 한 번에
-      ({ items: list, logs, routines, mark, classes = [], annivs = [] } = await api.day(date));
-      setMarks(mark ? [mark] : [], date, addDays(date, 1));
+      // 일정 + 루틴 기록 + 루틴 버튼 + 꾸밈 + (0.13.0) 수업 + 기념일 + (0.14.0) 일기를 한 번에
+      ({ items: list, logs, routines, mark, classes = [], annivs = [], diary = null } = await api.day(date));
+      setMarks(mark ? [mark] : [], date, addDays(date, 1), diary ? [diary] : []);
     } catch (e) {
       this.bodyEl.classList.remove('is-busy');
       return this.failed(e);
@@ -244,9 +253,10 @@ export class Sheet {
           onMenu: shared.onLogMenu ? (e, log) => shared.onLogMenu(e, log, this) : null,
         })
       : null;
-    // 맨 위: 그날 서울 날씨(오늘부터 일주일만) + 꾸미기
+    // 맨 위: 그날 서울 날씨(오늘부터 일주일만) + 스티커 / 맨 아래: 일기 (0.14.0)
     this.setBody(this.dayTop(date, mark), annivLine,
-      mode === 'with' ? classDay : null, ...schedule, mode === 'below' ? classDay : null, routineDay);
+      mode === 'with' ? classDay : null, ...schedule, mode === 'below' ? classDay : null, routineDay,
+      diarySection({ date, diary, onOpen: () => this.showDiary(date) }));
     decorateTimed(this.bodyEl); // 일정 옆에 그 시간의 날씨
 
     this.setFoot(
@@ -261,6 +271,12 @@ export class Sheet {
           this.openForm({ mode: 'create', ctxDate: date, returnTo: 'day' }) }, '일정 추가'),
       ),
     );
+  }
+
+  // 일기 쓰는 화면 (0.14.0). 뒤로·완료를 누르면 그날 화면으로
+  async showDiary(date) {
+    this.day = date;
+    await this.showView('diary', diaryEditor({ date, onChanged: dataChanged, returnTo: 'day' }));
   }
 
   async showRoutines() {
@@ -305,6 +321,8 @@ export class Sheet {
 
   // ---------------------------------------------------------------- form
   async openForm(form) {
+    await this.leave();
+    this.custom = null;
     this.form = form;
     this.open('form');
     try {
@@ -314,8 +332,10 @@ export class Sheet {
     this.renderForm();
   }
 
-  goBack() {
+  async goBack() {
+    if (!this.form && this.custom?.onBack) return this.custom.onBack(this);
     const to = this.form ? this.form.returnTo : this.custom?.returnTo;
+    await this.leave();
     this.form = null;
     this.custom = null;
     if (to === 'day') this.showDay(this.day);

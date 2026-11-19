@@ -7,7 +7,7 @@
 // 주소마다 보여 줄 카테고리를 고를 수 있고, 언제든 '끊기'로 그 주소를 막을 수 있다. 서버 쪽은 links.py.
 
 import { api } from './api.js';
-import { accentHex } from './settings.js';
+import { accentHex } from './themes.js';
 import { ask, el, toast } from './utils.js';
 
 const TABS = [

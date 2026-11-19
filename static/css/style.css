@@ -559,7 +559,7 @@ dialog.ask p { margin: 0 0 calc(18px * var(--fs)); font-size: calc(15px * var(--
   .view-switch .seg-btn { padding: 0 calc(10px * var(--fs)); }
   .month-title { font-size: calc(22px * var(--fs)); min-width: 0; flex: 1; }
   body[data-view="week"] .month-title { font-size: calc(18px * var(--fs)); white-space: nowrap; }
-  /* 주간 제목은 '11.1–7'로 줄이고 연도·화살표는 숨김 (기록지·돌아보기·배치 버튼까지 한 줄에 들어가야 해서) */
+  /* 주간 제목은 '11.1–7'로 줄이고 연도·화살표는 숨김 (메모장·챙기기·일기·배치 버튼까지 한 줄에 들어가야 해서) */
   body[data-view="week"] .month-title .y, body[data-view="week"] .title-btn .caret { display: none; }
   .nav { gap: calc(2px * var(--fs)); }
   .nav .text-btn:not(.tool-btn) { padding: 0 calc(9px * var(--fs)); }
@@ -922,7 +922,7 @@ body.gate {
    7차: 생산성 도구
    ========================================================================== */
 
-/* ---------- 상단 도구 버튼 (기록지 / 돌아보기 / 빠른 입력) ---------- */
+/* ---------- 상단 도구 버튼 (메모장 / 챙기기 / 일기 / 빠른 입력) ---------- */
 .tool-btn { gap: calc(6px * var(--fs)); padding: 0 calc(11px * var(--fs)) 0 calc(9px * var(--fs)); }
 .tool-btn svg { width: 18px; height: 18px; flex: none; }
 .quick-btn { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
@@ -1377,55 +1377,6 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
   dialog.quick { margin: max(10px, env(safe-area-inset-top)) auto auto; width: calc(100vw - 16px); padding: calc(14px * var(--fs)); }
 }
 
-/* ---------- 시간 돌아보기 ---------- */
-.stats { display: grid; gap: calc(22px * var(--fs)); transition: opacity .15s; }
-.stats.is-loading { opacity: .5; }
-.stats-controls { display: flex; align-items: center; gap: calc(4px * var(--fs)); }
-.stats-hero { display: grid; gap: calc(2px * var(--fs)); }
-.stats-hero-label { font-size: calc(13px * var(--fs)); font-weight: 600; color: var(--muted); }
-.stats-hero-value { font-size: calc(40px * var(--fs)); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
-.stats-hero-sub { font-size: calc(13px * var(--fs)); color: var(--muted); }
-.stats-section { display: grid; gap: calc(10px * var(--fs)); }
-.stats-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(12px * var(--fs)); }
-.stats-bar-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "name value" "track track"; gap: calc(4px * var(--fs)) calc(12px * var(--fs)); align-items: center;
-}
-.stats-bar-name { grid-area: name; display: inline-flex; align-items: center; gap: calc(7px * var(--fs)); min-width: 0; font-size: calc(14px * var(--fs)); font-weight: 500; }
-.stats-bar-value { grid-area: value; font-size: calc(13px * var(--fs)); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.stats-bar-track { grid-area: track; display: block; height: 10px; border-left: 1px solid var(--line); }
-.stats-bar-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--cat); }
-.stats-chart { position: relative; padding-top: calc(18px * var(--fs)); }
-.stats-scale { position: absolute; top: 0; left: 0; font-size: calc(11px * var(--fs)); color: var(--muted); font-variant-numeric: tabular-nums; }
-.stats-cols {
-  display: flex; align-items: flex-end; gap: calc(2px * var(--fs)); height: 150px;
-  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  border-bottom: 1px solid var(--line);
-}
-.stats-col {
-  flex: 1 1 0; min-width: 0; height: 100%;
-  display: flex; align-items: flex-end; justify-content: center;
-  padding: 0; border: 0; border-radius: 6px 6px 0 0; background: none;
-}
-.stats-col:focus-visible { background: var(--hover); }
-@media (hover: hover) { .stats-col:hover { background: var(--hover); } }
-.stats-stack { display: flex; flex-direction: column-reverse; gap: calc(2px * var(--fs)); width: min(24px, 100%); height: 100%; }
-.stats-seg { display: block; flex: none; min-height: 2px; background: var(--cat); }
-.stats-seg:last-child { border-radius: 4px 4px 0 0; }
-.stats-ticks { display: flex; gap: calc(2px * var(--fs)); margin-top: calc(4px * var(--fs)); }
-.stats-tick { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; font-size: calc(11px * var(--fs)); color: var(--muted); font-variant-numeric: tabular-nums; }
-.stats-tick.wd-0 { color: var(--sun); }
-.stats-tick.wd-6 { color: var(--sat); }
-.stats-tip {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(4px * var(--fs)) calc(12px * var(--fs));
-  min-height: 38px; padding: calc(8px * var(--fs)) calc(12px * var(--fs)); border-radius: 10px;
-  background: var(--paper); font-size: calc(13px * var(--fs)); font-variant-numeric: tabular-nums;
-}
-.stats-tip strong { font-size: calc(15px * var(--fs)); }
-.stats-tip-row { display: inline-flex; align-items: center; gap: calc(5px * var(--fs)); }
-.stats-tip-key { display: inline-block; width: 12px; height: 2px; border-radius: 1px; background: var(--cat); }
-.stats-bar-row.is-routine .stats-bar-fill, .stats-seg.is-routine, .stats-tip-row.is-routine .stats-tip-key { background: var(--routine); }
-.stats-emoji { font-size: calc(15px * var(--fs)); line-height: 1; }
 
 /* ---------- 알림의 '되돌리기' / '보기' 버튼 ---------- */
 .toast.has-action:popover-open, .toast.has-action.show { display: flex; align-items: center; gap: calc(14px * var(--fs)); }
@@ -1502,68 +1453,10 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 @media (max-width: 640px) { .routine-row .cat-count { display: none; } } /* 0.9까지와 같게: 휴대폰 루틴 편집은 기록 수 숨김 */
 
 /* ==========================================================================
-   0.11.0 — 색 테마, 인생·올해 목표, 날씨 더하기, 달력 꾸미기
+   0.11.0 — 인생·올해 목표, 날씨 더하기, 달력 꾸미기, 배경 사진
    ========================================================================== */
 
-/* ---------- 색 테마: 라이트/다크와 따로 고른다 (⚙ 설정 → 색) ----------
-   테마마다 정하는 건 포인트 색 두 개(--tint-l 라이트용, --tint-d 다크용)뿐이고,
-   바탕·창·선·눌림 색은 원래 색에 그 색을 조금씩 섞어서 만든다 → 테마마다 분위기가 달라진다.
-   '나만의 색'(custom)은 settings.js가 고른 색으로 --tint-l / --tint-d를 직접 넣는다. */
-:root[data-color="green"]  { --tint-l: #1F7A52; --tint-d: #4FC08D; }
-:root[data-color="orange"] { --tint-l: #C2571B; --tint-d: #F0935A; }
-:root[data-color="purple"] { --tint-l: #6B4FC8; --tint-d: #9D87F5; }
-:root[data-color="pink"]   { --tint-l: #C7447F; --tint-d: #F07FB0; }
-:root[data-color="mono"]   { --tint-l: #2F3541; --tint-d: #C5CAD3; }
-:root[data-color] {
-  --tint: var(--tint-l);
-  --accent: var(--tint);
-  --accent-hover: color-mix(in srgb, var(--tint) 84%, #000);
-  --on-accent: var(--on-l, #FFFFFF);
-  --paper:   color-mix(in srgb, var(--tint) 7%, #F4F6F9);
-  --surface: color-mix(in srgb, var(--tint) 2%, #FFFFFF);
-  --line:    color-mix(in srgb, var(--tint) 12%, #E0E4EB);
-  --hover:   color-mix(in srgb, var(--tint) 10%, #EEF1F6);
-  --cell-hover: color-mix(in srgb, var(--tint) 5%, #F7F9FC);
-  --seg-bg:  color-mix(in srgb, var(--tint) 12%, #E4E8EF);
-}
-@media (prefers-color-scheme: dark) {
-  :root[data-color]:not([data-theme="light"]) {
-    --tint: var(--tint-d);
-    --accent-hover: color-mix(in srgb, var(--tint) 82%, #fff);
-    --on-accent: var(--on-d, #10141A);
-    --paper:   color-mix(in srgb, var(--tint) 5%, #111419);
-    --surface: color-mix(in srgb, var(--tint) 6%, #1A1E25);
-    --line:    color-mix(in srgb, var(--tint) 12%, #2C323D);
-    --hover:   color-mix(in srgb, var(--tint) 10%, #252B35);
-    --cell-hover: color-mix(in srgb, var(--tint) 7%, #20252D);
-    --seg-bg:  color-mix(in srgb, var(--tint) 12%, #262C36);
-  }
-}
-:root[data-color][data-theme="dark"] {
-  --tint: var(--tint-d);
-  --accent-hover: color-mix(in srgb, var(--tint) 82%, #fff);
-  --on-accent: var(--on-d, #10141A);
-  --paper:   color-mix(in srgb, var(--tint) 5%, #111419);
-  --surface: color-mix(in srgb, var(--tint) 6%, #1A1E25);
-  --line:    color-mix(in srgb, var(--tint) 12%, #2C323D);
-  --hover:   color-mix(in srgb, var(--tint) 10%, #252B35);
-  --cell-hover: color-mix(in srgb, var(--tint) 7%, #20252D);
-  --seg-bg:  color-mix(in srgb, var(--tint) 12%, #262C36);
-}
-
-/* ⚙ 설정: 색 견본, 배경 사진, 스위치 */
-.menu-colors { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 2px 8px 4px; }
-.menu-color {
-  position: relative; aspect-ratio: 1; min-width: 0; padding: 0;
-  border: 2px solid var(--surface); border-radius: 50%; background: var(--sample);
-  box-shadow: 0 0 0 1px var(--line); cursor: pointer;
-}
-@media (hover: hover) { .menu-color:hover { box-shadow: 0 0 0 1px var(--faint); } }
-.menu-color[aria-checked="true"] { box-shadow: 0 0 0 2px var(--ink); }
-.menu-color.is-custom { overflow: hidden; background: var(--sample, transparent); }
-.menu-color.is-custom[aria-checked="false"] { background: conic-gradient(#E5534B, #F0B72E, #3FA66B, #2BA5B5, #3D6FD9, #7C5CD6, #D45A9A, #E5534B); }
-.menu-color-custom { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.menu-color:focus-visible, .menu-color.is-custom:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* ⚙ 설정: 배경 사진, 스위치 (0.11.0의 '색 테마'는 0.14.0에서 '테마'로 바꿨다 → 아래 0.14.0) */
 .menu-bg { display: flex; gap: calc(6px * var(--fs)); padding: 2px 8px 4px; }
 .menu-bg .btn { flex: 1; }
 .menu-veil { display: flex; margin: 2px 8px 4px; background: var(--paper); }
@@ -1668,12 +1561,7 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 .wk-time .wx-ev { margin-left: calc(6px * var(--fs)); font-weight: 500; }
 .item-meta .wx-ev { padding-left: calc(8px * var(--fs)); }
 
-/* ---------- 달력 꾸미기: 날짜 스티커·형광펜 ---------- */
-.mark-yellow { --mark: #F2C21A; } .mark-pink { --mark: #F0609A; } .mark-green { --mark: #37B36B; }
-.mark-blue { --mark: #3F8CF0; } .mark-purple { --mark: #8E63E6; } .mark-orange { --mark: #F28A2E; }
-.fc td.fc-daygrid-day.has-mark { background: color-mix(in srgb, var(--mark) 20%, transparent); }
-.wk-col.has-mark, .wk-day.has-mark { background: color-mix(in srgb, var(--mark) 16%, var(--surface)); }
-:root[data-bg] .wk-col.has-mark, :root[data-bg] .wk-day.has-mark { background: color-mix(in srgb, var(--mark) 22%, transparent); }
+/* ---------- 달력 꾸미기: 날짜 스티커 (형광펜은 0.14.0에서 뺐다) ---------- */
 .day-sticker { flex: none; font-size: calc(15px * var(--fs)); line-height: 1; }
 .fc .fc-daygrid-day-top .day-sticker { order: -1; align-self: center; margin-left: calc(3px * var(--fs)); }
 .fc .fc-daygrid-day-top { align-items: center; }
@@ -1692,10 +1580,9 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
   background: var(--surface); font-size: calc(12.5px * var(--fs)); color: var(--muted);
 }
 @media (hover: hover) { .decor-btn:hover { border-style: solid; color: var(--ink); } }
-.decor-btn[class*="mark-"] { border-style: solid; border-color: color-mix(in srgb, var(--mark) 60%, var(--line)); background: color-mix(in srgb, var(--mark) 20%, var(--surface)); color: var(--ink); }
 .decor-btn-sticker { font-size: calc(15px * var(--fs)); line-height: 1; }
 
-dialog.decor, dialog.weekly { width: min(360px, calc(100vw - 32px)); }
+dialog.decor { width: min(360px, calc(100vw - 32px)); }
 .decor-title { margin: 0 0 calc(10px * var(--fs)); font-size: calc(16px * var(--fs)); font-weight: 700; }
 dialog.decor .menu-label { margin-left: 0; margin-right: 0; }
 .decor-stickers { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
@@ -1708,29 +1595,8 @@ dialog.decor .menu-label { margin-left: 0; margin-right: 0; }
 .decor-custom-row { display: flex; align-items: stretch; gap: calc(6px * var(--fs)); margin: calc(8px * var(--fs)) 0 calc(12px * var(--fs)); }
 .decor-custom-row .btn { height: auto; }
 .decor-custom-row .input { flex: 1; min-width: 0; }
-.decor-colors { display: flex; gap: calc(8px * var(--fs)); }
-.decor-color {
-  width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 2px solid var(--surface);
-  background: color-mix(in srgb, var(--mark) 55%, var(--surface)); box-shadow: 0 0 0 1px var(--line);
-}
-.decor-color.is-none { background: linear-gradient(135deg, transparent 46%, var(--danger) 46% 54%, transparent 54%), var(--surface); }
-.decor-color[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
 .decor-foot { display: flex; align-items: center; gap: calc(6px * var(--fs)); margin-top: calc(16px * var(--fs)); }
 .decor-foot .spacer { flex: 1; }
-
-/* ---------- 이번 주 한 걸음 ---------- */
-.weekly-form { display: grid; gap: calc(8px * var(--fs)); }
-.weekly-form .decor-title { margin-bottom: 0; }
-dialog.ask p.weekly-sub { margin: 0; font-size: calc(13px * var(--fs)); color: var(--muted); }
-.weekly-goals { list-style: none; margin: calc(4px * var(--fs)) 0; padding: 0; display: grid; gap: calc(5px * var(--fs)); max-height: 40dvh; overflow-y: auto; }
-.weekly-goal {
-  display: grid; gap: 2px; width: 100%; padding: calc(9px * var(--fs)) calc(12px * var(--fs));
-  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: left;
-}
-@media (hover: hover) { .weekly-goal:hover { background: var(--hover); } }
-.weekly-goal[aria-checked="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); box-shadow: inset 0 0 0 1px var(--accent); }
-.weekly-goal-title { font-size: calc(14px * var(--fs)); font-weight: 600; overflow-wrap: anywhere; }
-.weekly-form .decor-foot { flex-wrap: wrap; margin-top: calc(8px * var(--fs)); }
 
 /* ==========================================================================
    0.12.0 — 보기 전용 공유 화면, 공유·구독·위젯 창, 패스키
@@ -2148,6 +2014,413 @@ body.is-leaving > *:not(.toast) { visibility: hidden !important; }
 mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
 
 /* ==========================================================================
+   0.14.0 — 챙기기, 테마, 일기, 검색, 백업
+   ========================================================================== */
+
+/* ---------- 챙기기 메뉴: 루틴 · 습관 · 기념일 ---------- */
+.care-menu { width: 288px; }
+.care-choice { gap: calc(12px * var(--fs)); }
+.care-emoji { flex: none; width: 28px; font-size: calc(20px * var(--fs)); line-height: 1; text-align: center; }
+.care-text { display: grid; gap: 1px; min-width: 0; text-align: left; }
+#btn-care[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.routine-row-name { font-weight: 600; overflow-wrap: anywhere; }
+.routine-row-last { font-size: calc(12.5px * var(--fs)); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* 휴대폰: 상단 두 번째 줄에 검색이 들어가서 🔒 버튼은 뺀다 (⚙ 설정의 '지금 잠그기'는 그대로. 휴대폰은 기기 잠금이 있다) */
+@media (max-width: 640px) { #btn-lock { display: none; } }
+
+/* ---------- 테마 (0.14.0): VS Code 같은 에디터 테마의 색 ----------
+   ⚙ 설정 → 테마. '밝을 때 테마'와 '어두울 때 테마'를 따로 고르고, 지금 밝은지 어두운지(시스템·라이트·다크)에 따라
+   settings.js(+ 첫 화면 전에는 _head.html)가 <html data-palette="…">를 붙인다. 기본 테마(만년필 파랑)는 data-palette가 없다.
+   0.11.0의 '색 테마'(포인트 색 6가지 + 나만의 색)는 이걸로 바꿨다.
+   색 값은 각 테마의 공식 팔레트에서 가져왔다 (README 6장의 오픈소스 표). 바탕·선·눌림 색 몇 개만 팔레트 색 사이에서 골랐다.
+   [data-swatch]는 테마 고르는 창의 미리보기 칸 — 같은 변수를 그 칸 안에서만 쓴다. */
+[data-swatch="light"] {
+  --paper: #F4F6F9; --surface: #FFFFFF; --ink: #1A2130; --muted: #697186; --line: #E0E4EB; --accent: #2347C8; --on-accent: #FFFFFF; --sun: #D2443B; --routine: #0F9D8A;
+}
+[data-swatch="dark"] {
+  --paper: #111419; --surface: #1A1E25; --ink: #E8EBF1; --muted: #9AA2B2; --line: #2C323D; --accent: #5B7BFF; --on-accent: #FFFFFF; --sun: #FF6E64; --routine: #3CCBB4;
+}
+/* Tokyo Night — folke/tokyonight.nvim · night */
+:root[data-palette="tokyo-night"], [data-swatch="tokyo-night"] {
+  color-scheme: dark;
+  --paper: #16161e;
+  --surface: #1a1b26;
+  --ink: #c0caf5;
+  --muted: #9aa5ce;
+  --faint: #565f89;
+  --line: #292e42;
+  --hover: #292e42;
+  --cell-hover: #1f2335;
+  --seg-bg: #24283b;
+  --accent: #7aa2f7;
+  --accent-hover: #9ab8ff;
+  --on-accent: #16161e;
+  --sun: #f7768e;
+  --sat: #7dcfff;
+  --danger: #f7768e;
+  --danger-bg: #3a2330;
+  --switch-off: #414868;
+  --toast-bg: #c0caf5;
+  --toast-fg: #1a1b26;
+  --routine: #73daca;
+  --shadow: rgba(0, 0, 0, .6); --shadow-soft: rgba(0, 0, 0, .4); --backdrop: rgba(0, 0, 0, .55);
+}
+/* Tokyo Night Storm — folke/tokyonight.nvim · storm */
+:root[data-palette="tokyo-storm"], [data-swatch="tokyo-storm"] {
+  color-scheme: dark;
+  --paper: #1f2335;
+  --surface: #24283b;
+  --ink: #c0caf5;
+  --muted: #a9b1d6;
+  --faint: #565f89;
+  --line: #3b4261;
+  --hover: #2f3549;
+  --cell-hover: #292e42;
+  --seg-bg: #292e42;
+  --accent: #7aa2f7;
+  --accent-hover: #9ab8ff;
+  --on-accent: #1f2335;
+  --sun: #f7768e;
+  --sat: #7dcfff;
+  --danger: #f7768e;
+  --danger-bg: #41293a;
+  --switch-off: #414868;
+  --toast-bg: #c0caf5;
+  --toast-fg: #24283b;
+  --routine: #73daca;
+  --shadow: rgba(0, 0, 0, .6); --shadow-soft: rgba(0, 0, 0, .4); --backdrop: rgba(0, 0, 0, .55);
+}
+/* Catppuccin Mocha — catppuccin · mocha */
+:root[data-palette="mocha"], [data-swatch="mocha"] {
+  color-scheme: dark;
+  --paper: #181825;
+  --surface: #1e1e2e;
+  --ink: #cdd6f4;
+  --muted: #a6adc8;
+  --faint: #6c7086;
+  --line: #313244;
+  --hover: #313244;
+  --cell-hover: #252536;
+  --seg-bg: #313244;
+  --accent: #cba6f7;
+  --accent-hover: #dcc2fb;
+  --on-accent: #1e1e2e;
+  --sun: #f38ba8;
+  --sat: #89b4fa;
+  --danger: #f38ba8;
+  --danger-bg: #3c2a39;
+  --switch-off: #45475a;
+  --toast-bg: #cdd6f4;
+  --toast-fg: #1e1e2e;
+  --routine: #94e2d5;
+  --shadow: rgba(0, 0, 0, .6); --shadow-soft: rgba(0, 0, 0, .4); --backdrop: rgba(0, 0, 0, .55);
+}
+/* Nord — nordtheme/nord */
+:root[data-palette="nord"], [data-swatch="nord"] {
+  color-scheme: dark;
+  --paper: #2e3440;
+  --surface: #3b4252;
+  --ink: #eceff4;
+  --muted: #c2cad8;
+  --faint: #7b88a1;
+  --line: #4c566a;
+  --hover: #434c5e;
+  --cell-hover: #404859;
+  --seg-bg: #3b4252;
+  --accent: #88c0d0;
+  --accent-hover: #a3d2df;
+  --on-accent: #2e3440;
+  --sun: #e3828b;
+  --sat: #81a1c1;
+  --danger: #e3828b;
+  --danger-bg: #4a3a44;
+  --switch-off: #4c566a;
+  --toast-bg: #eceff4;
+  --toast-fg: #2e3440;
+  --routine: #8fbcbb;
+  --shadow: rgba(0, 0, 0, .6); --shadow-soft: rgba(0, 0, 0, .4); --backdrop: rgba(0, 0, 0, .55);
+}
+/* Dracula — dracula-theme */
+:root[data-palette="dracula"], [data-swatch="dracula"] {
+  color-scheme: dark;
+  --paper: #21222c;
+  --surface: #282a36;
+  --ink: #f8f8f2;
+  --muted: #bfc3d9;
+  --faint: #6272a4;
+  --line: #44475a;
+  --hover: #44475a;
+  --cell-hover: #30323f;
+  --seg-bg: #343746;
+  --accent: #bd93f9;
+  --accent-hover: #d0b0fb;
+  --on-accent: #21222c;
+  --sun: #ff5555;
+  --sat: #8be9fd;
+  --danger: #ff5555;
+  --danger-bg: #45283a;
+  --switch-off: #44475a;
+  --toast-bg: #f8f8f2;
+  --toast-fg: #282a36;
+  --routine: #50fa7b;
+  --shadow: rgba(0, 0, 0, .6); --shadow-soft: rgba(0, 0, 0, .4); --backdrop: rgba(0, 0, 0, .55);
+}
+/* Catppuccin Latte — catppuccin · latte */
+:root[data-palette="latte"], [data-swatch="latte"] {
+  color-scheme: light;
+  --paper: #e6e9ef;
+  --surface: #eff1f5;
+  --ink: #4c4f69;
+  --muted: #6c6f85;
+  --faint: #9ca0b0;
+  --line: #ccd0da;
+  --hover: #dce0e8;
+  --cell-hover: #e8ebf1;
+  --seg-bg: #dce0e8;
+  --accent: #8839ef;
+  --accent-hover: #7428d6;
+  --on-accent: #ffffff;
+  --sun: #d20f39;
+  --sat: #1e66f5;
+  --danger: #d20f39;
+  --danger-bg: #f5dce2;
+  --switch-off: #bcc0cc;
+  --toast-bg: #4c4f69;
+  --toast-fg: #eff1f5;
+  --routine: #179299;
+  --shadow: rgba(16, 24, 44, .4); --shadow-soft: rgba(16, 24, 44, .12); --backdrop: rgba(18, 24, 38, .32);
+}
+/* Tokyo Night Day — folke/tokyonight.nvim · day */
+:root[data-palette="tokyo-day"], [data-swatch="tokyo-day"] {
+  color-scheme: light;
+  --paper: #d0d5e3;
+  --surface: #e1e2e7;
+  --ink: #3760bf;
+  --muted: #5a68a6;
+  --faint: #8990b3;
+  --line: #c4c8da;
+  --hover: #d0d5e3;
+  --cell-hover: #dadde6;
+  --seg-bg: #c4c8da;
+  --accent: #2e7de9;
+  --accent-hover: #1f69d0;
+  --on-accent: #ffffff;
+  --sun: #d0244f;
+  --sat: #007197;
+  --danger: #d0244f;
+  --danger-bg: #f2d3dd;
+  --switch-off: #a8aecb;
+  --toast-bg: #3760bf;
+  --toast-fg: #e1e2e7;
+  --routine: #118c74;
+  --shadow: rgba(16, 24, 44, .4); --shadow-soft: rgba(16, 24, 44, .12); --backdrop: rgba(18, 24, 38, .32);
+}
+/* Rosé Pine Dawn — rose-pine · dawn */
+:root[data-palette="rose-dawn"], [data-swatch="rose-dawn"] {
+  color-scheme: light;
+  --paper: #faf4ed;
+  --surface: #fffaf3;
+  --ink: #575279;
+  --muted: #797593;
+  --faint: #9893a5;
+  --line: #dfdad9;
+  --hover: #f2e9e1;
+  --cell-hover: #f4ede8;
+  --seg-bg: #f2e9e1;
+  --accent: #b4637a;
+  --accent-hover: #9d5068;
+  --on-accent: #fffaf3;
+  --sun: #b4637a;
+  --sat: #286983;
+  --danger: #b4637a;
+  --danger-bg: #f6e2e2;
+  --switch-off: #cecacd;
+  --toast-bg: #575279;
+  --toast-fg: #faf4ed;
+  --routine: #56949f;
+  --shadow: rgba(16, 24, 44, .4); --shadow-soft: rgba(16, 24, 44, .12); --backdrop: rgba(18, 24, 38, .32);
+}
+/* Solarized Light — Solarized (Ethan Schoonover) */
+:root[data-palette="solarized-light"], [data-swatch="solarized-light"] {
+  color-scheme: light;
+  --paper: #eee8d5;
+  --surface: #fdf6e3;
+  --ink: #586e75;
+  --muted: #657b83;
+  --faint: #93a1a1;
+  --line: #e0d9c3;
+  --hover: #eee8d5;
+  --cell-hover: #f6efdc;
+  --seg-bg: #e4ddc8;
+  --accent: #268bd2;
+  --accent-hover: #1f74b0;
+  --on-accent: #ffffff;
+  --sun: #dc322f;
+  --sat: #268bd2;
+  --danger: #dc322f;
+  --danger-bg: #f6dfd2;
+  --switch-off: #c9c2ae;
+  --toast-bg: #073642;
+  --toast-fg: #fdf6e3;
+  --routine: #2aa198;
+  --shadow: rgba(16, 24, 44, .4); --shadow-soft: rgba(16, 24, 44, .12); --backdrop: rgba(18, 24, 38, .32);
+}
+
+/* 테마 고르는 창 */
+dialog.themes {
+  width: min(580px, calc(100vw - 24px)); padding: 0;
+  border: 0; border-radius: 16px; background: var(--surface); color: var(--ink); box-shadow: 0 30px 70px -24px var(--shadow);
+}
+dialog.themes::backdrop { background: var(--backdrop); }
+.themes-inner { display: grid; gap: calc(12px * var(--fs)); padding: calc(18px * var(--fs)) calc(20px * var(--fs)) calc(20px * var(--fs)); max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; }
+.themes-head { display: flex; align-items: center; gap: calc(8px * var(--fs)); }
+.themes-head h2 { flex: 1; margin: 0; font-size: calc(17px * var(--fs)); }
+.themes-mode { display: flex; }
+.themes-mode .seg-btn { flex: 1; }
+.themes-note { margin: 0; font-size: calc(12.5px * var(--fs)); color: var(--muted); }
+.themes-label { margin: calc(6px * var(--fs)) 0 0; font-size: calc(13px * var(--fs)); font-weight: 700; display: flex; align-items: baseline; gap: calc(6px * var(--fs)); }
+.themes-label small { font-weight: 500; color: var(--muted); }
+.themes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: calc(10px * var(--fs)); }
+.theme-card {
+  display: grid; gap: calc(6px * var(--fs)); padding: 6px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); color: var(--ink); text-align: left; cursor: pointer;
+}
+@media (hover: hover) { .theme-card:hover { border-color: var(--faint); } }
+.theme-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.theme-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-name { display: flex; align-items: center; gap: 6px; padding: 0 4px 2px; font-size: calc(13px * var(--fs)); font-weight: 600; }
+.theme-name .check { margin-left: auto; color: var(--accent); font-weight: 700; }
+/* 미리보기: 그 테마의 바탕 위에 작은 달력 카드 */
+.theme-card > * { min-width: 0; }
+.swatch { display: grid; grid-template-columns: 1.4fr 1fr; gap: 6px; width: 100%; height: 64px; padding: 7px; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); }
+.swatch-card { display: grid; align-content: start; gap: 5px; padding: 7px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); }
+.swatch-card i { display: block; height: 4px; border-radius: 2px; background: var(--ink); opacity: .85; }
+.swatch-card i:nth-child(2) { width: 70%; background: var(--muted); }
+.swatch-card i.sun { width: 40%; background: var(--sun); }
+.swatch-side { display: grid; align-content: space-between; justify-items: start; padding: 4px 0; }
+.swatch-pill { width: 100%; height: 16px; border-radius: 999px; background: var(--accent); }
+.swatch-dots { display: flex; gap: 4px; }
+.swatch-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--routine); }
+.swatch-dots i:first-child { background: var(--accent); opacity: .55; }
+@media (max-width: 640px) { .themes-grid { grid-template-columns: repeat(2, 1fr); } }
+/* ⚙ 설정 메뉴의 '테마…' 줄: 지금 테마 이름 */
+.menu-theme-now { margin-left: auto; font-size: calc(12px * var(--fs)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+
+
+/* ---------- 일기 (0.14.0): 하루 화면 맨 아래, 쓰는 화면, 모아 보기, 달력의 작은 점 ---------- */
+.diary-day { margin-top: calc(18px * var(--fs)); }
+.diary-day.is-empty { display: flex; justify-content: center; }
+.diary-write {
+  display: inline-flex; align-items: center; gap: calc(6px * var(--fs)); min-height: 34px; padding: 0 calc(14px * var(--fs));
+  border: 1px dashed var(--line); border-radius: 999px; background: none; color: var(--muted); font-size: calc(13px * var(--fs));
+}
+.diary-write svg { width: 16px; height: 16px; }
+@media (hover: hover) { .diary-write:hover { border-style: solid; color: var(--ink); background: var(--hover); } }
+.diary-card {
+  display: grid; gap: calc(6px * var(--fs)); width: 100%; padding: calc(12px * var(--fs)) calc(14px * var(--fs));
+  border: 1px solid var(--line); border-radius: 12px; text-align: left; color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+}
+@media (hover: hover) { .diary-card:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); } }
+.diary-card-head { display: flex; align-items: center; gap: calc(7px * var(--fs)); font-size: calc(13px * var(--fs)); }
+.diary-card-head svg { width: 16px; height: 16px; color: var(--muted); }
+.diary-mood { font-size: calc(18px * var(--fs)); line-height: 1; }
+.diary-meta { margin-left: auto; color: var(--muted); font-size: calc(12px * var(--fs)); font-variant-numeric: tabular-nums; }
+.diary-preview {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+  font-size: calc(14px * var(--fs)); line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; color: var(--ink);
+}
+.diary-editor { display: grid; gap: calc(10px * var(--fs)); }
+.diary-mood-row { display: grid; gap: calc(4px * var(--fs)); }
+.diary-moods { display: flex; flex-wrap: wrap; gap: 4px; }
+.diary-mood-btn {
+  width: 38px; height: 38px; padding: 0; border: 1px solid transparent; border-radius: 10px; background: none;
+  font-size: calc(20px * var(--fs)); line-height: 1; filter: grayscale(.35); opacity: .75;
+}
+@media (hover: hover) { .diary-mood-btn:hover { background: var(--hover); opacity: 1; } }
+.diary-mood-btn[aria-pressed="true"] { filter: none; opacity: 1; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+textarea.diary-text {
+  min-height: 44dvh; resize: vertical; padding: calc(12px * var(--fs)) calc(14px * var(--fs));
+  font-size: calc(15px * var(--fs)); line-height: 1.75; field-sizing: content;
+}
+.diary-status { margin: 0; min-height: 1.2em; font-size: calc(12px * var(--fs)); color: var(--muted); }
+.diary-status.is-error { color: var(--danger); }
+.diary-foot { display: flex; align-items: center; gap: calc(6px * var(--fs)); width: 100%; }
+.diary-foot .spacer { flex: 1; }
+.diary-empty { display: grid; gap: calc(8px * var(--fs)); justify-items: center; text-align: center; padding: calc(24px * var(--fs)) 0; }
+.diary-empty .muted { margin: 0; max-width: 32em; font-size: calc(13px * var(--fs)); color: var(--muted); line-height: 1.6; }
+.diary-list { display: grid; gap: calc(18px * var(--fs)); }
+.diary-month-title { margin: 0 0 calc(6px * var(--fs)); font-size: calc(14px * var(--fs)); }
+.diary-month-title small { font-weight: 500; color: var(--muted); }
+.diary-entries { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(6px * var(--fs)); }
+.diary-entry {
+  display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: calc(10px * var(--fs)); width: 100%;
+  padding: calc(9px * var(--fs)) calc(10px * var(--fs)); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: left; color: var(--ink);
+}
+@media (hover: hover) { .diary-entry:hover { background: var(--hover); } }
+.diary-entry-day { display: grid; justify-items: center; line-height: 1.1; }
+.diary-entry-day b { font-size: calc(18px * var(--fs)); }
+.diary-entry-day small { font-size: calc(11px * var(--fs)); color: var(--muted); }
+.diary-entry-main { display: grid; gap: 2px; min-width: 0; }
+.diary-entry-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: calc(13.5px * var(--fs)); line-height: 1.5; overflow-wrap: anywhere; }
+.diary-entry-meta { font-size: calc(11.5px * var(--fs)); color: var(--muted); }
+.diary-entry-mood { font-size: calc(20px * var(--fs)); line-height: 1; }
+.diary-more { margin-top: calc(10px * var(--fs)); }
+/* 달력 칸: 일기를 쓴 날 날짜 옆 작은 점 */
+.diary-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
+.fc .fc-daygrid-day-top .diary-dot { order: -1; align-self: center; margin-left: calc(3px * var(--fs)); }
+.wk-col-head .diary-dot, .wk-date .diary-dot { align-self: center; margin-left: 4px; }
+#btn-diary[aria-expanded="true"] { background: var(--hover); }
+
+
+/* ---------- 검색 (0.14.0): 화면 위쪽에 뜨는 창 ---------- */
+dialog.search {
+  width: min(640px, calc(100vw - 24px)); max-height: min(76dvh, 680px); margin: 9vh auto auto; padding: 0;
+  border: 0; border-radius: 16px; background: var(--surface); color: var(--ink); box-shadow: 0 30px 70px -24px var(--shadow);
+  overflow: hidden;
+}
+dialog.search[open] { display: flex; flex-direction: column; }
+dialog.search::backdrop { background: var(--backdrop); }
+.search-bar { display: flex; align-items: center; gap: calc(10px * var(--fs)); padding: calc(10px * var(--fs)) calc(12px * var(--fs)) calc(10px * var(--fs)) calc(16px * var(--fs)); border-bottom: 1px solid var(--line); }
+.search-bar > svg { flex: none; width: 20px; height: 20px; color: var(--muted); }
+.search-input { flex: 1; min-width: 0; height: 40px; border: 0; background: none; color: var(--ink); font: inherit; font-size: calc(17px * var(--fs)); outline: none; }
+.search-input::-webkit-search-cancel-button { display: none; }
+.search-results { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: calc(6px * var(--fs)) calc(8px * var(--fs)) calc(12px * var(--fs)); transition: opacity .15s; }
+.search-results.is-busy { opacity: .6; }
+.search-hint { padding: calc(16px * var(--fs)) calc(10px * var(--fs)); color: var(--muted); font-size: calc(13px * var(--fs)); line-height: 1.7; }
+.search-hint p { margin: 0; }
+.search-empty { margin: 0; padding: calc(22px * var(--fs)) calc(10px * var(--fs)); color: var(--muted); text-align: center; font-size: calc(14px * var(--fs)); }
+.search-count { margin: calc(4px * var(--fs)) calc(10px * var(--fs)); font-size: calc(12px * var(--fs)); color: var(--muted); }
+.search-group { display: grid; gap: 2px; margin-top: calc(8px * var(--fs)); }
+.search-group-title { margin: calc(4px * var(--fs)) calc(10px * var(--fs)); font-size: calc(12px * var(--fs)); font-weight: 700; color: var(--muted); }
+.search-group-title small { font-weight: 500; }
+.search-row {
+  display: grid; grid-template-columns: 28px 1fr; align-items: start; gap: calc(10px * var(--fs)); width: 100%;
+  padding: calc(8px * var(--fs)) calc(10px * var(--fs)); border: 0; border-radius: 10px; background: none; color: var(--ink); text-align: left;
+}
+.search-row[aria-selected="true"] { background: var(--hover); }
+@media (hover: hover) { .search-row:hover { background: var(--hover); } }
+.search-row.is-done .search-title { color: var(--muted); text-decoration: line-through; }
+.search-lead { display: grid; place-items: center; height: 22px; font-size: calc(16px * var(--fs)); line-height: 1; color: var(--muted); }
+.search-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--cat); }
+.search-main { display: grid; gap: 1px; min-width: 0; }
+.search-title { font-size: calc(14.5px * var(--fs)); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-sub { font-size: calc(12px * var(--fs)); color: var(--muted); }
+.search-snippet { font-size: calc(12.5px * var(--fs)); color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.search-results mark { padding: 0 1px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; }
+.search-more { margin: 2px calc(10px * var(--fs)) 0; font-size: calc(12px * var(--fs)); color: var(--faint); }
+@media (max-width: 640px) { dialog.search { margin-top: max(12px, env(safe-area-inset-top)); max-height: calc(100dvh - 24px); } }
+
+/* ---------- 백업 · 되살리기 (0.14.0) ---------- */
+dialog.backup .sec-block > .btn { justify-self: start; }
+dialog.backup a.btn { text-decoration: none; }
+
+/* 0.14.0 끝 */
+
+/* ==========================================================================
    0.12.1 — 부드럽게 (점검 패치)
    ========================================================================== */
 
@@ -2163,12 +2436,12 @@ body.is-booting .layout, body.is-booting .top-strip { visibility: hidden; opacit
    - :hover 효과는 위에서 모두 @media (hover: hover) 안으로 옮겼다 → 터치 기기에서 누른 뒤 색이 남아 있지 않다. */
 html { -webkit-tap-highlight-color: transparent; }
 .btn, .icon-btn, .text-btn, .seg-btn, .dday-chip, .menu-choice, .routine-chip, .goal-step, .decor-sticker, .decor-color,
-.notes-tab, .share-choice, .lk-cat, .menu-color, .weekly-goal {
+.notes-tab, .share-choice, .lk-cat, .theme-card {
   transition-property: background-color, border-color, color, box-shadow, opacity, scale;
   transition-duration: .12s;
 }
-:is(.btn, .icon-btn, .text-btn, .seg-btn, .dday-chip, .routine-chip, .goal-step, .decor-sticker, .decor-color, .menu-color):active:not(:disabled) { scale: .96; }
-:is(.menu-choice, .share-choice, .weekly-goal, .notes-tab):active { scale: .985; }
+:is(.btn, .icon-btn, .text-btn, .seg-btn, .dday-chip, .routine-chip, .goal-step, .decor-sticker, .theme-card):active:not(:disabled) { scale: .96; }
+:is(.menu-choice, .share-choice, .notes-tab):active { scale: .985; }
 
 /* ---------- 창(dialog)과 메뉴(popover)가 부드럽게 열리고 닫히기 ----------
    @starting-style(열릴 때의 시작 모습) + transition-behavior: allow-discrete(닫힐 때 display가 바로 꺼지지 않게).
@@ -2205,7 +2478,7 @@ dialog.sheet[open], dialog.datepop[open], dialog.quick[open] { animation: none; 
 /* ---------- 스크롤 ----------
    창 안을 끝까지 스크롤해도 뒤의 화면이 같이 스크롤되거나 튕기지 않게 (overscroll-behavior)
    (scrollbar-gutter로 막대 자리를 미리 비워 두는 것도 해 봤지만, 윈도우에서 좁은 하루 칸의 글자가 더 잘려서 뺐다) */
-.sheet-body, .notes-body, .lk-body, .settings-menu, .weekly-goals { overscroll-behavior: contain; }
+.sheet-body, .notes-body, .lk-body, .settings-menu { overscroll-behavior: contain; }
 
 /* ---------- 글 줄바꿈: 마지막 줄에 한 단어만 남는 것을 줄인다 (지원하는 브라우저만) ---------- */
 /* 줄임표(…)로 한 줄에 자르는 글자(white-space: nowrap)는 그대로 둔다: 'text-wrap: pretty'는 줄바꿈을 다시 켜 버리므로
@@ -2227,7 +2500,7 @@ p, li, .item-title, .goal-title { text-wrap-style: pretty; }
   body { display: block !important; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .demo-banner, .top-strip, .notes, .notes-backdrop, .pane, .fab, .toast, dialog, [popover],
-  .topbar .actions, #btn-notes, #btn-prev, #btn-next, #btn-today, #btn-stats, #btn-week-layout,
+  .topbar .actions, #btn-notes, #btn-prev, #btn-next, #btn-today, #btn-diary, #btn-care, #btn-search, #btn-week-layout,
   .month-title .caret, .wx-source { display: none !important; }
   .topbar { padding: 0 0 4mm !important; }
   .month-title .title-btn { padding: 0; margin: 0; }
@@ -2246,7 +2519,7 @@ p, li, .item-title, .goal-title { text-wrap-style: pretty; }
   .week, .week[data-layout="row"] { overflow: visible !important; }
   .week-track.row { min-width: 0 !important; width: 100% !important; height: auto !important; min-height: 140mm; }
   .week-track.col { min-height: 0 !important; }
-  /* 0.11.0: 배경 사진은 인쇄하지 않는다 (잉크·가독성). 형광펜·스티커는 그대로 나온다 */
+  /* 0.11.0: 배경 사진은 인쇄하지 않는다 (잉크·가독성). 스티커는 그대로 나온다 */
   #calendar, .week { background-image: none !important; }
   .wk-col { min-width: 0 !important; overflow: visible !important; }
 }

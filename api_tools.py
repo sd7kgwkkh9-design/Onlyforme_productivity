@@ -36,7 +36,7 @@
           올해 목표의 진행 방식 measure: check | count(current/target) | routine(routine_id의 그 해 기록 수)
 
 달력 꾸미기 (0.11.0)
-  PUT    /api/days/<date>/mark            날짜 스티커·형광펜 {sticker, color} (읽기는 /api/calendar의 marks)
+  PUT    /api/days/<date>/mark            날짜 스티커 {sticker} (읽기는 /api/calendar의 marks)
   (메모장의 '할 일'은 날짜 없는 일정이라 api.py의 /api/items/undated 등을 쓴다)
 
 화면 한 번에 필요한 것 묶어 받기 (최적화: 요청 수 줄이기)
@@ -49,8 +49,6 @@
   GET    /api/overview?today=             메인 메모의 배너 글귀 + 다가오는 D-day 일정 + 기한 있는 목표 + 올해 진행률·올해 목표 + 인생 목표
                                            + 0.13.0: 급한 할 일, 습관, 진행 중인 프로젝트, 다가오는 기념일
 
-시간 돌아보기
-  GET    /api/stats?start=&end=           기간 안의 카테고리별·날짜별 시간, 루틴 횟수·시간
 
 빠른 입력
   GET    /api/parse?text=&today=          한 줄 입력을 해석만 한다 (저장은 POST /api/items 또는 /api/routine-logs)
@@ -135,16 +133,22 @@ def routine_rows(db, until=None):
     """
     루틴 목록. until(날짜)이 있으면 그 날짜까지 중 마지막으로 기록한 날(last_date)도 함께.
     log_count = 지금까지 남긴 기록 수 (삭제할 때 '기록 N개도 함께 지워져요' 안내용)
+    week_count, month_count = until이 든 주(일요일부터)·달에 그날까지 몇 번 했는지 (0.14.0: 없앤 '시간 돌아보기' 대신 루틴 창에)
     """
+    day = Date.fromisoformat(until) if until else None
+    week_start = (day - timedelta(days=(day.weekday() + 1) % 7)).isoformat() if day else "9999-12-31"
+    month_start = day.replace(day=1).isoformat() if day else "9999-12-31"
     return db.execute(
         """
         SELECT r.*,
-               (SELECT MAX(l.date) FROM routine_logs l WHERE l.routine_id = r.id AND l.date <= ?) AS last_date,
-               (SELECT COUNT(*) FROM routine_logs l WHERE l.routine_id = r.id) AS log_count
+               (SELECT MAX(l.date) FROM routine_logs l WHERE l.routine_id = r.id AND l.date <= :until) AS last_date,
+               (SELECT COUNT(*) FROM routine_logs l WHERE l.routine_id = r.id) AS log_count,
+               (SELECT COUNT(*) FROM routine_logs l WHERE l.routine_id = r.id AND l.date BETWEEN :week AND :until) AS week_count,
+               (SELECT COUNT(*) FROM routine_logs l WHERE l.routine_id = r.id AND l.date BETWEEN :month AND :until) AS month_count
         FROM routines r
         ORDER BY r.position, r.id
         """,
-        (until or "9999-12-31",),
+        {"until": until or "9999-12-31", "week": week_start, "month": month_start},
     ).fetchall()
 
 
@@ -156,6 +160,8 @@ def routine_dict(r):
         "position": r["position"],
         "last_date": r["last_date"],
         "log_count": r["log_count"],
+        "week_count": r["week_count"],
+        "month_count": r["month_count"],
     }
 
 
@@ -329,7 +335,9 @@ def logs_between(db, start, end):
 
 def calendar_data(db, start, end):
     # 0.13.0: 시간표의 수업(classes, 쉬는 것은 빼고)과 기념일(annivs)도 같이 싣는다 (화면이 표시 설정에 맞게 고른다)
+    # 0.14.0: 일기를 쓴 날(diaries: 날짜와 기분만, 내용은 싣지 않는다)
     from api_plans import anniv_occurrences
+    from diary import diary_days
     from timetable import class_occurrences
     return {
         "items": occurrence_list(db, start, end),
@@ -337,11 +345,13 @@ def calendar_data(db, start, end):
         "marks": marks_between(db, start, end),
         "classes": class_occurrences(db, start, end, include_skipped=False),
         "annivs": anniv_occurrences(db, start, end),
+        "diaries": diary_days(db, start, end),
     }
 
 
 def day_data(db, day):
     from api_plans import anniv_occurrences
+    from diary import diary_on
     from timetable import class_occurrences
     nxt = (Date.fromisoformat(day) + timedelta(days=1)).isoformat()
     return {
@@ -351,6 +361,7 @@ def day_data(db, day):
         "mark": next(iter(marks_between(db, day, nxt)), None),
         "classes": class_occurrences(db, day, nxt),     # 하루 화면은 쉬는 수업도 보여 준다 ('다시 하기'를 누를 수 있게)
         "annivs": anniv_occurrences(db, day, nxt),
+        "diary": diary_on(db, day),                      # 0.14.0: 그날 일기 (없으면 None)
     }
 
 
@@ -367,14 +378,14 @@ def inbox_data(db):
 
 @bp.get("/calendar")
 def calendar_range():
-    """월간·주간 화면: [start, end) 기간의 일정(날짜별) + 루틴 기록 + 날짜 꾸밈(스티커·형광펜)"""
+    """월간·주간 화면: [start, end) 기간의 일정(날짜별) + 루틴 기록 + 날짜 스티커"""
     start, end = parse_range()
     return jsonify(calendar_data(get_db(), start, end))
 
 
 @bp.get("/day/<day>")
 def day_detail(day):
-    """하루 화면: 그날 일정 + 루틴 기록 + 루틴 버튼(그날 기준 마지막으로 기록한 날) + 그날의 꾸밈(스티커·형광펜)"""
+    """하루 화면: 그날 일정 + 루틴 기록 + 루틴 버튼(그날 기준 마지막으로 기록한 날) + 그날의 스티커"""
     return jsonify(day_data(get_db(), parse_date(day)))
 
 
@@ -869,118 +880,37 @@ def overview_data(db, today):
     return {"banner": banner, "ddays": ddays[:MAX_DDAYS], "year": year, "life": life, **extras}
 
 
-# ======================================================================== 달력 꾸미기: 날짜 스티커·형광펜 (0.11.0)
-MARK_COLORS = ("yellow", "pink", "green", "blue", "purple", "orange")
+# ======================================================================== 달력 꾸미기: 날짜 스티커 (0.11.0)
+# 0.11.0에는 칸을 칠하는 형광펜(day_marks.color)도 있었지만 0.14.0에서 뺐다. 칸은 남겨 두고 쓰지 않는다 (db.migrate가 비운다).
 
 
 def marks_between(db, start, end):
-    rows = db.execute("SELECT * FROM day_marks WHERE date >= ? AND date < ? ORDER BY date", (start, end))
-    return [{"date": r["date"], "sticker": r["sticker"], "color": r["color"]} for r in rows]
+    rows = db.execute("SELECT * FROM day_marks WHERE date >= ? AND date < ? AND sticker != '' ORDER BY date", (start, end))
+    return [{"date": r["date"], "sticker": r["sticker"]} for r in rows]
 
 
 @bp.put("/days/<day>/mark")
 def set_day_mark(day):
-    """그 날짜의 스티커(이모지 하나)와 형광펜 색. 둘 다 비우면 꾸밈이 지워진다. 보낸 칸만 바꾼다."""
+    """그 날짜의 스티커(이모지 하나). 비우면 뗀다. (예전 화면이 보내는 형광펜 color는 무시한다)"""
     db = get_db()
     day = parse_date(day)
     data = json_body()
     row = db.execute("SELECT * FROM day_marks WHERE date = ?", (day,)).fetchone()
     sticker = row["sticker"] if row else ""
-    color = row["color"] if row else ""
     if "sticker" in data:
         sticker = str(data.get("sticker") or "").strip()
         if len(sticker) > MAX_EMOJI_LEN or any(ch.isspace() or unicodedata.category(ch).startswith("L") for ch in sticker):
             raise ApiError("스티커는 이모지 하나만 붙일 수 있어요.")
-    if "color" in data:
-        color = str(data.get("color") or "")
-        if color and color not in MARK_COLORS:
-            raise ApiError("형광펜 색을 확인해 주세요.")
-    if sticker or color:
+    if sticker:
         db.execute(
-            "INSERT INTO day_marks (date, sticker, color) VALUES (?, ?, ?) "
-            "ON CONFLICT(date) DO UPDATE SET sticker = excluded.sticker, color = excluded.color",
-            (day, sticker, color),
+            "INSERT INTO day_marks (date, sticker, color) VALUES (?, ?, '') "
+            "ON CONFLICT(date) DO UPDATE SET sticker = excluded.sticker, color = ''",
+            (day, sticker),
         )
     else:
         db.execute("DELETE FROM day_marks WHERE date = ?", (day,))
     db.commit()
-    return jsonify(date=day, sticker=sticker, color=color)
-
-
-# ======================================================================== 시간 돌아보기
-def minutes_between(start, end):
-    if not start or not end:
-        return 0
-    (sh, sm), (eh, em) = (map(int, start.split(":")), map(int, end.split(":")))
-    return max(0, (eh * 60 + em) - (sh * 60 + sm))
-
-
-@bp.get("/stats")
-def stats():
-    """
-    [start, end) 기간의 시간 사용.
-      - 시간: 시작·끝이 모두 있는 것만 (끝 - 시작). 여러 날짜 일정은 날짜마다 따로 더한다.
-      - 일정은 카테고리별로, 루틴 기록은 루틴별로 따로 모은다.
-      - 개수: 시간이 없는 것도 센다.
-    """
-    db = get_db()
-    start, end = parse_range()
-    rows = db.execute(
-        """
-        SELECT d.date, i.start_time, i.end_time, c.id AS c_id, c.name AS c_name, c.color AS c_color
-        FROM item_dates d
-        JOIN items i ON i.id = d.item_id
-        JOIN categories c ON c.id = i.category_id
-        WHERE d.date >= ? AND d.date < ?
-        """,
-        (start, end),
-    ).fetchall()
-    logs = log_rows(db, "WHERE l.date >= ? AND l.date < ?", (start, end))
-
-    categories, routines, days = {}, {}, {}
-    schedule_total = routine_total = timed = 0
-
-    def day(date):
-        return days.setdefault(date, {"by_category": {}, "routine": 0})
-
-    for r in rows:
-        minutes = minutes_between(r["start_time"], r["end_time"])
-        cat = categories.setdefault(
-            r["c_id"], {"id": r["c_id"], "name": r["c_name"], "color": r["c_color"], "minutes": 0, "count": 0}
-        )
-        cat["count"] += 1
-        cat["minutes"] += minutes
-        if minutes:
-            timed += 1
-            schedule_total += minutes
-            bucket = day(r["date"])["by_category"]
-            bucket[str(r["c_id"])] = bucket.get(str(r["c_id"]), 0) + minutes
-
-    for log in logs:
-        minutes = minutes_between(log["start_time"], log["end_time"])
-        rt = routines.setdefault(
-            log["routine_id"],
-            {"id": log["routine_id"], "name": log["r_name"], "emoji": log["r_emoji"], "count": 0, "minutes": 0},
-        )
-        rt["count"] += 1
-        rt["minutes"] += minutes
-        if minutes:
-            routine_total += minutes
-            day(log["date"])["routine"] += minutes
-
-    return jsonify(
-        start=start,
-        end=end,
-        total_minutes=schedule_total + routine_total,
-        schedule_minutes=schedule_total,
-        routine_minutes=routine_total,
-        item_count=len(rows),
-        timed_count=timed,
-        log_count=len(logs),
-        categories=sorted(categories.values(), key=lambda c: (-c["minutes"], -c["count"])),
-        routines=sorted(routines.values(), key=lambda r: (-r["count"], -r["minutes"])),
-        days=[{"date": d, **v} for d, v in sorted(days.items())],
-    )
+    return jsonify(date=day, sticker=sticker)
 
 
 # ======================================================================== 빠른 입력
