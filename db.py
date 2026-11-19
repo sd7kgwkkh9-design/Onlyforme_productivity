@@ -10,8 +10,8 @@ item_dates  : 일정이 들어간 날짜들 (일정 하나에 날짜 여러 개 
 
 routines     : 루틴 — 자주 하는 활동(🏃 운동, 📖 독서 …). 카테고리 대신 이모지 하나 (8차에서 바뀜)
 routine_logs : 루틴 기록 — 그날 그 루틴을 했다는 기록 (시간·메모는 선택). 일정(items)과는 따로 둔다 (8차)
-notes        : 기록지의 '메모' — 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
-goals        : 기록지의 '목표' — 제목 + 기한(선택). 기한이 있으면 달력 위 D-day 띠에 보인다 (0.9.0)
+notes        : 메모장의 '메모' — 여러 개. 그중 하나(is_main)의 banner가 달력 위 배너에 보인다 (7차)
+goals        : 메모장의 '목표' — 제목 + 기한(선택). 기한이 있으면 달력 위 D-day 띠에 보인다 (0.9.0)
                0.11.0부터 세 단계: 인생 목표(life) → 올해 목표(year) → 기한 목표(due). parent_id로 위 단계와 잇는다.
                올해 목표는 진행 방식(measure)이 셋: 체크(check) / 숫자(count: current/target) / 루틴 연결(routine: 그 해의 루틴 기록 수)
 day_marks    : 달력 꾸미기 — 날짜에 붙인 스티커(이모지)와 형광펜 색 (0.11.0)
@@ -19,10 +19,20 @@ links        : 밖에서 여는 주소 (0.12.0) — 보기 전용 공유 링크(
                주소에 들어가는 무작위 토큰이 곧 열쇠다. 지우면 그 주소는 바로 막힌다.
 passkeys     : 패스키 (0.12.0) — Face ID·지문으로 로그인. 공개 키만 저장한다 (비밀 키는 기기 밖으로 나오지 않는다).
 
+0.13.0에서 늘어난 표
+habits / habit_logs   : 습관 — 하루에 몇 번 하는 생활 습관(💧 물 8잔). 날짜마다 한 횟수만 저장한다 (자정이 지나면 0부터)
+timetables            : 시간표 — '2학기 수업', '학원', '알바'처럼 매주 반복되는 틀. 기간(시작~끝)과 '공휴일엔 쉬기'
+timetable_blocks      : 시간표 칸 — 요일 하나 + 시작·끝 시간 + 이름·장소. 날짜마다 저장하지 않고 '규칙'으로 둔다
+timetable_skips       : 시간표의 '이날만 쉬기' (칸 하나 또는 그 시간표 전체)
+anniversaries         : 기념일 — 생일·기념일(매년, 음력 가능), 날짜 세기(만난 지 100일, 500일 …)
+projects              : 프로젝트 — 몇 월까지 진행하는 일. 기간(정확한 날짜 또는 '1월 중'처럼 대략), 상태.
+                        세부 할 일과 연결한 일정은 items.project_id로 잇는다
+items.urgent          : 급한 할 일(⚡) — 첫 화면 '오늘 챙길 것' 줄에 보인다
+
 meta        : 변경 번호(version) — 일정·카테고리·루틴·메모가 바뀔 때마다 1씩 커진다.
               다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
 
-item_dates에 줄이 하나도 없는 일정 = 기록지의 "할 일"이다 (0.8까지는 '기한 미정'이라고 불렀다).
+item_dates에 줄이 하나도 없는 일정 = 메모장의 "할 일"이다 (0.8까지는 '기한 미정'이라고 불렀다).
 할 일은 체크하면 done_at에 완료 시각이 들어가고, 날짜를 정해 주면 그대로 달력의 일정이 된다.
 반복 일정(매주·격주)도 따로 표를 두지 않고 '날짜 여러 개짜리 일정'으로 저장한다 (0.9.0).
 """
@@ -138,6 +148,79 @@ CREATE TABLE IF NOT EXISTS passkeys (
     last_used_at  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS habits (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    emoji       TEXT    NOT NULL DEFAULT '✅',
+    target      INTEGER NOT NULL DEFAULT 1,       -- 하루 목표 횟수 (물 8잔이면 8)
+    position    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS habit_logs (
+    habit_id    INTEGER NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+    date        TEXT    NOT NULL,                 -- 'YYYY-MM-DD'
+    count       INTEGER NOT NULL DEFAULT 0,       -- 그날 한 횟수
+    PRIMARY KEY (habit_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS timetables (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT    NOT NULL,
+    color         TEXT    NOT NULL DEFAULT '#3D6FD9',
+    start_date    TEXT,                           -- 이 날부터 (없으면 처음부터)
+    end_date      TEXT,                           -- 이 날까지 (포함, 없으면 계속)
+    skip_holidays INTEGER NOT NULL DEFAULT 1,     -- 1이면 공휴일에는 쉰다
+    position      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS timetable_blocks (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    timetable_id  INTEGER NOT NULL REFERENCES timetables(id) ON DELETE CASCADE,
+    title         TEXT    NOT NULL,
+    weekday       INTEGER NOT NULL,               -- 0=일 1=월 … 6=토 (화면의 요일 번호와 같다)
+    start_time    TEXT    NOT NULL,               -- 'HH:MM'
+    end_time      TEXT    NOT NULL,
+    place         TEXT    NOT NULL DEFAULT '',    -- 강의실·장소
+    memo          TEXT    NOT NULL DEFAULT '',
+    color         TEXT                            -- 없으면 시간표의 색
+);
+CREATE INDEX IF NOT EXISTS idx_blocks_timetable ON timetable_blocks(timetable_id);
+
+CREATE TABLE IF NOT EXISTS timetable_skips (
+    timetable_id  INTEGER NOT NULL REFERENCES timetables(id) ON DELETE CASCADE,
+    block_id      INTEGER NOT NULL DEFAULT 0,     -- 0이면 그 시간표 전체를 쉰다
+    date          TEXT    NOT NULL,
+    PRIMARY KEY (timetable_id, block_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS anniversaries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    emoji       TEXT    NOT NULL DEFAULT '🎉',
+    kind        TEXT    NOT NULL DEFAULT 'yearly', -- 'birthday'(생일) | 'yearly'(기념일, N주년) | 'days'(날짜 세기)
+    date        TEXT    NOT NULL,                  -- 처음 그날. 음력이면 음력 날짜 그대로 'YYYY-MM-DD'
+    lunar       INTEGER NOT NULL DEFAULT 0,        -- 1이면 음력 (생일·기념일만)
+    leap        INTEGER NOT NULL DEFAULT 0,        -- 1이면 윤달
+    from_one    INTEGER NOT NULL DEFAULT 1,        -- 날짜 세기: 1이면 그날을 1일로 센다 (사귄 날 = 1일)
+    dday        INTEGER NOT NULL DEFAULT 1,        -- 1이면 다가올 때 달력 위 띠에 D-day로
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    status      TEXT    NOT NULL DEFAULT 'active', -- 'active'(진행 중) | 'paused'(잠시 멈춤) | 'done'(끝남)
+    start_date  TEXT,                              -- 기간 (타임라인에 그릴 때 쓴다)
+    end_date    TEXT,
+    period      TEXT    NOT NULL DEFAULT '',       -- '1월 중', '겨울방학'처럼 대략 적은 기간 (정확한 날짜면 '')
+    memo        TEXT    NOT NULL DEFAULT '',
+    color       TEXT    NOT NULL DEFAULT '#7C5CD6',
+    position    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    done_at     TEXT
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value INTEGER NOT NULL
@@ -170,6 +253,7 @@ def migrate(conn):
       - goals.kind 등 7칸     : 인생·올해 목표 (0.11.0). 예전 목표는 모두 '기한 목표'(due)로 남는다
       - day_marks            : 달력 꾸미기 표 (0.11.0) — SCHEMA가 새로 만들어 준다
       - links, passkeys      : 공유 링크·구독·위젯, 패스키 (0.12.0) — SCHEMA가 새로 만들어 준다
+      - items.urgent, items.project_id : 급한 할 일, 프로젝트 (0.13.0). 습관·시간표·기념일·프로젝트 표는 SCHEMA가 만든다
     """
     if "end_time" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN end_time TEXT")
@@ -183,6 +267,11 @@ def migrate(conn):
         migrate_routines_v8(conn)
     if "done_at" not in column_names(conn, "items"):
         conn.execute("ALTER TABLE items ADD COLUMN done_at TEXT")
+    item_cols = column_names(conn, "items")
+    if "urgent" not in item_cols:
+        conn.execute("ALTER TABLE items ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0")
+    if "project_id" not in item_cols:
+        conn.execute("ALTER TABLE items ADD COLUMN project_id INTEGER")
     goal_cols = column_names(conn, "goals")
     for name, definition in GOAL_COLUMNS_V11:
         if name not in goal_cols:

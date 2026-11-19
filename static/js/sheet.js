@@ -6,11 +6,13 @@
 // 한 곳 안에서 화면이 바뀌며 나온다.
 //   day        : 선택한 날짜의 일정 목록  ─┐ 일정을 누르거나 추가 → form
 //   form       : 일정 추가/수정            ─┘ 저장/취소하면 원래 화면으로 돌아감
-//                (기록지의 '할 일'을 눌렀을 때도 이 form으로 수정한다)
+//                (메모장의 '할 일'을 눌렀을 때도 이 form으로 수정한다)
 //   categories : 카테고리 관리 (팝업만)
 //   그 밖      : 다른 파일이 이 창에 그리는 화면 (routines.js의 루틴 편집, stats.js의 시간 돌아보기) → showView()
 //
 // 하루 화면: 위에는 일정, 그 아래에 '오늘의 루틴'(그날의 루틴 기록)이 따로 보인다.
+// 0.13.0: 맨 위에 그날의 기념일(🎂 엄마 생신), 시간표의 수업은 보기 설정에 따라 일정 위(같이) 또는 아래(아래)에.
+//         일정 입력 창에 '프로젝트'와 '⚡ 급한 할 일'이 생겼다.
 // 맨 아래(고정)에는 루틴 버튼 줄이 있고, 누르면 시간·메모만 적는 작은 기록 창이 열린다 (routines.js).
 // 일정·루틴 기록을 두 손가락 클릭(오른쪽 클릭)하면 메뉴가 뜬다 (0.9.0, 메뉴 내용은 main.js가 정한다).
 
@@ -24,6 +26,7 @@ import {
 } from './utils.js';
 import { MARK_COLORS, openDecor, setMarks } from './decor.js';
 import { decorateTimed, weatherLine } from './weather.js';
+import { classSection, displayMode } from './timetable.js';
 
 const PALETTE = ['#E5534B', '#F08C2E', '#D9A514', '#3FA66B', '#2BA5B5', '#3D6FD9', '#7C5CD6', '#D45A9A'];
 
@@ -34,12 +37,16 @@ const shared = {
   onDataChanged: async () => {},
   onItemMenu: null,     // (event, occurrence, sheet) — 일정을 오른쪽 클릭했을 때 (main.js)
   onLogMenu: null,      // (event, log, sheet)        — 루틴 기록을 오른쪽 클릭했을 때
+  onEditClass: () => {}, // (blockId) — 하루 화면의 수업 → 시간표에서 고치기 (0.13.0)
+  onOpenAnnivs: () => {}, // 기념일 창 (0.13.0)
 };
 
-export function configureSheets({ onDataChanged, onItemMenu = null, onLogMenu = null }) {
+export function configureSheets({ onDataChanged, onItemMenu = null, onLogMenu = null, onEditClass = () => {}, onOpenAnnivs = () => {} }) {
   shared.onDataChanged = onDataChanged;
   shared.onItemMenu = onItemMenu;
   shared.onLogMenu = onLogMenu;
+  shared.onEditClass = onEditClass;
+  shared.onOpenAnnivs = onOpenAnnivs;
 }
 
 async function loadCategories() {
@@ -179,7 +186,7 @@ export class Sheet {
     this.setHead(formatLong(date), date === todayStr() ? '오늘' : '');
     // 0.12.1: 다른 날짜로 바꿀 때도 '불러오는 중'으로 비우지 않고, 보던 목록을 흐리게 둔 채 새 내용으로 바꾼다
     // (미리 받아 둔 날짜는 바로 바뀌어서 흐려지는 것도 보이지 않는다 — api.js의 기억해 두기, main.js의 미리 받기)
-    const hasList = this.bodyEl.querySelector('.item-list, .empty, .routine-day');
+    const hasList = this.bodyEl.querySelector('.item-list, .empty, .routine-day, .tt-day');
     if (!hasList) this.loading();
     else if (!keepContent) this.bodyEl.classList.add('is-busy');
 
@@ -187,8 +194,11 @@ export class Sheet {
     let routines;
     let logs;
     let mark;
+    let classes;
+    let annivs;
     try {
-      ({ items: list, logs, routines, mark } = await api.day(date)); // 일정 + 루틴 기록 + 루틴 버튼 + 꾸밈을 한 번에
+      // 일정 + 루틴 기록 + 루틴 버튼 + 꾸밈 + (0.13.0) 수업 + 기념일을 한 번에
+      ({ items: list, logs, routines, mark, classes = [], annivs = [] } = await api.day(date));
       setMarks(mark ? [mark] : [], date, addDays(date, 1));
     } catch (e) {
       this.bodyEl.classList.remove('is-busy');
@@ -197,10 +207,21 @@ export class Sheet {
     if (this.view !== 'day' || this.day !== date) return; // 그 사이 다른 화면으로 바뀌었으면 무시
     this.bodyEl.classList.remove('is-busy');
 
+    // 0) 기념일 (0.13.0) · 시간표의 수업 (보기 설정: 같이 = 일정 위, 아래 = 일정 아래, 따로 = 안 보임)
+    const mode = displayMode();
+    const shownClasses = mode === 'only' ? [] : classes;
+    const annivLine = annivs.length
+      ? el('div', { class: 'anniv-line' }, annivs.map((a) => el('button', {
+          type: 'button', class: 'anniv-chip', title: '기념일 — 눌러서 기념일 창 열기', onclick: () => shared.onOpenAnnivs(),
+        }, `${a.emoji} ${a.title}${a.label ? ` ${a.label}` : ''}`)))
+      : null;
+    const classDay = classSection({ date, classes: shownClasses, onChanged: dataChanged, onOpenTimetable: (id) => shared.onEditClass(id) });
+
     // 1) 일정
     let schedule;
     if (!list.length) {
-      schedule = [el('p', { class: logs.length ? 'empty small' : 'empty' }, logs.length ? '일정 없음' : '이 날은 아직 비어 있어요.')];
+      const busy = logs.length || shownClasses.length;
+      schedule = [el('p', { class: busy ? 'empty small' : 'empty' }, busy ? '일정 없음' : '이 날은 아직 비어 있어요.')];
     } else {
       const sortable = list.length > 1;
       const ul = el('ul', { class: 'item-list' },
@@ -223,7 +244,9 @@ export class Sheet {
           onMenu: shared.onLogMenu ? (e, log) => shared.onLogMenu(e, log, this) : null,
         })
       : null;
-    this.setBody(this.dayTop(date, mark), ...schedule, routineDay); // 맨 위: 그날 서울 날씨(오늘부터 일주일만) + 꾸미기
+    // 맨 위: 그날 서울 날씨(오늘부터 일주일만) + 꾸미기
+    this.setBody(this.dayTop(date, mark), annivLine,
+      mode === 'with' ? classDay : null, ...schedule, mode === 'below' ? classDay : null, routineDay);
     decorateTimed(this.bodyEl); // 일정 옆에 그 시간의 날씨
 
     this.setFoot(
@@ -284,7 +307,10 @@ export class Sheet {
   async openForm(form) {
     this.form = form;
     this.open('form');
-    try { await loadCategories(); } catch (e) { return this.failed(e); }
+    try {
+      await loadCategories();
+      shared.projects = (await api.inbox()).projects || []; // 프로젝트 고르기 (0.13.0)
+    } catch (e) { return this.failed(e); }
     this.renderForm();
   }
 
@@ -362,6 +388,17 @@ export class Sheet {
     // --- D-day 표시: 켜 두면 달력 위 띠에 'D-3 기말고사'처럼 남은 날이 보인다
     const ddayInput = el('input', { type: 'checkbox', id: `${uid}-f-dday`, class: 'f-dday', checked: Boolean(src?.dday) });
 
+    // --- 프로젝트 (0.13.0): 끝난 프로젝트는 지금 묶여 있는 것만 보인다
+    const currentProject = isEdit ? item.project?.id ?? null : pre.project_id ?? null;
+    const projects = (shared.projects || []).filter((p) => p.status !== 'done' || p.id === currentProject);
+    const projectSelect = projects.length
+      ? el('select', { id: `${uid}-f-project`, class: 'input f-project', 'aria-label': '프로젝트' },
+          el('option', { value: '' }, '없음'),
+          projects.map((p) => el('option', { value: String(p.id), selected: p.id === currentProject }, p.title)))
+      : null;
+    // --- 급한 할 일 (0.13.0): 날짜를 비워 둔 할 일일 때 첫 화면 '오늘 챙길 것'에 보인다
+    const urgentInput = el('input', { type: 'checkbox', id: `${uid}-f-urgent`, class: 'f-urgent', checked: Boolean(src?.urgent) });
+
     const errorEl = el('p', { class: 'form-error', role: 'alert', hidden: true });
 
     const form = el('form', { id: ids.form, class: 'form item-form', novalidate: true },
@@ -378,6 +415,11 @@ export class Sheet {
         el('label', { class: 'switch', for: `${uid}-f-dday` }, ddayInput, el('span', { class: 'switch-ui' }), 'D-day로 표시'),
         el('p', { class: 'field-hint' }, '달력 위쪽에 남은 날짜가 보여요. 시험·마감처럼 꼭 챙길 일정에 켜 두세요.'),
       ),
+      el('div', { class: 'field' },
+        el('label', { class: 'switch', for: `${uid}-f-urgent` }, urgentInput, el('span', { class: 'switch-ui' }), '⚡ 급한 할 일'),
+        el('p', { class: 'field-hint' }, '날짜를 비워 둔 할 일이면 맨 위로 올라오고 첫 화면 \'오늘 챙길 것\'에 보여요.'),
+      ),
+      projectSelect ? field('프로젝트', projectSelect, `${uid}-f-project`) : null,
       field('메모', memoInput, ids.memo),
       errorEl,
     );
@@ -392,6 +434,8 @@ export class Sheet {
         end_time: hasTime.checked ? endField.value : null,
         dates: picker.dates,
         dday: ddayInput.checked,
+        urgent: urgentInput.checked,
+        ...(projectSelect ? { project_id: projectSelect.value ? Number(projectSelect.value) : null } : {}),
       };
       if (!payload.title) return showError(errorEl, '제목을 입력해 주세요.', titleInput);
       if (hasTime.checked && !payload.start_time && !payload.end_time) {
@@ -406,7 +450,7 @@ export class Sheet {
         if (isEdit) await api.updateItem(item.id, { ...payload, scope, date: ctxDate });
         else await api.createItem(payload);
         shared.lastCategoryId = payload.category_id;
-        toast(payload.dates.length ? '저장했어요' : '기록지의 할 일에 저장했어요');
+        toast(payload.dates.length ? '저장했어요' : '메모장의 할 일에 저장했어요');
         await dataChanged();
         this.goBack();
       } catch (err) {
@@ -428,7 +472,8 @@ export class Sheet {
             prefill: {
               title: titleInput.value.trim() || item.title, memo: memoInput.value, category_id: catChips.value,
               start_time: hasTime.checked ? startField.value : null, end_time: hasTime.checked ? endField.value : null,
-              dday: ddayInput.checked, dates: picker.dates,
+              dday: ddayInput.checked, dates: picker.dates, urgent: urgentInput.checked,
+              project_id: projectSelect?.value ? Number(projectSelect.value) : null,
             },
           }),
         }, '복사')

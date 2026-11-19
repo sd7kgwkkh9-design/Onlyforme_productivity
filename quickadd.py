@@ -6,13 +6,16 @@
     "다음 주 월요일 9시 반 회의"  → 다음 주 월요일, 09:30, 제목 '회의'
     "언젠가 책 정리"              → 할 일(날짜 없음), 제목 '책 정리'
     "매주 월수 9시 컴구 ~12/15"   → 오늘부터 12/15까지의 월·수 전부 (반복 일정, 0.9.0)
-    "- 블로그 주제: 해저드"       → 기록지의 메모 (0.9.0)
-    "* 12월까지 풀업 15개"        → 기록지의 목표, 기한 12/31 (0.9.0)
+    "- 블로그 주제: 해저드"       → 메모장의 메모 (0.9.0)
+    "* 12월까지 풀업 15개"        → 메모장의 목표, 기한 12/31 (0.9.0)
+    "! 서류 내기"                 → 급한 할 일 ⚡ (0.13.0, 첫 화면 '오늘 챙길 것'에 보인다)
+    "# 텀프로젝트 ~12/6"          → 프로젝트, 기간 오늘~12/6 (0.13.0, '1월 중'·'겨울방학'처럼 대략도 된다 — periods.py)
+    "회의 자료 정리 @텀프로젝트"   → 그 프로젝트의 세부 할 일 (0.13.0)
 
 규칙 (빠른 입력 창의 도움말, README에도 같은 내용)
   날짜   오늘·내일·모레·글피·어제, 3일 뒤, 2주 후, (이번 주 / 다음 주) 금요일,
          11/20, 11월 20일, 2026-11-20, 20일, 기간 11/20~11/22, 여러 개 쓰면 여러 날짜
-         → 날짜를 안 쓰면 할 일(기록지, 0.8까지의 '기한 미정') — '언젠가'라고 써도 같다
+         → 날짜를 안 쓰면 할 일(메모장, 0.8까지의 '기한 미정') — '언젠가'라고 써도 같다
   반복   매주 월수, 격주 화, 매일, 매주 평일/주말, 화요일마다 (0.9.0)
          시작은 쓴 날짜(11/10부터) 또는 오늘, 끝은 ~12/15 / 12/15까지 / 기간 11/10~12/15
          끝을 안 쓰면 시작 날짜가 있는 달의 말일까지만 넣는다
@@ -21,7 +24,10 @@
          오전·오후를 안 쓰면 1~7시는 오후로 본다 (7시 스터디 → 19:00, 9시 수업 → 09:00)
   기타   #카테고리,  띄어 쓴 ! 또는 'D-day' → D-day 표시
   루틴   제목이 루틴 이름과 같으면 ('운동 7시') 일정이 아니라 루틴 기록으로 — 날짜를 안 쓰면 오늘
-  종류   맨 앞에  -  메모   *  목표 (기한: 12월까지, 이번 달 안에, 12/20까지 …)   [ ]  할 일
+  종류   맨 앞에  -  노트   *  목표 (기한: 12월까지, 이번 달 안에, 12/20까지 …)   [ ]  할 일
+         !  급한 할 일 (날짜를 쓰면 D-day 일정)   #  프로젝트(뒤에 한 칸 띄우기: '# 이름 기간')
+  프로젝트  @이름 → 그 프로젝트에 묶기 (이름 앞부분만 써도 된다)
+  (0.13.0부터 '메모장'는 '메모장', 그 안의 '메모'는 '노트')
 
 해석은 '찾은 부분을 지워 나가는' 방식이다.
 카테고리·D-day → 반복 → 날짜 → 시간 순서로 찾고, 찾은 글자는 같은 길이의 공백으로 덮는다
@@ -103,7 +109,11 @@ REPEAT_RE = re.compile(
 MAX_REPEAT_DAYS = 366
 
 # ---- 종류 (0.9.0): 맨 앞의 기호로 메모·목표·할 일을 고른다
-PREFIX_RE = re.compile(r"^\s*(?:(?P<memo>-)(?=\s|$)|(?P<goal>\*)(?=\s|$)|(?P<todo>\[\s*\]))")
+PREFIX_RE = re.compile(
+    r"^\s*(?:(?P<memo>-)(?=\s|$)|(?P<goal>\*)(?=\s|$)|(?P<todo>\[\s*\])|(?P<urgent>!)(?=\s*\S)|(?P<project>#)(?=\s))"
+)
+# ---- 프로젝트에 묶기 (0.13.0): @텀프로젝트
+PROJECT_TAG_RE = re.compile(r"(?<!\S)@(?P<proj>[^\s@]+)")
 
 # ---- 목표의 기한: '12월까지', '이번 달 안에', '올해 안에' → 그 달(해)의 마지막 날
 _GOAL_TAIL = r"\s*(?:말|안|중|내)?\s*(?:에|까지|안에|중에|내에|이내)?"
@@ -454,6 +464,9 @@ def _result(t, warnings, kind, title, **extra):
         "dday": False,
         "repeat": None,          # 반복이면 {interval, daily, weekdays, start, end, end_default, count}
         "due": None,             # 목표의 기한
+        "urgent": False,         # 급한 할 일 (0.13.0)
+        "project": None,         # @이름으로 묶은 프로젝트 {id, title, color} (0.13.0)
+        "period": None,          # 프로젝트의 기간 {start, end, label} (0.13.0, kind='project')
         "spans": sorted(t.spans, key=lambda s: s["start"]),
         "warnings": warnings,
     }
@@ -461,30 +474,58 @@ def _result(t, warnings, kind, title, **extra):
     return base
 
 
-def parse(text, today, categories=(), routines=()):
+def _match_project(name, projects):
+    """@이름 → 프로젝트 (이름이 같은 것, 없으면 그 글자로 시작하는 것. 띄어쓰기·대소문자는 무시)"""
+    key = re.sub(r"\s+", "", name).lower()
+    norm = [(re.sub(r"\s+", "", p["title"]).lower(), p) for p in projects]
+    return next((p for n, p in norm if n == key), None) or next((p for n, p in norm if n.startswith(key)), None)
+
+
+def parse(text, today, categories=(), routines=(), projects=()):
     """
     text        사용자가 쓴 한 줄
     today       기준이 되는 '오늘' (date). 서버 시계 대신 화면(기기)의 날짜를 받는다
                 — 인터넷 서버는 보통 영국 시간(UTC)이라 한국과 날짜가 다를 수 있기 때문.
     categories  [{'id', 'name', 'color'}]   #태그를 찾을 대상
     routines    [{'id', 'name', 'emoji'}]   제목이 루틴 이름과 같으면 루틴 기록으로
+    projects    [{'id', 'title', 'color'}]  @이름을 찾을 대상 (0.13.0)
     """
+    import periods  # 프로젝트의 기간 읽기 (0.13.0)
+
     text = (text or "").strip()
     t = _Text(text)
     warnings = []
 
-    # 0) 맨 앞 기호: - 메모, * 목표, [ ] 할 일 (0.9.0)
+    # 0) 맨 앞 기호: - 노트, * 목표, [ ] 할 일 (0.9.0), ! 급한 할 일, # 프로젝트 (0.13.0)
     prefix = None
     m = PREFIX_RE.match(t.work)
     if m:
-        prefix = next(k for k in ("memo", "goal", "todo") if m.group(k))
+        prefix = next(k for k in ("memo", "goal", "todo", "urgent", "project") if m.group(k))
         t.take(m.start(prefix), m.end(prefix), "kind")
     if prefix == "memo":
-        # 메모는 날짜·시간을 찾지 않고 쓴 그대로 남긴다 ('블로그 주제: 3시 방향' 같은 글도 있으니까)
+        # 노트는 날짜·시간을 찾지 않고 쓴 그대로 남긴다 ('블로그 주제: 3시 방향' 같은 글도 있으니까)
         return _result(t, warnings, "memo", t.work.strip())
     if prefix == "goal":
         due = _goal_due(t, today, warnings)
         return _result(t, warnings, "goal", _clean_title(t.work), due=due)
+    if prefix == "project":
+        title, found = periods.split_title(t.work, today)
+        if found:
+            s, e = found["span"]
+            t.spans.append({"start": s, "end": e, "kind": "date"})
+            period = {k: found[k] for k in ("start", "end", "label")}
+        else:
+            period = None
+        return _result(t, warnings, "project", _clean_title(title), period=period)
+
+    # @프로젝트 (0.13.0) — 카테고리처럼 제목에서 지우고 그 프로젝트에 묶는다
+    project = None
+    for m in PROJECT_TAG_RE.finditer(t.work):
+        if project is None:
+            project = _match_project(m.group("proj"), projects)
+            if project is None:
+                warnings.append(f"'{m.group('proj')}' 프로젝트가 없어서 묶지 않고 넣어요.")
+        t.take(m.start(), m.end(), "project")
 
     # 1) 카테고리 (#과제) — 첫 번째 것만 쓰고, 나머지 #태그도 제목에서는 지운다
     category, unknown_tag = None, None
@@ -523,7 +564,7 @@ def parse(text, today, categories=(), routines=()):
     # 6) 루틴: 제목이 루틴 이름과 같으면 일정이 아니라 루틴 기록 (카테고리·D-day는 쓰지 않는다)
     #    [ ] 할 일로 쓴 것과 반복 일정은 루틴 기록으로 보지 않는다
     routine = None
-    if prefix != "todo" and not rule:
+    if prefix not in ("todo", "urgent") and not rule:
         routine = next((r for r in routines if title and r["name"].strip().lower() == title.lower()), None)
     routine_today = False
     if routine:
@@ -543,8 +584,15 @@ def parse(text, today, categories=(), routines=()):
             warnings.append("할 일(날짜 없음)은 D-day가 보이지 않아요.")
         kind = "schedule" if dates or rule else "todo"
 
+    urgent = prefix == "urgent" and kind != "routine"
+    if urgent and kind == "schedule":
+        # 날짜가 있는 급한 일은 그날의 일정으로 넣고 D-day로 챙긴다
+        dday, urgent = True, False
+        warnings.append("날짜가 있어서 급한 할 일 대신 D-day 일정으로 넣어요.")
     return _result(
         t, warnings, kind, title,
+        urgent=urgent,
+        project={"id": project["id"], "title": project["title"], "color": project.get("color")} if project and kind != "routine" else None,
         dates=dates,
         undated=undated,
         start_time=start_time,

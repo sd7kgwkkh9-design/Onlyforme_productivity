@@ -13,6 +13,7 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   GET    /api/day/<date>                  하루 화면용: 일정 + 루틴 기록 + 루틴 버튼을 한 번에 (api_tools.py)
   GET    /api/items/undated               할 일 목록 (날짜가 없는 일정. 0.8까지의 '기한 미정') — 안 한 것 먼저, 완료한 것은 뒤에
   PUT    /api/items/<id>/done             할 일 체크 / 체크 풀기 {done: true|false} (0.9.0)
+  PUT    /api/items/<id>/urgent           급한 할 일(⚡) 표시 / 풀기 {urgent: true|false} (0.13.0)
   DELETE /api/items/done                  완료한 할 일 모두 지우기 (0.9.0)
   GET    /api/items/<id>                  일정 하나 (모든 날짜 포함)
   POST   /api/items                       일정 추가
@@ -22,7 +23,7 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   POST   /api/items/<id>/move             한 날짜를 다른 날짜로 옮기기 (달력에서 끌어서 놓기)
   POST   /api/items/<id>/copy             같은 내용으로 새 일정 만들기 (Option/Alt 누르고 끌기)
 
-루틴·루틴 기록·기록지·D-day·시간 돌아보기·빠른 입력 → api_tools.py
+루틴·루틴 기록·메모장·D-day·시간 돌아보기·빠른 입력 → api_tools.py
 
 동기화
   GET    /api/version                     변경 번호 (저장·삭제할 때마다 1씩 커짐)
@@ -154,6 +155,13 @@ def parse_item_payload(data, db):
     dday = data.get("dday")
     if dday is not None and not isinstance(dday, bool):
         raise ApiError("dday는 true/false여야 해요.")
+    # 급한 할 일(⚡), 프로젝트 (0.13.0) — 마찬가지로 요청에 없으면 '안 바꿈'
+    urgent = data.get("urgent")
+    if urgent is not None and not isinstance(urgent, bool):
+        raise ApiError("urgent는 true/false여야 해요.")
+    project_id = None                       # None = 안 바꿈, 0 = 프로젝트에서 빼기
+    if "project_id" in data:
+        project_id = parse_project_id(data.get("project_id"), db)
 
     return {
         "title": title,
@@ -163,13 +171,31 @@ def parse_item_payload(data, db):
         "category_id": category_id,
         "dates": dates,
         "dday": dday,
+        "urgent": urgent,
+        "project_id": project_id,
     }
 
 
+def parse_project_id(value, db):
+    if value in (None, "", 0):
+        return 0
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        raise ApiError("프로젝트 값이 올바르지 않아요.") from None
+    if not db.execute("SELECT 1 FROM projects WHERE id = ?", (value,)).fetchone():
+        raise ApiError("프로젝트를 찾을 수 없어요.", 404)
+    return value
+
+
 def fill_unchanged(fields, row):
-    """수정 요청에 dday가 없으면 원래 일정의 값을 그대로 쓴다 (예전 화면에서 저장해도 표시가 사라지지 않게)."""
+    """수정 요청에 dday·urgent·project_id가 없으면 원래 일정의 값을 그대로 쓴다 (예전 화면에서 저장해도 표시가 사라지지 않게)."""
     if fields["dday"] is None:
         fields["dday"] = bool(row["dday"]) if row is not None else False
+    if fields.get("urgent") is None:
+        fields["urgent"] = bool(row["urgent"]) if row is not None else False
+    if fields.get("project_id") is None:
+        fields["project_id"] = (row["project_id"] or 0) if row is not None else 0
     return fields
 
 
@@ -251,15 +277,26 @@ def item_dict(db, row):
         "dday": bool(row["dday"]),
         "done": row["done_at"] is not None,   # 할 일 체크 (날짜가 없는 일정에서만 쓴다)
         "done_at": row["done_at"],
+        "urgent": bool(row["urgent"]),        # 급한 할 일 (0.13.0)
+        "project": project_brief(db, row["project_id"]),
     }
+
+
+def project_brief(db, project_id):
+    """일정·할 일에 붙는 프로젝트 이름표 {id, title, color} (없으면 None)"""
+    if not project_id:
+        return None
+    p = db.execute("SELECT id, title, color FROM projects WHERE id = ?", (project_id,)).fetchone()
+    return {"id": p["id"], "title": p["title"], "color": p["color"]} if p else None
 
 
 def insert_item(db, fields, keep_positions=None):
     fill_unchanged(fields, None)
     cur = db.execute(
-        "INSERT INTO items (title, memo, category_id, start_time, end_time, dday) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO items (title, memo, category_id, start_time, end_time, dday, urgent, project_id)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"],
-         int(fields["dday"])),
+         int(fields["dday"]), int(fields["urgent"]), fields["project_id"] or None),
     )
     item_id = cur.lastrowid
     add_item_dates(db, item_id, fields["dates"], keep_positions)
@@ -424,23 +461,36 @@ UNDATED = "NOT EXISTS (SELECT 1 FROM item_dates d WHERE d.item_id = i.id)"
 @bp.get("/items/undated")
 def list_undated():
     """
-    날짜가 하나도 없는 일정 = 할 일 (기록지의 '할 일' 탭).
+    날짜가 하나도 없는 일정 = 할 일 (메모장의 '할 일' 탭).
     안 한 것은 새로 넣은 것이 위로, 완료한 것은 그 뒤에 최근에 끝낸 순서로.
     """
     return jsonify(undated_items(get_db()))
 
 
 def undated_items(db):
-    """할 일 목록 (/api/items/undated, 기록지를 한 번에 받는 /api/inbox에서 같이 쓴다)"""
+    """할 일 목록 (/api/items/undated, 메모장을 한 번에 받는 /api/inbox에서 같이 쓴다)"""
     rows = db.execute(
         f"""
         SELECT i.*, c.name AS c_name, c.color AS c_color, c.is_default AS c_default
         FROM items i JOIN categories c ON c.id = i.category_id
         WHERE {UNDATED}
-        ORDER BY i.done_at IS NOT NULL, i.done_at DESC, i.id DESC
+        ORDER BY i.done_at IS NOT NULL, i.urgent DESC, i.done_at DESC, i.id DESC
         """
     ).fetchall()
     return [item_dict(db, r) for r in rows]
+
+
+@bp.put("/items/<int:item_id>/urgent")
+def set_item_urgent(item_id):
+    """급한 할 일 표시 {urgent: true} / 풀기 {urgent: false} (0.13.0). 첫 화면 '오늘 챙길 것' 줄에 보인다."""
+    db = get_db()
+    get_item_or_404(db, item_id)
+    urgent = json_body().get("urgent")
+    if not isinstance(urgent, bool):
+        raise ApiError("urgent는 true/false여야 해요.")
+    db.execute("UPDATE items SET urgent = ? WHERE id = ?", (int(urgent), item_id))
+    db.commit()
+    return jsonify(item_dict(db, get_item_or_404(db, item_id)))
 
 
 @bp.put("/items/<int:item_id>/done")
@@ -463,10 +513,11 @@ def set_item_done(item_id):
 
 @bp.delete("/items/done")
 def clear_done_items():
-    """완료한 할 일을 한꺼번에 지운다 (기록지 '할 일' 탭의 '완료한 것 비우기')."""
+    """완료한 할 일을 한꺼번에 지운다 (메모장 '할 일' 탭의 '완료한 것 비우기')."""
     db = get_db()
+    # 프로젝트의 세부 할 일은 그 프로젝트 안에서 보이므로 여기서는 지우지 않는다 (0.13.0)
     removed = db.execute(
-        "DELETE FROM items WHERE done_at IS NOT NULL"
+        "DELETE FROM items WHERE done_at IS NOT NULL AND project_id IS NULL"
         " AND NOT EXISTS (SELECT 1 FROM item_dates d WHERE d.item_id = items.id)"
     ).rowcount
     db.commit()
@@ -513,9 +564,10 @@ def update_item(item_id):
         # 날짜가 하나뿐이면 '이 날만'과 '전체'가 같으므로 아래로 진행
 
     db.execute(
-        "UPDATE items SET title = ?, memo = ?, category_id = ?, start_time = ?, end_time = ?, dday = ? WHERE id = ?",
+        "UPDATE items SET title = ?, memo = ?, category_id = ?, start_time = ?, end_time = ?, dday = ?,"
+        " urgent = ?, project_id = ? WHERE id = ?",
         (fields["title"], fields["memo"], fields["category_id"], fields["start_time"], fields["end_time"],
-         int(fields["dday"]), item_id),
+         int(fields["dday"]), int(fields["urgent"]), fields["project_id"] or None, item_id),
     )
     if fields["dates"]:
         # 할 일에 날짜를 정해 주면 달력의 일정이 된다 → 체크 표시는 의미가 없어지므로 지운다
@@ -616,6 +668,8 @@ def copy_item(item_id):
         "start_time": row["start_time"], "end_time": row["end_time"],
         "dates": sorted({parse_date(d) for d in dates}),
         "dday": bool(row["dday"]),
+        "urgent": bool(row["urgent"]),
+        "project_id": row["project_id"] or 0,
     }
     new_id = insert_item(db, fields)
     db.commit()

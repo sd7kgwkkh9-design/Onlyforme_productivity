@@ -242,7 +242,7 @@ export class MultiDatePicker {
     const dates = this.dates;
     if (dates.length === 0) {
       return el('div', { class: 'picker-summary empty' },
-        el('span', {}, '날짜를 비워 두면 기록지의 할 일로 들어가요.'));
+        el('span', {}, '날짜를 비워 두면 메모장의 할 일로 들어가요.'));
     }
     const chips = dates.slice(0, MAX_CHIPS).map((d) =>
       el('span', { class: 'date-chip' },

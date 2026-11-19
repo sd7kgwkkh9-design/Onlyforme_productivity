@@ -150,7 +150,7 @@ def list_passkeys():
             for r in rows()
         ],
         lock=bool(session.get("bio_lock")),
-        lock_minutes=LOCK_IDLE // 60,
+        lock_minutes=idle_seconds() // 60,
     )
 
 
@@ -314,6 +314,8 @@ def auth_verify():
         session.permanent = True        # 1년 유지 (비밀번호 로그인과 같다)
         session["seen"] = now()
     elif purpose == "unlock":
+        session.pop("locked", None)      # '지금 잠그기'로 잠근 것도 연다 (0.13.0)
+        session.pop("pin_fails", None)
         session["seen"] = now()
     else:  # lock
         session["bio_lock"] = True
@@ -322,9 +324,17 @@ def auth_verify():
 
 
 # ======================================================================== 잠금 검사 (auth.py의 require_login이 부른다)
+def idle_seconds():
+    """자동 잠금까지의 시간 (0.13.0부터 기기마다 1~30분 중에서 고른다. 0.12.0은 5분 고정)"""
+    minutes = session.get("lock_min")
+    return int(minutes) * 60 if isinstance(minutes, int) and 0 < minutes <= 60 else LOCK_IDLE
+
+
 def is_locked():
-    """이 기기에서 잠금을 켜 두었고, 마지막으로 쓴 지 LOCK_IDLE이 넘었으면 잠긴 상태"""
-    return bool(session.get("bio_lock")) and now() - float(session.get("seen") or 0) > LOCK_IDLE
+    """'지금 잠그기'로 잠갔거나(0.13.0), 자동 잠금을 켜 두었고 마지막으로 쓴 지 정한 시간이 넘었으면 잠긴 상태"""
+    if session.get("locked"):
+        return True
+    return bool(session.get("bio_lock")) and now() - float(session.get("seen") or 0) > idle_seconds()
 
 
 def touch(active=True):

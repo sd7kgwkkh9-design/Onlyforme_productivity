@@ -1,23 +1,25 @@
 // 앱 시작점: 화면 요소들을 만들고 서로 연결한다.
 //
-//   상단 바      ─ 기록지, 이전/다음, 제목(눌러서 이동), 오늘, 돌아보기, 주간 배치, 빠른 입력, [월간 | 이번 주], 카테고리, ⚙ 설정
+//   상단 바      ─ 메모장, 이전/다음, 제목(눌러서 이동), 오늘, 돌아보기, 주간 배치, 빠른 입력, [월간 | 이번 주 | 시간표], 카테고리, 🔒, ⚙ 설정
 //   월간 화면    ─ FullCalendar (오픈소스)
 //   주간 화면    ─ week.js (직접 구현) + edgepager.js (끝에서 당겨 주 넘기기)
+//   시간표 화면  ─ timetable.js (0.13.0: 매주 반복되는 틀. 달력에 어떻게 보일지는 기기마다 고른다)
 //   오른쪽 칸    ─ 넓은 화면: 고른 날짜의 일정 (sheet.js의 pane)
 //   팝업 창      ─ 좁은 화면의 날짜 일정, 카테고리 관리, 돌아보기 (sheet.js의 modal)
 //   빠른 이동    ─ jump.js
 //   ⚙ 설정       ─ settings.js (화면 테마, 글꼴, 로그아웃, 버전)
 //   동기화       ─ sync.js (다른 기기에서 바꾼 내용을 몇 초 안에 반영)
 //   생산성 도구
-//     기록지     ─ notes.js (왼쪽 칸/창: 메모·목표·할 일)   달력 위 띠 ─ strip.js (배너 글귀 + D-day + 목표)
+//     메모장     ─ notes.js (왼쪽 칸/창: 메모·목표·할 일)   달력 위 띠 ─ strip.js (배너 글귀 + D-day + 목표)
 //     빠른 입력  ─ quick.js (+ quickadd.py, 반복 일정)       돌아보기   ─ stats.js
 //     루틴       ─ routines.js (일정과 따로 저장되는 루틴 기록)
+//     0.13.0     ─ 습관 habits.js · 기념일 annivs.js · 프로젝트 projects.js · 캘린더만 잠그기 (아래 8번, 서버는 lock.py)
 //     끌어서 옮기기 / Option 누르고 끌어서 복사 / 오른쪽 클릭 메뉴 ─ 아래 5번 (ctxmenu.js, datepop.js)
 //
 // 안전 장치: 달력을 가장 먼저 그리고, 나머지 기능은 하나씩 safely()로 감싸서 켠다.
 // 어느 한 기능에 문제가 생겨도(예: 서버를 새 버전으로 바꿨는데 화면 파일 일부가 예전 것) 달력은 계속 보인다.
 
-import { api, prefetch } from './api.js';
+import { api, leavePage, prefetch } from './api.js';
 import { openMenu } from './ctxmenu.js';
 import { pickDate } from './datepop.js';
 import { applyMark, decorateMarks, openDecor, setMarks } from './decor.js';
@@ -31,9 +33,10 @@ import { NotesPanel, dragState } from './notes.js';
 import { QuickAdd } from './quick.js';
 import { initSettings } from './settings.js';
 import { Sheet, configureSheets } from './sheet.js';
-import { TopStrip } from './strip.js';
+import { STRIP_KEY, TopStrip } from './strip.js';
 import { startSync } from './sync.js';
 import { addDays, ask, el, formatShort, formatTimeRange, icon, toDateStr, toast, todayStr } from './utils.js';
+import { TimetableView, displayMode } from './timetable.js';
 import { WeekView, startOfWeek, weekTitle } from './week.js';
 
 // ============================================================ 필요할 때 불러오는 모듈 (0.12.1)
@@ -44,6 +47,8 @@ const later = {
   security: () => import('./security.js'),
   stats: () => import('./stats.js'),
   weekly: () => import('./weekly.js'),
+  habits: () => import('./habits.js'),   // 습관 관리 창 (0.13.0)
+  annivs: () => import('./annivs.js'),   // 기념일 창 (0.13.0)
 };
 const openLinks = (tab) => later.links().then((m) => m.openLinks(tab)).catch(loadFailed);
 const openSecurity = () => later.security().then((m) => m.openSecurity()).catch(loadFailed);
@@ -86,9 +91,14 @@ const todayBtn = $('btn-today');
 const layoutBtn = $('btn-week-layout');
 const monthBtn = $('btn-view-month');
 const weekBtn = $('btn-view-week');
+const ttBtn = $('btn-view-timetable');
+const ttEl = $('timetable');
 const paneHost = $('pane-day');
 const APP_NAME = document.body.dataset.appName || '오직 나를 위한 캘린더';
 const COPY_PLACEHOLDER = 'copy-placeholder'; // Option 끌기로 복사하는 동안 놓은 칸에 잠깐 보여 주는 일정의 id
+// 이 기기의 잠금 설정 (0.13.0, index.html의 data-lock — lock.py의 client_settings). 설정 창에서 바꾸면 'lock-config' 이벤트로 알려 준다
+const lockConfig = (() => { try { return JSON.parse(document.body.dataset.lock || '{}'); } catch { return {}; } })();
+window.addEventListener('lock-config', (e) => Object.assign(lockConfig, e.detail || {}));
 
 // 넓은 화면(맥, 가로로 든 아이패드)이면 오른쪽 칸을 쓴다. style.css의 같은 값과 맞춰야 한다.
 const wide = window.matchMedia('(min-width: 960px)');
@@ -96,7 +106,7 @@ const wide = window.matchMedia('(min-width: 960px)');
 const phone = window.matchMedia('(max-width: 640px)');
 
 const state = {
-  view: 'month',                       // 'month' | 'week'
+  view: 'month',                       // 'month' | 'week' | 'timetable' (0.13.0)
   weekStart: startOfWeek(todayStr()),  // 주간 화면이 보여 주는 주의 일요일
   selected: todayStr(),                // 오른쪽 칸에 열려 있는 날짜
   dragging: false,                     // 월간 화면에서 일정을 끌고 있는 중 (좌우 넘기기와 헷갈리지 않게)
@@ -109,6 +119,7 @@ let weekView = null;
 let notes = null;
 let strip = null;
 let quick = null;
+let ttView = null;
 
 // ============================================================ 1. 월간 화면 (FullCalendar) — 가장 먼저
 
@@ -132,6 +143,33 @@ function toEvent(o, index) {
       order: index, // 서버가 정렬해 준 순서(올린 순서 또는 하루 창에서 바꾼 순서) 그대로
       occ: o,       // 오른쪽 클릭 메뉴에서 쓰는 원래 정보 (몇 개 날짜에 들어 있는지 등)
     },
+  };
+}
+
+// 시간표의 수업 → FullCalendar 이벤트 (0.13.0, 보기 설정이 '같이'일 때만). 그날 일정보다 위에, 시작 시간 순서로.
+function toClassEvent(c) {
+  const [h, m] = c.start_time.split(':').map(Number);
+  return {
+    id: `c${c.block_id}@${c.date}`,
+    title: c.title,
+    start: c.date,
+    allDay: true,
+    editable: false,
+    classNames: ['is-class'],
+    extendedProps: { kind: 'class', date: c.date, time: c.start_time, color: c.color, order: -2000 + h * 60 + m, cls: c },
+  };
+}
+
+// 기념일 → FullCalendar 이벤트 (0.13.0): 칸 맨 위에 '🎂 엄마 생신', '💕 만난 날 100일'
+function toAnnivEvent(a) {
+  return {
+    id: `a${a.id}@${a.date}`,
+    title: `${a.emoji} ${a.title}${a.label ? ` ${a.label}` : ''}`,
+    start: a.date,
+    allDay: true,
+    editable: false,
+    classNames: ['is-anniv'],
+    extendedProps: { kind: 'anniv', date: a.date, order: -3000 },
   };
 }
 
@@ -167,6 +205,7 @@ function readUrl() {
     week: week && DATE_RE.test(week) ? startOfWeek(week) : null,
     month: month && /^\d{4}-\d{2}$/.test(month) ? month : null,
     day: day && DATE_RE.test(day) ? day : null,
+    timetable: p.get('view') === 'timetable',   // /?view=timetable (0.13.0)
   };
 }
 const startUrl = readUrl();
@@ -215,10 +254,14 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
         try {
           const start = info.startStr.slice(0, 10);
           const end = info.endStr.slice(0, 10);
-          const { items, logs, marks } = await api.calendar(start, end);
+          const { items, logs, marks, classes = [], annivs = [] } = await api.calendar(start, end);
           setMarks(marks, start, end);    // 날짜 스티커·형광펜 (decor.js)
           decorateMarks(calendarEl);
-          success([...items.map(toEvent), ...logs.map(toRoutineEvent)]);
+          success([
+            ...annivs.map(toAnnivEvent),
+            ...(displayMode() === 'with' ? classes.map(toClassEvent) : []),
+            ...items.map(toEvent), ...logs.map(toRoutineEvent),
+          ]);
           copyDrag.clearPlaceholders(); // 복사하는 동안 잠깐 보여 준 자리 표시는 진짜 복사본으로 바뀐다
           idle(prefetchNeighborMonths); // 지난달·다음 달을 미리 받아 둔다 → 넘기는 순간 바로 보인다 (0.12.1)
         } catch (e) {
@@ -254,6 +297,7 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
     const { time, holiday, kind } = arg.event.extendedProps;
     if (holiday) return { domNodes: [el('span', { class: 'holiday-name' }, arg.event.title)] };
     if (kind === 'routine') return { domNodes: [el('span', { class: 'ev ev-routine' }, el('span', { class: 'ev-title' }, arg.event.title))] };
+    if (kind === 'anniv') return { domNodes: [el('span', { class: 'ev ev-anniv' }, el('span', { class: 'ev-title' }, arg.event.title))] };
     return {
       domNodes: [
         el('span', { class: 'ev' },
@@ -266,7 +310,7 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
   eventDidMount: (arg) => {
     const { color, holiday, kind, occ, log } = arg.event.extendedProps;
     if (color) arg.el.style.setProperty('--cat', color);
-    if (holiday || arg.event.id === COPY_PLACEHOLDER) return;
+    if (holiday || kind === 'anniv' || kind === 'class' || arg.event.id === COPY_PLACEHOLDER) return;
     // 시작 시간이 있는 일정: 그 시간에 비 올 확률이 높으면 ☂ (weather.js)
     if (occ?.start_time) {
       Object.assign(arg.el.dataset, { wxDate: occ.date, wxTime: occ.start_time, wxCompact: '' });
@@ -302,6 +346,7 @@ calendarEl.addEventListener('contextmenu', (e) => {
   openMenu(e, [
     { label: '일정 추가', run: () => { select(date); const sheet = editSheet(); if (sheet) { sheet.day = date; sheet.openForm({ mode: 'create', ctxDate: date, returnTo: 'day' }); } } },
     { label: '꾸미기 (스티커·형광펜)…', run: () => openDecor(date, refreshAll) },
+    { label: '이 날을 기념일로…', run: () => openAnnivs(date) },
   ], { title: formatShort(date) });
 });
 
@@ -325,7 +370,7 @@ function prefetchNeighborMonths() {
 
 calendar.render();
 window.__appReady = true; // 달력이 그려졌으면 '화면을 불러오지 못했어요' 안내는 띄우지 않는다 (index.html)
-// 첫 화면 보여 주기 (0.12.1): 이 파일의 나머지(띠·하루 칸·기록지)와 페이지에 실려 온 내용까지 다 그린 뒤,
+// 첫 화면 보여 주기 (0.12.1): 이 파일의 나머지(띠·하루 칸·메모장)와 페이지에 실려 온 내용까지 다 그린 뒤,
 // 화면에 처음 그려지기 직전에 한 번에 보여 준다 → 띠가 늦게 생기면서 달력이 밀려 내려가는 덜컹거림이 없다.
 requestAnimationFrame(() => document.body.classList.remove('is-booting'));
 safely('상단 제목', updateHeader);
@@ -374,6 +419,25 @@ safely('오른쪽 칸', () => {
 
 // 지금 화면에서 일정 입력 창을 띄울 곳: 넓은 화면은 오른쪽 칸, 좁은 화면은 팝업
 const editSheet = () => (wide.matches && paneSheet ? paneSheet : modalSheet);
+
+// 시간표 화면 (0.13.0) — 칸 넣기·고치기 창은 팝업에 띄운다
+safely('시간표', () => {
+  ttView = new TimetableView(ttEl, { sheet: () => modalSheet, onChanged: () => refreshAll() });
+});
+// 하루 화면의 수업을 오른쪽 클릭 → '시간표에서 고치기'
+async function editClassBlock(blockId) {
+  if (!ttView) return;
+  await ttView.load();
+  ttView.editBlock(blockId);
+}
+
+// 습관·기념일 창 (0.13.0, 누를 때 받아 온다)
+function openHabits() {
+  later.habits().then(({ habitManager }) => modalSheet?.showView('habits', habitManager({ onChanged: refreshStrip }))).catch(loadFailed);
+}
+function openAnnivs(date = null) {
+  later.annivs().then(({ annivManager }) => modalSheet?.showView('annivs', annivManager({ onChanged: refreshAll, date }))).catch(loadFailed);
+}
 
 // 넓은 ↔ 좁은 화면으로 바뀌는 순간 (창 크기 조절, 아이패드 돌리기)
 wide.addEventListener('change', () => {
@@ -451,6 +515,14 @@ function setView(view) {
 }
 
 function applyView(view) {
+  if (ttEl) ttEl.hidden = view !== 'timetable';
+  if (view === 'timetable' && ttView) {
+    state.view = 'timetable';
+    calendarEl.hidden = true;
+    weekEl.hidden = true;
+    safely('상단 제목', updateHeader);
+    return ttView.show();
+  }
   if (view === 'week' && weekView) {
     // '이번 주' 버튼은 언제 눌러도 오늘이 들어 있는 주로 간다.
     state.view = 'week';
@@ -468,6 +540,7 @@ function applyView(view) {
 }
 
 function navigate(direction) {
+  if (state.view === 'timetable') return; // 시간표는 '규칙'이라 넘길 주가 없다
   if (state.view === 'week') {
     showWeek(addDays(state.weekStart, 7 * direction), direction, direction > 0 ? 'start' : 'end');
   } else {
@@ -478,6 +551,7 @@ function navigate(direction) {
 }
 
 function goToday() {
+  if (state.view === 'timetable') { applyView('month'); calendar.today(); return; }
   if (state.view === 'week') {
     const thisWeek = startOfWeek(todayStr());
     showWeek(thisWeek, thisWeek > state.weekStart ? 1 : -1, 'today');
@@ -490,7 +564,11 @@ function updateHeader() {
   const isWeek = state.view === 'week';
   let main;
   let year;
-  if (isWeek) {
+  if (state.view === 'timetable') {
+    main = '시간표';
+    year = '';
+    if (todayBtn) todayBtn.disabled = false;
+  } else if (isWeek) {
     ({ main, year } = weekTitle(state.weekStart, { compact: phone.matches }));
     if (todayBtn) todayBtn.disabled = state.weekStart === startOfWeek(todayStr());
   } else {
@@ -505,13 +583,14 @@ function updateHeader() {
     el('span', { class: 'y' }, year),
     el('span', { class: 'caret', 'aria-hidden': 'true' }, icon('M7 10l5 5 5-5')),
   );
-  titleEl?.setAttribute('aria-label', `${year}년 ${main} — 눌러서 ${isWeek ? '다른 주' : '다른 달'}로 이동`);
-  document.title = `${year}년 ${main} · ${APP_NAME}`;
+  titleEl?.setAttribute('aria-label', state.view === 'timetable' ? '시간표' : `${year}년 ${main} — 눌러서 ${isWeek ? '다른 주' : '다른 달'}로 이동`);
+  document.title = state.view === 'timetable' ? `시간표 · ${APP_NAME}` : `${year}년 ${main} · ${APP_NAME}`;
 
   prevBtn?.setAttribute('aria-label', isWeek ? '이전 주' : '이전 달');
   nextBtn?.setAttribute('aria-label', isWeek ? '다음 주' : '다음 달');
-  monthBtn?.setAttribute('aria-pressed', String(!isWeek));
+  monthBtn?.setAttribute('aria-pressed', String(state.view === 'month'));
   weekBtn?.setAttribute('aria-pressed', String(isWeek));
+  ttBtn?.setAttribute('aria-pressed', String(state.view === 'timetable'));
   if (layoutBtn) layoutBtn.hidden = !isWeek;
   document.body.dataset.view = state.view;
   syncUrl();
@@ -519,7 +598,8 @@ function updateHeader() {
 
 function urlOfState() {
   const p = new URLSearchParams();
-  if (state.view === 'week') p.set('week', state.weekStart);
+  if (state.view === 'timetable') p.set('view', 'timetable');
+  else if (state.view === 'week') p.set('week', state.weekStart);
   else p.set('month', toDateStr(calendar.view.currentStart).slice(0, 7));
   if (state.selected !== todayStr()) p.set('day', state.selected);
   return `${location.pathname}?${p}`;
@@ -540,7 +620,10 @@ window.addEventListener('popstate', () => safely('뒤로 가기', () => {
   const u = readUrl();
   urlSync.restoring = true;
   try {
-    if (u.week && weekView) {
+    if (u.timetable && ttView) {
+      if (state.view !== 'timetable') applyView('timetable');
+    } else if (u.week && weekView) {
+      if (ttEl) ttEl.hidden = true;
       if (state.view !== 'week') {
         state.view = 'week';
         calendarEl.hidden = true;
@@ -548,9 +631,10 @@ window.addEventListener('popstate', () => safely('뒤로 가기', () => {
       }
       showWeek(u.week, u.week > state.weekStart ? 1 : u.week < state.weekStart ? -1 : 0, 'start');
     } else {
-      if (state.view === 'week') {
+      if (state.view === 'week' || state.view === 'timetable') {
         state.view = 'month';
         weekEl.hidden = true;
+        if (ttEl) ttEl.hidden = true;
         calendarEl.hidden = false;
         calendar.updateSize();
       }
@@ -572,6 +656,7 @@ on(nextBtn, 'click', () => navigate(1));
 on(todayBtn, 'click', goToday);
 on(monthBtn, 'click', () => setView('month'));
 on(weekBtn, 'click', () => setView('week'));
+on(ttBtn, 'click', () => setView('timetable'));
 on($('btn-categories'), 'click', () => modalSheet?.showCategories());
 
 // 시간 돌아보기: 지금 보고 있는 주/달을 기준으로 연다
@@ -622,6 +707,7 @@ document.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]') || anyMenuOpen()) return;
   if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
   if (e.code === 'KeyN') { e.preventDefault(); quick?.open(); return; } // N = 빠른 입력 (한글 자판이어도)
+  if (e.code === 'KeyL' && lockConfig.login) { e.preventDefault(); lockNow(); return; } // L = 지금 잠그기 (0.13.0)
   if (e.target.closest?.('.pane, .notes')) return;
   if (e.key === 'ArrowLeft') navigate(-1);
   else if (e.key === 'ArrowRight') navigate(1);
@@ -629,7 +715,7 @@ document.addEventListener('keydown', (e) => {
 
 // ============================================================ 5. 끌어서 옮기기·복사, 오른쪽 클릭 메뉴
 
-// ---- 5-1. 기록지의 할 일 → 달력의 날짜로 끌어다 놓기 (그날의 일정이 된다)
+// ---- 5-1. 메모장의 할 일 → 달력의 날짜로 끌어다 놓기 (그날의 일정이 된다)
 const DROP_SELECTOR = 'td.fc-daygrid-day[data-date], .wk-day[data-date], .wk-col[data-date]';
 let dropTarget = null;
 
@@ -924,12 +1010,13 @@ async function deleteLog(log) {
 
 // ============================================================ 6. 새로 고침과 동기화
 
-// 보이는 화면(월간·주간·오른쪽 칸 목록·기록지)을 모두 새로 불러온다.
+// 보이는 화면(월간·주간·오른쪽 칸 목록·메모장)을 모두 새로 불러온다.
 // 0.12.1: 하나씩 차례로 기다리지 않고 한꺼번에 보낸다 (서버가 멀수록 차이가 크다).
 async function reloadViews() {
   calendar.refetchEvents();
   await Promise.allSettled([
     state.view === 'week' ? weekView?.refresh() : null,
+    state.view === 'timetable' ? ttView?.load() : null,
     paneSheet?.refreshList(),  // 편집 중이면 건드리지 않는다
     notes?.refresh(),          // 할 일(날짜 없는 일정)이 바뀌었을 수 있다 (쓰고 있는 칸은 건드리지 않는다)
     refreshStrip(),            // D-day가 바뀌었을 수 있다
@@ -955,7 +1042,12 @@ configureSheets({
   onDataChanged: refreshAll,
   onItemMenu: (e, occ, sheet) => itemMenu(e, occ, sheet),
   onLogMenu: (e, log, sheet) => logMenu(e, log, sheet),
+  onEditClass: (blockId) => editClassBlock(blockId),   // 0.13.0: 하루 화면의 수업 → 시간표에서 고치기
+  onOpenAnnivs: () => openAnnivs(),
 });
+
+// 시간표를 달력에 어떻게 보일지(같이 / 아래 / 따로) 바꾸면 보이는 화면을 다시 그린다 (받은 내용은 그대로라 바로 바뀐다)
+window.addEventListener('tt-display-change', () => { reloadViews(); modalSheet?.refreshList(); });
 
 // ============================================================ 7. 나머지 시작
 
@@ -990,8 +1082,11 @@ safely('설정', () => initSettings({
   appName: APP_NAME,
   version: document.body.dataset.version,
   onOpenLinks: (tab) => openLinks(tab),          // 공유 링크·캘린더 구독·위젯 (0.12.0)
-  onOpenSecurity: () => openSecurity(),          // Face ID·패스키 (0.12.0)
-  bioLock: document.body.dataset.bioLock === '1',
+  onOpenSecurity: () => openSecurity(),          // 잠금 · 패스키 (0.12.0, 0.13.0에서 잠금 설정을 더함)
+  bioLock: document.body.dataset.bioLock === '1' || lockConfig.auto,
+  onLockNow: lockConfig.login ? () => lockNow() : null,
+  onOpenHabits: () => openHabits(),               // 0.13.0
+  onOpenAnnivs: () => openAnnivs(),
   // ⚙ 설정의 '지금 카드 보기': 이번 주에 이미 봤어도 띄운다
   onShowWeekly: async () => {
     await refreshStrip();
@@ -1001,21 +1096,24 @@ safely('설정', () => initSettings({
       onAdded: async () => { await notes?.reload(); },
       onOpenGoals: () => notes?.open({ tab: 'goal' }),
     });
-    if (!shown) toast('아직 못 이룬 올해 목표가 없어요. 기록지의 목표 탭에서 올해 목표를 세워 보세요.');
+    if (!shown) toast('아직 못 이룬 올해 목표가 없어요. 메모장의 목표 탭에서 올해 목표를 세워 보세요.');
   },
 }));
 
-// ---- 달력 위 띠, 기록지, 빠른 입력
+// ---- 달력 위 띠, 메모장, 빠른 입력
 safely('달력 위 띠', () => {
   strip = new TopStrip($('top-strip'), {
     onOpenNote: (noteId) => notes?.open({ noteId }),
     onOpenDate: (date) => showDate(date),
     onOpenGoal: (goalId) => notes?.open({ goalId }),
     onOpenGoals: () => notes?.open({ tab: 'goal' }),
+    onOpenNotes: (opts) => notes?.open(opts),               // 0.13.0: 급한 할 일, 프로젝트
+    onTodosChanged: () => notes?.reload(),
+    onManageHabits: () => openHabits(),
   });
 });
 
-safely('기록지', () => {
+safely('메모장', () => {
   notes = new NotesPanel($('notes'), {
     toggle: $('btn-notes'),
     badge: $('todo-count'),
@@ -1028,6 +1126,11 @@ safely('기록지', () => {
     onOpenItem: (item) => {
       const sheet = editSheet();
       sheet?.openForm({ mode: 'edit', item, scope: 'all', ctxDate: null, returnTo: sheet === paneSheet ? 'day' : null });
+    },
+    // 프로젝트에서 '+ 일정 추가' (0.13.0): 그 프로젝트가 골라진 채로 일정 입력 창
+    onAddEvent: (prefill) => {
+      const sheet = editSheet();
+      sheet?.openForm({ mode: 'create', ctxDate: state.selected, returnTo: sheet === paneSheet ? 'day' : null, prefill: { ...prefill, dates: [state.selected] } });
     },
   });
 });
@@ -1060,7 +1163,7 @@ safely('빠른 입력', () => {
   on($('fab-quick'), 'click', () => quick.open());
 });
 
-// 띠가 나타나거나 기록지 칸이 열려서 달력 자리가 바뀌면 달력 크기를 다시 맞춘다
+// 띠가 나타나거나 메모장 칸이 열려서 달력 자리가 바뀌면 달력 크기를 다시 맞춘다
 safely('크기 맞추기', () => {
   let frame = 0;
   new ResizeObserver(() => {
@@ -1079,8 +1182,10 @@ function showDate(date) {
   }
   openDay(date);
 }
-// 주소에 주간 화면이 적혀 있으면(/?week=…) 그 주로 연다
-if (startUrl.week && weekView) {
+// 주소에 시간표(/?view=timetable)나 주간 화면(/?week=…)이 적혀 있으면 그 화면으로 연다
+if (startUrl.timetable && ttView) {
+  applyView('timetable');
+} else if (startUrl.week && weekView) {
   state.view = 'week';
   calendarEl.hidden = true;
   weekEl.hidden = false;
@@ -1089,7 +1194,7 @@ if (startUrl.week && weekView) {
 urlSync.ready = true;
 syncUrl({ replace: true }); // 처음 연 화면을 주소에 적어 둔다 (기록은 쌓지 않음)
 if (wide.matches) safely('오른쪽 칸', () => paneSheet?.showDay(state.selected)); // 오른쪽 칸: 오늘 (또는 주소의 날짜)
-if (notes && !notes.loaded) notes.load(); // '기록지' 버튼의 숫자 (안 한 할 일)
+if (notes && !notes.loaded) notes.load(); // '메모장' 버튼의 숫자 (안 한 할 일)
 
 // 날씨 (0.10.0): 받아 오면 보이는 화면에 붙인다. 못 받아 오면 아무것도 안 한다.
 onWeather(() => safely('날씨', () => {
@@ -1124,3 +1229,37 @@ function weeklyDue() {
   } catch { return false; }
 }
 safely('동기화', () => startSync(onRemoteChange));
+
+// ============================================================ 8. 캘린더만 잠그기 (0.13.0, 서버는 lock.py)
+//   - 🔒 버튼 / 단축키 L: 서버에 '잠김'을 적고 잠금 화면으로. 화면의 일정은 먼저 지운다 (api.js의 leavePage).
+//   - 자리를 비우면 가리기(설정에서 켬): 이 창을 떠나면(다른 창·탭을 누르면) 흐리게 가린다. 누르면 다시 보인다.
+//   - 공용 PC 모드: 띠 내용 등을 이 기기에 남기지 않는다 (strip.js).
+//   - '뒤로 가기'로 브라우저가 기억해 둔 화면을 되살리면(bfcache) 새로 불러온다 → 잠겨 있으면 잠금 화면이 뜬다.
+async function lockNow() {
+  try {
+    await api.lockNow();
+    try { localStorage.removeItem(STRIP_KEY); } catch { /* 무시 */ }
+    leavePage('/unlock');
+  } catch (e) { toast(e.message, 'error'); }
+}
+on($('btn-lock'), 'click', lockNow);
+
+safely('가리기', () => {
+  const veil = $('privacy-veil');
+  if (!veil) return;
+  const hide = () => {
+    if (!lockConfig.blur) return;
+    veil.hidden = false;
+    document.body.classList.add('is-veiled');
+  };
+  const show = () => {
+    veil.hidden = true;
+    document.body.classList.remove('is-veiled');
+  };
+  window.addEventListener('blur', hide);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') hide(); });
+  veil.addEventListener('click', show);
+  window.addEventListener('focus', () => { if (document.hasFocus()) setTimeout(show, 0); });
+  window.addEventListener('lock-config', show);
+});
+window.addEventListener('pageshow', (e) => { if (e.persisted && lockConfig.login) location.reload(); });

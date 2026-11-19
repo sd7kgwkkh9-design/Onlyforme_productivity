@@ -11,7 +11,7 @@
 
 - 링크마다 보여 줄 카테고리를 고를 수 있다 (예: '수업'과 '약속'만 가족에게).
 - 메모는 기본으로 숨긴다. 공유 링크에서 '메모도 보여 주기'를 켜야 보인다.
-- 루틴 기록, 기록지(메모·목표·할 일)는 공유 링크·구독에 나가지 않는다. 위젯에만 올해 목표 진행도가 나간다(나만 보는 화면이라서).
+- 루틴 기록, 메모장(메모·목표·할 일)는 공유 링크·구독에 나가지 않는다. 위젯에만 올해 목표 진행도가 나간다(나만 보는 화면이라서).
 - 토큰은 secrets.token_urlsafe(24) — 32글자, 경우의 수 2^192라서 맞혀서 들어오는 것은 사실상 불가능하다.
 
 관리 API (로그인 필요)
@@ -49,8 +49,10 @@ from api import (
     parse_range,
 )
 from api import bp as api_bp
+from api_plans import anniv_occurrences
 from api_tools import overview_data
 from db import get_db
+from timetable import blocks_by_timetable, next_class, timetable_rows, weekday_of
 
 public = Blueprint("public", __name__)
 
@@ -98,6 +100,10 @@ def link_options(kind, data, db, old=None):
             opts["alarm"] = alarm
         if "goals" in data or old is None:
             opts["goals"] = bool(data.get("goals", True))
+        # 0.13.0: 시간표의 수업, 기념일도 구독 캘린더에 (기본으로 넣는다)
+        for key in ("classes", "annivs"):
+            if key in data or old is None:
+                opts[key] = bool(data.get(key, True))
     return opts
 
 
@@ -352,12 +358,81 @@ def ical_feed(token):
             ev.add("transp", "TRANSPARENT")
             cal.add_component(ev)
 
+    if opts.get("classes", True):
+        add_classes(cal, db, Date.fromisoformat(start), Date.fromisoformat(end), host, stamp, alarm)
+    if opts.get("annivs", True):
+        # 기념일: 음력은 해마다 양력 날짜가 달라서 규칙(RRULE) 대신 기간 안의 날짜를 하나씩 넣는다
+        for a in anniv_occurrences(db, start, end):
+            ev = Event()
+            ev.add("uid", f"anniv-{a['id']}-{a['date']}@{host}")
+            ev.add("dtstamp", stamp)
+            ev.add("summary", f"{a['emoji']} {a['title']} {a['label']}".strip())
+            day = Date.fromisoformat(a["date"])
+            ev.add("dtstart", day)
+            ev.add("dtend", day + timedelta(days=1))
+            ev.add("transp", "TRANSPARENT")
+            cal.add_component(ev)
+
     cal.add_missing_timezones()
     res = Response(cal.to_ical(), mimetype="text/calendar")
     res.headers["Content-Disposition"] = 'inline; filename="onlyforme.ics"'
     res.headers["Cache-Control"] = "no-cache"
     res.headers["X-Robots-Tag"] = "noindex, nofollow"
     return res
+
+
+def add_classes(cal, db, start, end, host, stamp, alarm):
+    """
+    시간표의 칸 하나 = 매주 반복하는 일정 하나 (RRULE:FREQ=WEEKLY;UNTIL=…).
+    '이날만 쉬기'와 (공휴일엔 쉬기를 켰으면) 공휴일은 EXDATE로 빼서, 받은 앱에서도 그날은 비어 보인다.
+    """
+    from icalendar import Alarm, Event
+
+    tables = {t["id"]: t for t in timetable_rows(db)}
+    skips = {}
+    for r in db.execute("SELECT * FROM timetable_skips WHERE date >= ? AND date < ?", (start.isoformat(), end.isoformat())):
+        skips.setdefault(r["timetable_id"], []).append((r["block_id"], r["date"]))
+    holidays = {}
+    if holidays_lib is not None:
+        for y in range(start.year, end.year + 1):
+            holidays.update(korean_holidays(y))
+
+    for tid, blocks in blocks_by_timetable(db).items():
+        t = tables[tid]
+        first_day = max(start, Date.fromisoformat(t["start_date"])) if t["start_date"] else start
+        last_day = min(end - timedelta(days=1), Date.fromisoformat(t["end_date"])) if t["end_date"] else end - timedelta(days=1)
+        for b in blocks:
+            day = first_day
+            while day <= last_day and weekday_of(day) != b["weekday"]:
+                day += timedelta(days=1)
+            if day > last_day:
+                continue
+            st, et = Time.fromisoformat(b["start_time"]), Time.fromisoformat(b["end_time"])
+            ev = Event()
+            ev.add("uid", f"class-{b['id']}@{host}")
+            ev.add("dtstamp", stamp)
+            ev.add("summary", b["title"])
+            ev.add("dtstart", datetime.combine(day, st, KST))
+            ev.add("dtend", datetime.combine(day, et, KST))
+            until = datetime.combine(last_day, et, KST).astimezone(timezone.utc)
+            ev.add("rrule", {"freq": "weekly", "until": until})
+            off = sorted({
+                d for bid, d in skips.get(tid, []) if bid in (0, b["id"])
+            } | ({d for d in holidays if first_day.isoformat() <= d <= last_day.isoformat()} if t["skip_holidays"] else set()))
+            off = [d for d in off if weekday_of(Date.fromisoformat(d)) == b["weekday"]]
+            if off:
+                ev.add("exdate", [datetime.combine(Date.fromisoformat(d), st, KST) for d in off])
+            if b["place"]:
+                ev.add("location", b["place"])
+            ev.add("description", "\n".join(x for x in (f"시간표: {t['name']}", b["memo"]) if x))
+            ev.add("categories", [t["name"]])
+            if alarm is not None:
+                al = Alarm()
+                al.add("action", "DISPLAY")
+                al.add("description", b["title"])
+                al.add("trigger", timedelta(minutes=-alarm))
+                ev.add_component(al)
+            cal.add_component(ev)
 
 
 # ---------------------------------------------------------------- 홈 화면 위젯
@@ -374,6 +449,16 @@ def widget_item(o):
     }
 
 
+def widget_class(o, today):
+    if o is None:
+        return None
+    day = Date.fromisoformat(o["date"])
+    gap = (day - today).days
+    when = "today" if gap == 0 else "tomorrow" if gap == 1 else f"{day.month}/{day.day}({WEEKDAYS[day.weekday()]})"
+    return {"title": o["title"], "start": o["start_time"], "end": o["end_time"], "place": o["place"],
+            "color": o["color"], "timetable": o["timetable"], "day": when}
+
+
 @public.get("/w/<token>.json")
 def widget_data(token):
     """
@@ -385,6 +470,9 @@ def widget_data(token):
       year     : 올해 진행률 + 아직 못 이룬 올해 목표 (진행도 포함)
       life     : 오늘의 인생 목표 (날마다 하나씩 돌아가며)
       todos    : 아직 안 한 할 일 수
+      class    : 다음 수업 (시간표, 0.13.0) — 오늘 지금 이후, 없으면 7일 안의 첫 수업
+      urgent   : 급한 할 일 (0.13.0)
+      habits   : 습관과 오늘 횟수 (0.13.0)
     """
     row, opts = find_link("widget", token)
     db = get_db()
@@ -407,7 +495,8 @@ def widget_data(token):
     life = ov["life"]
     day_of_year = today.timetuple().tm_yday
     todos = db.execute(
-        "SELECT COUNT(*) AS n FROM items i WHERE i.done_at IS NULL AND NOT EXISTS (SELECT 1 FROM item_dates d WHERE d.item_id = i.id)"
+        "SELECT COUNT(*) AS n FROM items i WHERE i.done_at IS NULL AND i.project_id IS NULL"
+        " AND NOT EXISTS (SELECT 1 FROM item_dates d WHERE d.item_id = i.id)"
     ).fetchone()["n"]
 
     data = {
@@ -437,6 +526,9 @@ def widget_data(token):
         },
         "life": life[day_of_year % len(life)]["title"] if life else None,
         "todos": todos,
+        "class": widget_class(next_class(db, today, hhmm), today),
+        "urgent": [u["title"] for u in ov["urgent"][:3]],
+        "habits": [{"emoji": h["emoji"], "name": h["name"], "count": h["count"], "target": h["target"]} for h in ov["habits"][:4]],
     }
     res = jsonify(data)
     res.headers["Cache-Control"] = "no-store"

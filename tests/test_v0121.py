@@ -123,5 +123,5 @@ def test_holidays_endpoint_unchanged(client):
 def test_day_endpoint_unchanged(filled):
     today = kst_today()
     data = filled.get(f"/api/day/{today}").get_json()
-    assert set(data) == {"items", "logs", "routines", "mark"}
+    assert set(data) == {"items", "logs", "routines", "mark", "classes", "annivs"}   # 0.13.0: 시간표·기념일
     assert filled.get(f"/api/day/{today + timedelta(days=400)}").get_json()["items"] == []

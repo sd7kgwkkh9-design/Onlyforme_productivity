@@ -6,6 +6,7 @@
 //   col (세로)      : 7일을 위에서 아래로, 날짜 옆에 그날 일정
 // 날짜를 누르면 월간 화면과 똑같이 그 날짜의 일정이 열린다.
 // 일정·루틴 기록을 두 손가락 클릭(오른쪽 클릭)하면 메뉴가 뜬다 (0.9.0, 메뉴 내용은 main.js).
+// 0.13.0: 날짜 아래에 기념일(🎂), 시간표의 수업은 보기 설정에 따라 일정 위(같이) 또는 아래(아래, 흐리게)에.
 
 import { api, prefetch } from './api.js';
 import { slideIn } from './gestures.js';
@@ -13,6 +14,7 @@ import { holidaysBetween } from './holidays.js';
 import { WEEKDAYS, addDays, el, formatLong, formatTimeRange, parseDateStr, toDateStr, todayStr } from './utils.js';
 import { applyMark, setMarks } from './decor.js';
 import { decorateTimed, weatherBadge } from './weather.js';
+import { displayMode } from './timetable.js';
 
 const LAYOUT_KEY = 'my-calendar:week-layout';
 
@@ -89,7 +91,7 @@ export class WeekView {
     const token = ++this.token;
     const keepLeft = this.root.scrollLeft;
 
-    const [{ items, logs, marks }, holidays] = await Promise.all([
+    const [{ items, logs, marks, classes = [], annivs = [] }, holidays] = await Promise.all([
       api.calendar(start, end), // 일정 + 루틴 기록을 한 번에
       holidaysBetween(start, end),
     ]);
@@ -114,9 +116,16 @@ export class WeekView {
       if (!logsOf.has(l.date)) logsOf.set(l.date, []);
       logsOf.get(l.date).push(l);
     }
+    // 0.13.0: 수업(보기 설정이 '따로'면 안 보임)과 기념일
+    const mode = displayMode();
+    const group = (list) => list.reduce((m, x) => m.set(x.date, [...(m.get(x.date) || []), x]), new Map());
+    const classesOf = group(mode === 'only' ? [] : classes);
+    const annivsOf = group(annivs);
+    this.extra = { mode, classesOf, annivsOf };
 
     const today = todayStr();
     const render = this.layout === 'row' ? this.renderColumn : this.renderRow;
+    this.extra.compact = this.layout === 'row';
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = addDays(start, i);
@@ -162,7 +171,9 @@ export class WeekView {
         weatherBadge(date), // 오늘부터 일주일만 (weather.js)
       ),
       holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
+      this.annivNodes(date),
       el('span', { class: 'wk-col-body' },
+        this.extra.mode === 'with' ? this.classNodes(date) : null,
         items.map((o) =>
           el('span', { class: o.dday ? 'wk-chip is-dday' : 'wk-chip', style: { '--cat': o.category.color }, dataset: wxData(o, true), oncontextmenu: (e) => this.onItemMenu(e, o) },
             o.start_time || o.end_time ? el('span', { class: 'wk-time', dataset: { wxSlot: '' } }, formatTimeRange(o.start_time, o.end_time)) : null,
@@ -174,9 +185,31 @@ export class WeekView {
             l.start_time || l.end_time ? el('span', { class: 'wk-time' }, formatTimeRange(l.start_time, l.end_time)) : null,
             el('span', { class: 'wk-title' }, `${l.routine.emoji} ${l.routine.name}`),
           )),
-        items.length || logs.length ? null : el('span', { class: 'wk-empty' }, '일정 없음'),
+        this.extra.mode === 'below' ? this.classNodes(date) : null,
+        items.length || logs.length || this.extra.classesOf.get(date) ? null : el('span', { class: 'wk-empty' }, '일정 없음'),
       ),
     );
+  }
+
+  // 기념일 이름표 (0.13.0)
+  annivNodes(date) {
+    const list = this.extra?.annivsOf.get(date);
+    return list ? list.map((a) => el('span', { class: 'wk-anniv' }, `${a.emoji} ${a.title}${a.label ? ` ${a.label}` : ''}`)) : null;
+  }
+
+  // 시간표의 수업 (0.13.0): '같이'면 일정과 같은 모양, '아래'면 일정 아래에 흐리게
+  classNodes(date) {
+    const list = this.extra?.classesOf.get(date);
+    if (!list) return null;
+    const below = this.extra.mode === 'below';
+    const tag = this.extra.compact ? 'wk-chip' : 'wk-item';
+    return list.map((c) => el('span', {
+      class: `${tag} is-class${below ? ' is-below' : ''}`, style: { '--cat': c.color },
+      title: `${c.timetable} · ${c.title} ${c.start_time}~${c.end_time}${c.place ? ` · ${c.place}` : ''}`,
+    },
+      el('span', { class: 'wk-time' }, this.extra.compact ? c.start_time : `${c.start_time}~${c.end_time}`),
+      el('span', { class: 'wk-title' }, c.title),
+      !this.extra.compact && c.place ? el('span', { class: 'wk-memo' }, c.place) : null));
   }
 
   // ---------------------------------------------------------------- 세로 배치: 하루 = 가로 줄 하나
@@ -195,6 +228,8 @@ export class WeekView {
       ),
       el('span', { class: 'wk-body' },
         holiday ? el('span', { class: 'wk-holiday' }, holiday) : null,
+        this.annivNodes(date),
+        this.extra.mode === 'with' ? this.classNodes(date) : null,
         items.map((o) =>
           el('span', { class: o.dday ? 'wk-item is-dday' : 'wk-item', style: { '--cat': o.category.color }, dataset: wxData(o, false), oncontextmenu: (e) => this.onItemMenu(e, o) },
             el('span', { class: 'wk-time', dataset: { wxSlot: '' } }, formatTimeRange(o.start_time, o.end_time)),
@@ -207,7 +242,8 @@ export class WeekView {
             el('span', { class: 'wk-title' }, `${l.routine.emoji} ${l.routine.name}`),
             l.memo ? el('span', { class: 'wk-memo' }, l.memo) : null,
           )),
-        items.length || logs.length ? null : el('span', { class: 'wk-empty' }, '일정 없음'),
+        this.extra.mode === 'below' ? this.classNodes(date) : null,
+        items.length || logs.length || this.extra.classesOf.get(date) ? null : el('span', { class: 'wk-empty' }, '일정 없음'),
       ),
     );
   }

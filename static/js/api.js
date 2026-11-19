@@ -72,6 +72,17 @@ function prefetchGet(url) {
   cachedGet(url).catch(() => {});
 }
 
+/**
+ * 잠금·로그인 화면으로 떠날 때 (0.13.0): 화면에 있던 일정을 먼저 지우고, 지금 페이지를 방문 기록에서 바꿔 끼운다.
+ * '뒤로 가기'를 눌러도 잠그기 전 화면이 되살아나지 않게 한다.
+ */
+export function leavePage(url) {
+  document.body.classList.add('is-leaving');
+  for (const node of document.querySelectorAll('.layout, .top-strip, dialog[open]')) node.replaceChildren();
+  memo.clear();
+  window.location.replace(url);
+}
+
 async function request(method, url, body, { poll = false, keep = false } = {}) {
   const options = { method, headers: {} };
   if (poll && active) {
@@ -95,8 +106,8 @@ async function request(method, url, body, { poll = false, keep = false } = {}) {
   if (res.status === 401) {
     const data = await res.json().catch(() => ({}));
     const here = `${location.pathname}${location.search}`;
-    if (data.locked) window.location.href = `/unlock${location.search ? `?next=${encodeURIComponent(here)}` : ''}`;
-    else window.location.href = '/login';
+    if (data.locked) leavePage(`/unlock${location.search ? `?next=${encodeURIComponent(here)}` : ''}`);
+    else leavePage('/login');
     throw new Error(data.error || '로그인이 필요해요.');
   }
 
@@ -127,13 +138,14 @@ export const prefetch = {
 export const api = {
   // 화면별로 묶어 받기 (요청 수 줄이기)
   // (cachedGet: 바뀐 것이 없으면 서버에 다시 묻지 않는다 — 위 '받은 내용 기억해 두기')
-  calendar: (start, end) => cachedGet(`/api/calendar?${q({ start, end })}`), // 월간·주간: 일정 + 루틴 기록
-  day: (date) => cachedGet(`/api/day/${date}`),                              // 하루: 일정 + 루틴 기록 + 루틴 버튼
-  inbox: () => cachedGet('/api/inbox'),                                       // 기록지: 메모 + 목표 + 할 일
+  calendar: (start, end) => cachedGet(`/api/calendar?${q({ start, end })}`), // 월간·주간: 일정 + 루틴 기록 + 수업 + 기념일
+  day: (date) => cachedGet(`/api/day/${date}`),                              // 하루: 일정 + 루틴 기록 + 루틴 버튼 + 수업 + 기념일
+  inbox: () => cachedGet('/api/inbox'),                                       // 메모장: 노트 + 목표 + 할 일 + 프로젝트
 
   // 일정 (날짜 없는 일정 = 할 일)
   undated: () => request('GET', '/api/items/undated'),
   setDone: (id, done) => request('PUT', `/api/items/${id}/done`, { done }),
+  setUrgent: (id, urgent) => request('PUT', `/api/items/${id}/urgent`, { urgent }),   // 급한 할 일 ⚡ (0.13.0)
   clearDone: () => request('DELETE', '/api/items/done'),
   getItem: (id) => request('GET', `/api/items/${id}`),
   createItem: (payload) => request('POST', '/api/items', payload),
@@ -156,7 +168,7 @@ export const api = {
   updateRoutineLog: (id, payload) => request('PUT', `/api/routine-logs/${id}`, payload),
   deleteRoutineLog: (id) => request('DELETE', `/api/routine-logs/${id}`),
 
-  // 기록지 — 메모
+  // 메모장 — 노트 (주소는 예전 이름 그대로 notes)
   notes: () => request('GET', '/api/notes'),
   createNote: (payload) => request('POST', '/api/notes', payload),
   updateNote: (id, payload) => request('PUT', `/api/notes/${id}`, payload),
@@ -164,12 +176,52 @@ export const api = {
   deleteNote: (id) => request('DELETE', `/api/notes/${id}`),
   reorderNotes: (ids) => request('PUT', '/api/notes/order', { ids }),
 
-  // 기록지 — 목표
+  // 메모장 — 목표
   createGoal: (payload) => request('POST', '/api/goals', payload),
   updateGoal: (id, payload) => request('PUT', `/api/goals/${id}`, payload),
   deleteGoal: (id) => request('DELETE', `/api/goals/${id}`),
   reorderGoals: (ids) => request('PUT', '/api/goals/order', { ids }),
   stepGoal: (id, delta = 1) => request('POST', `/api/goals/${id}/step`, { delta }), // 숫자 목표 +1 (0.11.0)
+
+  // 습관 (0.13.0)
+  habits: (today) => cachedGet(`/api/habits?${q({ today })}`),
+  createHabit: (payload) => request('POST', '/api/habits', payload),
+  updateHabit: (id, payload) => request('PUT', `/api/habits/${id}`, payload),
+  deleteHabit: (id) => request('DELETE', `/api/habits/${id}`),
+  reorderHabits: (ids) => request('PUT', '/api/habits/order', { ids }),
+  stepHabit: (id, date, delta) => request('POST', `/api/habits/${id}/step`, { date, delta }),
+
+  // 프로젝트 (0.13.0) — 목록은 inbox로 함께 받는다
+  project: (id, today) => cachedGet(`/api/projects/${id}?${q({ today })}`),
+  createProject: (payload, today) => request('POST', `/api/projects?${q({ today })}`, payload),
+  updateProject: (id, payload, today) => request('PUT', `/api/projects/${id}?${q({ today })}`, payload),
+  deleteProject: (id, tasks = 'keep') => request('DELETE', `/api/projects/${id}?${q({ tasks })}`),
+  reorderProjects: (ids) => request('PUT', '/api/projects/order', { ids }),
+
+  // 기념일 (0.13.0) — 달력에 보이는 날짜는 calendar / day로 함께 받는다
+  anniversaries: (today) => cachedGet(`/api/anniversaries?${q({ today })}`),
+  createAnniversary: (payload) => request('POST', '/api/anniversaries', payload),
+  updateAnniversary: (id, payload) => request('PUT', `/api/anniversaries/${id}`, payload),
+  deleteAnniversary: (id) => request('DELETE', `/api/anniversaries/${id}`),
+
+  // 시간표 (0.13.0) — 달력에 보이는 수업은 calendar / day로 함께 받는다
+  timetables: () => cachedGet('/api/timetables'),
+  createTimetable: (payload) => request('POST', '/api/timetables', payload),
+  updateTimetable: (id, payload) => request('PUT', `/api/timetables/${id}`, payload),
+  deleteTimetable: (id) => request('DELETE', `/api/timetables/${id}`),
+  createBlocks: (timetableId, payload) => request('POST', `/api/timetables/${timetableId}/blocks`, payload),
+  updateBlock: (id, payload) => request('PUT', `/api/timetable-blocks/${id}`, payload),
+  deleteBlock: (id) => request('DELETE', `/api/timetable-blocks/${id}`),
+  setSkip: (payload) => request('PUT', '/api/timetable-skips', payload),
+  importCandidates: () => request('GET', '/api/timetable/import'),
+  importItems: (payload) => request('POST', '/api/timetable/import', payload),
+
+  // 캘린더만 잠그기 (0.13.0) — /auth/lock 아래 (lock.py)
+  lockSettings: () => request('GET', '/auth/lock'),
+  lockNow: () => request('POST', '/auth/lock/now'),
+  updateLock: (payload) => request('PUT', '/auth/lock/settings', payload),
+  setPin: (pin, password) => request('POST', '/auth/lock/pin', { pin, password }),
+  deletePin: () => request('DELETE', '/auth/lock/pin'),
 
   // 달력 꾸미기 (0.11.0): 날짜 스티커·형광펜 — 읽기는 calendar / day로 함께 받는다
   setMark: (date, payload) => request('PUT', `/api/days/${date}/mark`, payload),

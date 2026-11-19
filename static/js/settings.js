@@ -1,4 +1,4 @@
-// ⚙ 설정 메뉴: 화면 테마 / 색 / 배경 사진 / 글꼴 / 글자 크기 / 이번 주 한 걸음 / 이 기기에서 로그아웃 / 앱 이름과 버전
+// ⚙ 설정 메뉴: 화면 테마 / 색 / 배경 사진 / 글꼴 / 글자 크기 / 이번 주 한 걸음 / 습관·기념일 / 연결·잠금 / 이 기기에서 로그아웃 / 앱 이름과 버전
 //
 // - 테마·색·배경 사진·글꼴·글자 크기는 기기(브라우저)마다 따로 저장된다. 폰은 다크+주아+작게, 맥은 라이트+Pretendard+보통처럼 쓸 수 있다.
 // - 실제 색·글꼴·크기는 style.css가 바꾼다. 여기서는 <html data-theme data-color data-bg data-font data-fs>만 바꾼다.
@@ -315,14 +315,26 @@ function renderMenu(loginEnabled, appName, version) {
     hooks.onShowWeekly
       ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice menu-sub', onclick: () => { menu.hidePopover?.(); hooks.onShowWeekly(); } }, '지금 카드 보기')
       : null,
-    // 0.12.0: 밖에서 보기(공유 링크·캘린더 구독·홈 화면 위젯), 패스키
-    el('p', { class: 'menu-label' }, '연결'),
+    // 0.13.0: 습관, 기념일
+    el('p', { class: 'menu-label' }, '생활'),
+    hooks.onOpenHabits
+      ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onOpenHabits(); } }, '습관…')
+      : null,
+    hooks.onOpenAnnivs
+      ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onOpenAnnivs(); } }, '기념일…')
+      : null,
+    // 0.12.0: 밖에서 보기(공유 링크·캘린더 구독·홈 화면 위젯), 패스키 / 0.13.0: 캘린더만 잠그기
+    el('p', { class: 'menu-label' }, '연결 · 잠금'),
     hooks.onOpenLinks
       ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onOpenLinks('share'); } }, '공유 링크 · 캘린더 구독 · 위젯…')
       : null,
     loginEnabled && hooks.onOpenSecurity
       ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onOpenSecurity(); } },
-          'Face ID · 패스키…', hooks.bioLock ? el('span', { class: 'menu-size-name' }, '🔒 이 기기 잠금') : null)
+          '잠금 · 패스키…', hooks.bioLock ? el('span', { class: 'menu-size-name' }, '자동 잠금 켬') : null)
+      : null,
+    loginEnabled && hooks.onLockNow
+      ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onLockNow(); } },
+          '🔒 지금 잠그기', el('span', { class: 'menu-size-name' }, 'L'))
       : null,
     loginEnabled
       ? el('form', {
@@ -426,10 +438,13 @@ function placeMenu() {
   menu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
 }
 
-export function initSettings({ loginEnabled = false, appName = '', version = '', onShowWeekly = null, onOpenLinks = null, onOpenSecurity = null, bioLock = false } = {}) {
+export function initSettings({
+  loginEnabled = false, appName = '', version = '', onShowWeekly = null, onOpenLinks = null, onOpenSecurity = null, bioLock = false,
+  onLockNow = null, onOpenHabits = null, onOpenAnnivs = null,
+} = {}) {
   button = document.getElementById('btn-settings');
   menu = document.getElementById('settings-menu');
-  hooks = { onShowWeekly, onOpenLinks, onOpenSecurity, bioLock };
+  hooks = { onShowWeekly, onOpenLinks, onOpenSecurity, bioLock, onLockNow, onOpenHabits, onOpenAnnivs };
   menuArgs = [loginEnabled, appName, version];
   color = read(COLOR_KEY, [...COLORS.map(([v]) => v), 'custom'], 'blue');
   try { custom = JSON.parse(localStorage.getItem(CUSTOM_KEY) || 'null'); } catch { custom = null; }
@@ -450,6 +465,10 @@ export function initSettings({ loginEnabled = false, appName = '', version = '',
     'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
   ));
   renderMenu(loginEnabled, appName, version);
+  // 잠금 설정을 바꾸면(security.js) 메뉴의 '자동 잠금 켬' 표시도 바꾼다
+  window.addEventListener('lock-config', (e) => {
+    if (typeof e.detail?.auto === 'boolean') { hooks.bioLock = e.detail.auto; renderMenu(...menuArgs); }
+  });
 
   if (typeof menu.showPopover === 'function') {
     // 버튼의 popovertarget으로 열리고, 바깥을 누르거나 Esc를 누르면 저절로 닫힌다.

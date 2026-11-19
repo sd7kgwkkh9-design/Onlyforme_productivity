@@ -14,7 +14,10 @@
   PUT    /api/routine-logs/<id>           수정 (보낸 칸만 — 끌어서 날짜만 옮길 때는 {date})
   DELETE /api/routine-logs/<id>           삭제
 
-기록지 — 메모
+0.13.0: '메모장'는 '메모장'으로, 그 안의 '메모'는 '노트'로 이름이 바뀌었다 (주소와 표 이름은 그대로 notes).
+        습관·프로젝트·기념일은 api_plans.py, 시간표는 timetable.py
+
+메모장 — 메모
   GET    /api/notes                       메모 목록
   POST   /api/notes                       메모 추가 (첫 메모는 자동으로 메인)
   PUT    /api/notes/<id>                  제목·내용·배너 글귀 수정 (자동 저장)
@@ -22,7 +25,7 @@
   DELETE /api/notes/<id>                  삭제 (메인을 지우면 맨 위 메모가 메인이 된다)
   PUT    /api/notes/order                 순서 {ids: [...]}
 
-기록지 — 목표 (0.9.0)
+메모장 — 목표 (0.9.0)
   GET    /api/goals                       목표 목록 (아직인 것 먼저, 이룬 것은 뒤에)
   POST   /api/goals                       목표 추가 {title, due, memo}
   PUT    /api/goals/<id>                  수정 (보낸 칸만) {title, due, memo, done}
@@ -34,15 +37,17 @@
 
 달력 꾸미기 (0.11.0)
   PUT    /api/days/<date>/mark            날짜 스티커·형광펜 {sticker, color} (읽기는 /api/calendar의 marks)
-  (기록지의 '할 일'은 날짜 없는 일정이라 api.py의 /api/items/undated 등을 쓴다)
+  (메모장의 '할 일'은 날짜 없는 일정이라 api.py의 /api/items/undated 등을 쓴다)
 
 화면 한 번에 필요한 것 묶어 받기 (최적화: 요청 수 줄이기)
   GET    /api/calendar?start=&end=        월간·주간 화면: 일정 + 루틴 기록 (요청 2번 → 1번)
   GET    /api/day/<date>                  하루 화면: 일정 + 루틴 기록 + 루틴 버튼 (요청 3번 → 1번)
-  GET    /api/inbox                       기록지: 메모 + 목표 + 할 일 (요청 3번 → 1번, 0.9.0)
+  GET    /api/inbox                       메모장: 메모 + 목표 + 할 일 (요청 3번 → 1번, 0.9.0) + 프로젝트 (0.13.0)
+  0.13.0: /api/calendar, /api/day에 시간표 수업(classes)과 기념일(annivs)도 실린다
 
 달력 위 띠
   GET    /api/overview?today=             메인 메모의 배너 글귀 + 다가오는 D-day 일정 + 기한 있는 목표 + 올해 진행률·올해 목표 + 인생 목표
+                                           + 0.13.0: 급한 할 일, 습관, 진행 중인 프로젝트, 다가오는 기념일
 
 시간 돌아보기
   GET    /api/stats?start=&end=           기간 안의 카테고리별·날짜별 시간, 루틴 횟수·시간
@@ -323,24 +328,40 @@ def logs_between(db, start, end):
 
 
 def calendar_data(db, start, end):
-    return {"items": occurrence_list(db, start, end), "logs": logs_between(db, start, end), "marks": marks_between(db, start, end)}
+    # 0.13.0: 시간표의 수업(classes, 쉬는 것은 빼고)과 기념일(annivs)도 같이 싣는다 (화면이 표시 설정에 맞게 고른다)
+    from api_plans import anniv_occurrences
+    from timetable import class_occurrences
+    return {
+        "items": occurrence_list(db, start, end),
+        "logs": logs_between(db, start, end),
+        "marks": marks_between(db, start, end),
+        "classes": class_occurrences(db, start, end, include_skipped=False),
+        "annivs": anniv_occurrences(db, start, end),
+    }
 
 
 def day_data(db, day):
+    from api_plans import anniv_occurrences
+    from timetable import class_occurrences
     nxt = (Date.fromisoformat(day) + timedelta(days=1)).isoformat()
     return {
         "items": occurrence_list(db, day, nxt),
         "logs": logs_between(db, day, nxt),
         "routines": [routine_dict(r) for r in routine_rows(db, day)],
         "mark": next(iter(marks_between(db, day, nxt)), None),
+        "classes": class_occurrences(db, day, nxt),     # 하루 화면은 쉬는 수업도 보여 준다 ('다시 하기'를 누를 수 있게)
+        "annivs": anniv_occurrences(db, day, nxt),
     }
 
 
 def inbox_data(db):
+    """메모장 한 번에: 노트 + 목표 + 할 일 + 프로젝트 (프로젝트의 세부 할 일은 그 프로젝트 안에서만 보인다)"""
+    from api_plans import kst_today, project_list
     return {
         "notes": [note_dict(r) for r in db.execute("SELECT * FROM notes ORDER BY position, id")],
         "goals": goal_list(db),
-        "todos": undated_items(db),
+        "todos": [t for t in undated_items(db) if not t["project"]],
+        "projects": project_list(db, kst_today()),
     }
 
 
@@ -359,13 +380,13 @@ def day_detail(day):
 
 @bp.get("/inbox")
 def inbox():
-    """기록지 한 번에: 메모(notes) + 목표(goals) + 할 일(날짜 없는 일정)"""
+    """메모장 한 번에: 메모(notes) + 목표(goals) + 할 일(날짜 없는 일정)"""
     return jsonify(inbox_data(get_db()))
 
 
 # ======================================================================== 첫 화면에 실어 보내기 (0.12.1)
 # 인터넷 서버는 멀리 있어서, 페이지를 받은 뒤 다시 '일정 주세요'를 묻는 데 왕복 시간이 한 번 더 든다.
-# 첫 화면에 바로 필요한 내용(그 달 일정, 오른쪽 칸의 하루, 위쪽 띠, 기록지, 공휴일)을 페이지에 같이 실어 보낸다.
+# 첫 화면에 바로 필요한 내용(그 달 일정, 오른쪽 칸의 하루, 위쪽 띠, 메모장, 공휴일)을 페이지에 같이 실어 보낸다.
 # 화면(api.js)은 이것을 '이미 받은 내용'으로 기억해 두고, 같은 주소를 부르면 서버에 묻지 않고 바로 쓴다.
 # 주소는 화면이 만드는 것과 글자 하나까지 같아야 한다 (static/js/api.js).
 def _month(value):
@@ -418,7 +439,7 @@ def boot_data(db, args, today):
     return {"v": version, "get": get}
 
 
-# ======================================================================== 기록지
+# ======================================================================== 메모장
 def note_dict(r):
     return {
         "id": r["id"],
@@ -526,7 +547,7 @@ def reorder_notes():
     return jsonify(ids=ids)
 
 
-# ======================================================================== 기록지: 목표 (0.9.0, 0.11.0에서 세 단계로)
+# ======================================================================== 메모장: 목표 (0.9.0, 0.11.0에서 세 단계로)
 # 인생 목표(life)  : 기한 없는 큰 방향
 # 올해 목표(year)  : 연도 + 진행 방식 — 체크(check) / 숫자(count: current/target) / 루틴 연결(routine: 그 해의 루틴 기록 수)
 # 기한 목표(due)   : 0.9.0의 목표. 제목 + 기한(선택). 기한이 있으면 달력 위 D-day 띠에 보인다
@@ -835,7 +856,17 @@ def overview_data(db, today):
     # 해가 바뀌었는데 새해 목표가 아직 없으면 화면이 '목표 세우기'를 권한다
     year["nudge"] = not year_goals and any(g["kind"] == "year" and g["year"] == today.year - 1 for g in every)
     life = [{"id": g["id"], "title": g["title"]} for g in every if g["kind"] == "life" and not g["done"]]
-    return {"banner": banner, "ddays": ddays[:MAX_DDAYS], "year": year, "life": life}
+
+    # 0.13.0: 급한 할 일, 습관, 진행 중인 프로젝트, 다가오는 기념일 (api_plans.py)
+    from api_plans import overview_extras
+    extras = overview_extras(db, today)
+    for a in extras.pop("annivs"):
+        ddays.append({
+            "kind": "anniv", "id": a["id"], "title": f"{a['title']} {a['label']}".strip(), "emoji": a["emoji"],
+            "date": a["date"], "color": None, "days_left": a["days_left"],
+        })
+    ddays.sort(key=lambda d: (d["date"], {"item": 0, "anniv": 1, "goal": 2}[d["kind"]]))
+    return {"banner": banner, "ddays": ddays[:MAX_DDAYS], "year": year, "life": life, **extras}
 
 
 # ======================================================================== 달력 꾸미기: 날짜 스티커·형광펜 (0.11.0)
@@ -963,4 +994,5 @@ def parse_quick():
     db = get_db()
     categories = [dict(r) for r in db.execute("SELECT id, name, color FROM categories ORDER BY is_default DESC, id")]
     routines = [dict(r) for r in db.execute("SELECT id, name, emoji FROM routines ORDER BY position, id")]
-    return jsonify(quickadd.parse(text, today, categories, routines))
+    projects = [dict(r) for r in db.execute("SELECT id, title, color FROM projects WHERE status != 'done' ORDER BY position, id")]
+    return jsonify(quickadd.parse(text, today, categories, routines, projects))

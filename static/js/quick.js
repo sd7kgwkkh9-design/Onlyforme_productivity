@@ -5,21 +5,25 @@
 //   1) 쓰는 동안 '어떻게 읽었는지'를 바로 보여 주고 (읽은 부분은 색으로 표시)
 //   2) Enter(추가)를 누르면 그대로 저장하고,
 //   3) '자세히'를 누르면 채워진 입력 창을 연다 (메모·여러 날짜 등을 더 손볼 때).
-// 날짜를 안 쓰면 기록지의 할 일로 들어간다 (8차).
+// 날짜를 안 쓰면 메모장의 할 일로 들어간다 (8차).
 // 제목이 루틴 이름과 같으면('운동 7시') 일정이 아니라 루틴 기록으로 저장한다 (날짜를 안 쓰면 오늘).
 // 0.9.0: '매주 월수 9시 컴구 ~12/15' → 반복 일정 (그 기간의 월·수 전부)
-//        맨 앞에 - 메모, * 목표, [] 할 일 → 기록지로 (입력칸 위의 [메모][목표][할 일] 버튼으로도 넣었다 뺐다)
+//        맨 앞에 - 노트, * 목표, [] 할 일 → 메모장으로 (입력칸 위의 [노트][목표][할 일] 버튼으로도 넣었다 뺐다)
+// 0.13.0: ! 급한 할 일, # 프로젝트('# 텀프로젝트 ~12/6'), @이름 → 그 프로젝트에 묶기
 
 import { api } from './api.js';
 import { ddayLabel, daysBetween, el, formatShort, formatTimeRange, todayStr, toast } from './utils.js';
+import { periodText } from './projects.js';
 
-const KIND_LABEL = { date: '날짜', time: '시간', category: '카테고리', dday: 'D-day', undated: '할 일', repeat: '반복', kind: '종류' };
+const KIND_LABEL = { date: '날짜', time: '시간', category: '카테고리', dday: 'D-day', undated: '할 일', repeat: '반복', kind: '종류', project: '프로젝트' };
 
 // 입력칸 위의 종류 버튼: 누르면 맨 앞 기호를 넣었다 뺐다 한다
 const KINDS = [
-  { kind: 'memo', label: '메모', prefix: '- ', re: /^-\s+/ },
+  { kind: 'memo', label: '노트', prefix: '- ', re: /^-\s+/ },
   { kind: 'goal', label: '목표', prefix: '* ', re: /^\*\s+/ },
   { kind: 'todo', label: '할 일', prefix: '[] ', re: /^\[\s*\]\s*/ },
+  { kind: 'urgent', label: '⚡ 급한 일', prefix: '! ', re: /^!\s*/ },
+  { kind: 'project', label: '프로젝트', prefix: '# ', re: /^#\s+/ },
 ];
 const WD = '월화수목금토일'; // 서버(파이썬)의 요일 번호: 월=0 … 일=6
 
@@ -38,7 +42,7 @@ export class QuickAdd {
    * @param {(item) => Promise<void>} opts.onSaved     저장한 뒤 (화면 새로 고침)
    * @param {(date: string) => void}  opts.onOpenDate  알림의 '보기'를 누르면
    * @param {(prefill) => void}       opts.onDetail    '자세히'를 누르면 (입력 창 열기)
-   * @param {(opts) => void}          opts.onOpenNotes 기록지 열기 (메모·목표·할 일로 넣었을 때 '보기')
+   * @param {(opts) => void}          opts.onOpenNotes 메모장 열기 (메모·목표·할 일로 넣었을 때 '보기')
    */
   constructor(dialog, { onSaved, onOpenDate, onDetail, onOpenNotes }) {
     this.dialog = dialog;
@@ -167,12 +171,20 @@ export class QuickAdd {
 
     const catChip = () => chip('카테고리', el('span', { class: 'quick-cat', style: { '--cat': r.category?.color || 'var(--faint)' } },
       el('span', { class: 'dot' }), r.category?.name || '미분류'));
+    const projectChip = () => (r.project
+      ? chip('프로젝트', el('span', { class: 'quick-cat', style: { '--cat': r.project.color || 'var(--faint)' } }, el('span', { class: 'dot' }), r.project.title))
+      : null);
     let chips;
-    if (r.kind === 'memo') {
-      chips = [chip('기록지', '메모', { class: 'quick-chip is-note' })];
+    if (r.kind === 'project') {
+      chips = [
+        chip('메모장', '📁 프로젝트', { class: 'quick-chip is-note' }),
+        chip('기간', r.period ? `${periodText({ period: r.period.label, start_date: r.period.start, end_date: r.period.end })}${r.period.label ? ` (${formatShort(r.period.start)}~${formatShort(r.period.end)})` : ''}` : '없음'),
+      ];
+    } else if (r.kind === 'memo') {
+      chips = [chip('메모장', '노트', { class: 'quick-chip is-note' })];
     } else if (r.kind === 'goal') {
       chips = [
-        chip('기록지', '🎯 목표', { class: 'quick-chip is-note' }),
+        chip('메모장', '🎯 목표', { class: 'quick-chip is-note' }),
         chip('기한', r.due ? `${formatShort(r.due)} · ${ddayLabel(daysBetween(today, r.due))}` : '없음'),
       ];
     } else if (r.routine) { // 루틴 기록: 카테고리·D-day 없이
@@ -182,7 +194,8 @@ export class QuickAdd {
         chip('시간', time || '없음'),
       ];
     } else if (r.kind === 'todo') {
-      chips = [chip('기록지', '할 일 (날짜 없음)', { class: 'quick-chip is-note' }), chip('시간', time || '없음'), catChip()];
+      chips = [chip('메모장', r.urgent ? '⚡ 급한 할 일' : '할 일 (날짜 없음)', { class: r.urgent ? 'quick-chip is-note is-urgent' : 'quick-chip is-note' }),
+        chip('시간', time || '없음'), catChip(), projectChip()];
     } else {
       chips = [
         r.repeat
@@ -191,11 +204,12 @@ export class QuickAdd {
         chip('시간', time || '없음'),
         catChip(),
         r.dday && r.dates.length ? chip('D-day', ddayLabel(daysBetween(today, nextDate(r.dates, today)))) : null,
+        projectChip(),
       ];
     }
     this.previewEl.replaceChildren(...[
-      el('p', { class: 'quick-title' }, r.title || el('span', { class: 'muted' }, r.kind === 'memo' ? '메모할 내용을 적어 주세요' : '무엇을 할지도 적어 주세요')),
-      el('div', { class: 'quick-chips' }, chips),
+      el('p', { class: 'quick-title' }, r.title || el('span', { class: 'muted' }, r.kind === 'memo' ? '적어 둘 내용을 써 주세요' : r.kind === 'project' ? '프로젝트 이름을 적어 주세요' : '무엇을 할지도 적어 주세요')),
+      el('div', { class: 'quick-chips' }, chips.filter(Boolean)),
       r.warnings.length ? el('ul', { class: 'quick-warnings' }, r.warnings.map((w) => el('li', {}, w))) : null,
     ].filter(Boolean));
   }
@@ -209,6 +223,8 @@ export class QuickAdd {
       end_time: r.end_time,
       category_id: r.category?.id ?? null,
       dday: r.dday,
+      urgent: Boolean(r.urgent),
+      ...(r.project ? { project_id: r.project.id } : {}),
     };
   }
 
@@ -232,7 +248,7 @@ export class QuickAdd {
     }
     this.saveBtn.disabled = true;
     try {
-      if (r.kind === 'memo' || r.kind === 'goal') {
+      if (r.kind === 'memo' || r.kind === 'goal' || r.kind === 'project') {
         await this.saveToNotes(r);
         return;
       }
@@ -253,8 +269,10 @@ export class QuickAdd {
       } else if (item.dates.length) {
         const first = item.dates[0];
         toast(`${formatShort(first)}에 '${item.title}'을(를) 넣었어요`, 'info', { action: { label: '보기', run: () => this.onOpenDate(first) } });
+      } else if (item.project) {
+        toast(`'${item.project.title}'에 할 일을 넣었어요`, 'info', { action: { label: '보기', run: () => this.onOpenNotes({ projectId: item.project.id }) } });
       } else {
-        toast(`할 일에 '${item.title}'을(를) 넣었어요`, 'info', { action: { label: '보기', run: () => this.onOpenNotes({ tab: 'todo' }) } });
+        toast(`${item.urgent ? '⚡ 급한 ' : ''}할 일에 '${item.title}'을(를) 넣었어요`, 'info', { action: { label: '보기', run: () => this.onOpenNotes({ tab: 'todo' }) } });
       }
     } catch (e) {
       toast(e.message, 'error');
@@ -263,14 +281,22 @@ export class QuickAdd {
     }
   }
 
-  // 메모·목표는 기록지에 넣는다. open=true면 넣은 뒤 기록지에서 바로 연다 ('자세히')
+  // 노트·목표·프로젝트는 메모장에 넣는다. open=true면 넣은 뒤 메모장에서 바로 연다 ('자세히')
   async saveToNotes(r, { open = false } = {}) {
-    if (r.kind === 'memo') {
+    if (r.kind === 'project') {
+      const p = await api.createProject({
+        title: r.title, start_date: r.period?.start ?? null, end_date: r.period?.end ?? null, period: r.period?.label ?? '',
+      }, todayStr());
+      this.clear();
+      await this.onSaved();
+      if (open) this.onOpenNotes({ projectId: p.id });
+      else toast(`프로젝트를 만들었어요 · ${periodText(p)}`, 'info', { action: { label: '보기', run: () => this.onOpenNotes({ projectId: p.id }) } });
+    } else if (r.kind === 'memo') {
       const note = await api.createNote({ body: r.title });
       this.clear();
       await this.onSaved();
       if (open) this.onOpenNotes({ noteId: note.id });
-      else toast('기록지에 메모했어요', 'info', { action: { label: '보기', run: () => this.onOpenNotes({ tab: 'memo' }) } });
+      else toast('노트에 적었어요', 'info', { action: { label: '보기', run: () => this.onOpenNotes({ tab: 'memo' }) } });
     } else {
       const goal = await api.createGoal({ title: r.title, due: r.due });
       this.clear();
@@ -295,7 +321,7 @@ export class QuickAdd {
       this.onDetail({ prefill: null, ctxDate: todayStr() });
       return;
     }
-    if ((r.kind === 'memo' || r.kind === 'goal') && r.title) { // 기록지에 넣고 바로 열어서 더 쓰기
+    if ((r.kind === 'memo' || r.kind === 'goal' || r.kind === 'project') && r.title) { // 메모장에 넣고 바로 열어서 더 쓰기
       try { await this.saveToNotes(r, { open: true }); } catch (e) { toast(e.message, 'error'); }
       return;
     }

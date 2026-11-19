@@ -1,4 +1,4 @@
-// 오직 나를 위한 캘린더 — 아이폰 홈 화면·잠금 화면 위젯 (Scriptable 스크립트, 0.12.0)
+// 오직 나를 위한 캘린더 — 아이폰 홈 화면·잠금 화면 위젯 (Scriptable 스크립트, 0.12.0 · 0.13.0에서 다음 수업을 더함)
 //
 // 쓰는 방법
 //   1. App Store에서 무료 앱 'Scriptable'을 설치한다.
@@ -108,6 +108,9 @@ const dateTitle = (data) => {
   return `${m}월 ${d}일 ${data.weekday}요일`;
 };
 const progressText = (g) => (g.measure === "check" ? "" : `${g.current}/${g.target}`);
+// 다음 수업 (시간표, 0.13.0): '🎓 10:30 컴퓨터구조 · 공학관 301' (오늘이 아니면 '내일', '11/20(목)')
+const whenOf = (c) => (c.day === "today" ? "" : c.day === "tomorrow" ? "내일 " : `${c.day} `);
+const classText = (c) => `🎓 ${whenOf(c)}${c.start} ${c.title}${c.place ? ` · ${c.place}` : ""}`;
 
 function itemRow(stack, o, size = 13) {
   const r = row(stack);
@@ -152,6 +155,7 @@ function small(w, data) {
     text(w, data.today.length ? "남은 시간 일정 없음" : "오늘 일정 없음", 15, { weight: "bold", lines: 2 });
   }
   text(w, `오늘 일정 ${data.today.length}개${data.todos ? ` · 할 일 ${data.todos}` : ""}`, 11, { color: muted });
+  if (data.class) text(w, classText(data.class), 11, { weight: "medium", color: muted });
   w.addSpacer();
   if (data.ddays.length) {
     const d = data.ddays[0];
@@ -174,6 +178,7 @@ function medium(w, data) {
   body.topAlignContent();
   const left = column(body);
   text(left, dateTitle(data), 13, { weight: "bold", color: accent });
+  if (data.class) text(left, classText(data.class), 11, { weight: "medium", color: muted });
   left.addSpacer(7);
   if (!data.today.length) text(left, "오늘 일정 없음", 13, { color: muted });
   for (const o of data.today.slice(0, 4)) {
@@ -217,6 +222,10 @@ function large(w, data) {
   if (data.life) {
     w.addSpacer(2);
     text(w, `🧭 ${data.life}`, 11.5, { color: muted });
+  }
+  if (data.class) {
+    w.addSpacer(2);
+    text(w, `다음 수업 ${classText(data.class)}`, 11.5, { weight: "medium" });
   }
   w.addSpacer(10);
   text(w, "오늘", 11, { weight: "bold", color: muted });
@@ -267,7 +276,8 @@ function rectangular(w, data) {
   const d = data.ddays[0];
   if (d) text(w, `${ddayLabel(d.days_left)} ${d.title}`, 12);
   const g = data.year.goals.find((x) => x.measure !== "check");
-  if (g) text(w, `${g.emoji ? `${g.emoji} ` : ""}${g.title} ${progressText(g)}`, 12);
+  if (data.class) text(w, classText(data.class), 12);
+  else if (g) text(w, `${g.emoji ? `${g.emoji} ` : ""}${g.title} ${progressText(g)}`, 12);
   else text(w, `${data.year.year}년 ${data.year.percent}%`, 12);
 }
 

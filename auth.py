@@ -10,6 +10,8 @@
 - 0.12.0: 패스키(Face ID·지문)로도 로그인할 수 있고, 기기마다 '열 때마다 생체 인증'을 켤 수 있다 (passkeys.py).
   잠금을 켠 기기는 몇 분 넘게 안 쓰다가 다시 열면 /unlock 화면이 뜬다.
 - 0.12.0: 공유 링크(/v/), 캘린더 구독(/ical/), 위젯(/w/)은 비밀번호 대신 주소 안의 토큰으로 연다 (links.py).
+- 0.13.0: 캘린더만 잠그기 (lock.py) — '지금 잠그기', 자동 잠금 시간, PIN으로 열기, 공용 PC 모드.
+  잠긴 화면(/unlock)에서는 PIN · 패스키 · 비밀번호 중 하나로 연다.
 
 동작 방식:
 - 내 컴퓨터에서 python app.py로 실행할 때: 비밀번호를 정해 두었을 때만 로그인을 요구한다.
@@ -50,20 +52,37 @@ def _auth_file(data_dir):
     return os.path.join(data_dir, "auth.json")
 
 
-def load_password_hash(data_dir):
+def load_auth(data_dir):
+    """auth.json 전체 {password_hash, pin_hash(0.13.0)}"""
     try:
         with open(_auth_file(data_dir), encoding="utf-8") as f:
-            return json.load(f).get("password_hash")
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
     except (FileNotFoundError, ValueError):
-        return None
+        return {}
+
+
+def save_auth(data_dir, data):
+    os.makedirs(data_dir, exist_ok=True)
+    with open(_auth_file(data_dir), "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+
+def load_password_hash(data_dir):
+    return load_auth(data_dir).get("password_hash")
 
 
 def save_password(data_dir, password):
     if len(password) < MIN_PASSWORD_LENGTH:
         raise ValueError(f"비밀번호는 {MIN_PASSWORD_LENGTH}자 이상이어야 해요.")
-    os.makedirs(data_dir, exist_ok=True)
-    with open(_auth_file(data_dir), "w", encoding="utf-8") as f:
-        json.dump({"password_hash": generate_password_hash(password)}, f)
+    data = load_auth(data_dir)   # 잠금 PIN(0.13.0)은 그대로 둔다
+    data["password_hash"] = generate_password_hash(password)
+    save_auth(data_dir, data)
+
+
+def check_password(password):
+    hashed = load_password_hash(current_app.config["DATA_DIR"])
+    return bool(hashed) and check_password_hash(hashed, password or "")
 
 
 def load_or_create_secret_key(data_dir):
@@ -129,7 +148,7 @@ def require_login():
             if path in UNLOCK_PATHS:
                 return None   # 잠금 화면과 그 화면의 확인 요청 (여기서는 '쓰는 중'으로 치지 않는다)
             if path.startswith(("/api/", "/auth/")):
-                return jsonify(error="잠겨 있어요. Face ID·지문으로 열어 주세요.", locked=True), 401
+                return jsonify(error="잠겨 있어요. 잠금을 풀어 주세요.", locked=True), 401
             nxt = request.full_path if path == "/" and request.query_string else None
             return redirect(url_for("auth.unlock", next=nxt) if nxt else url_for("auth.unlock"))
         # 동기화 확인(/api/version)은 화면이 알아서 보내는 것이라 '쓰는 중'으로 치지 않는다.
@@ -205,7 +224,12 @@ def login():
 
 @bp.route("/unlock", methods=["GET", "POST"])
 def unlock():
-    """잠긴 화면: 패스키(Face ID·지문)로 열거나, 비밀번호로 연다. 잠금 설정은 그대로 둔다."""
+    """
+    잠긴 화면: PIN(0.13.0), 패스키(Face ID·지문), 비밀번호 중 하나로 연다. 잠금 설정은 그대로 둔다.
+    PIN을 여러 번(lock.MAX_PIN_FAILS) 틀리면 이 기기에서는 비밀번호나 패스키로만 열린다.
+    """
+    import lock
+
     if not passkeys.is_locked():
         return redirect(safe_next(request.args.get("next")))
     error = None
@@ -213,18 +237,37 @@ def unlock():
     if request.method == "POST":
         ip = _client_ip()
         wait = _locked_seconds_left(ip)
+        pin = request.form.get("pin")
         if wait:
             error = f"여러 번 틀려서 잠시 막혔어요. {wait}초 뒤에 다시 시도해 주세요."
             status = 429
-        elif check_password_hash(load_password_hash(current_app.config["DATA_DIR"]), request.form.get("password", "")):
+        elif pin is not None:
+            if not lock.pin_allowed():
+                error = "PIN을 여러 번 틀려서 비밀번호로만 열 수 있어요."
+                status = 403
+            elif lock.check_pin(pin):
+                _fails.pop(ip, None)
+                lock.unlocked()
+                return redirect(safe_next(request.args.get("next")))
+            else:
+                _record_fail(ip)
+                lock.pin_failed()
+                left = lock.pin_tries_left()
+                error = f"PIN이 맞지 않아요. ({left}번 더 틀리면 비밀번호로만 열려요)" if left else "PIN을 여러 번 틀려서 이제 비밀번호로만 열 수 있어요."
+                status = 401
+        elif check_password(request.form.get("password", "")):
             _fails.pop(ip, None)
-            session["seen"] = passkeys.now()
+            lock.unlocked()
             return redirect(safe_next(request.args.get("next")))
         else:
             _record_fail(ip)
             error = "비밀번호가 맞지 않아요."
             status = 401
-    return render_template("login.html", error=error, mode="unlock", has_passkeys=passkeys.has_passkeys()), status
+    return render_template(
+        "login.html", error=error, mode="unlock", has_passkeys=passkeys.has_passkeys(),
+        pin=lock.has_pin() and lock.pin_allowed(), manual=bool(session.get("locked")),
+        used_pin=request.form.get("pin") is not None,
+    ), status
 
 
 @bp.post("/logout")

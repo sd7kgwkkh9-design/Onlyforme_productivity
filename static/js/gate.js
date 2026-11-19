@@ -38,5 +38,6 @@ if (button && passkeySupported()) {
   document.querySelector('.gate-or')?.removeAttribute('hidden');
   button.addEventListener('click', go);
   // 잠금 화면: 바로 Face ID를 띄워 본다 (브라우저가 '버튼을 눌러야 한다'고 막으면 버튼으로)
-  if (mode === 'unlock') go();
+  // 0.13.0: PIN을 정해 두었으면 PIN 칸이 먼저라서 띄우지 않는다 (회사 컴퓨터에서 Windows Hello 창이 갑자기 뜨지 않게)
+  if (mode === 'unlock' && document.body.dataset.auto !== '0') go();
 }

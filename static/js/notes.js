@@ -1,14 +1,19 @@
-// 기록지 — 화면 왼쪽에 열리는 '적어 두는 곳' (7차, 0.9.0에서 메모·목표·할 일로 넓힘)
+// 메모장 — 화면 왼쪽에 열리는 '적어 두는 곳' (7차, 0.9.0에서 메모·목표·할 일로 넓힘)
+// 0.13.0: '기록지' → '메모장', 그 안의 '메모' → '노트'로 이름을 바꾸고, 급한 할 일(⚡)과 프로젝트 탭을 더했다.
+//         (코드 안의 이름은 예전 그대로 notes·memo를 쓴다 — 서버 주소·표 이름과 맞추려고)
 //
-//   [전체 | 메모 | 목표 | 할 일]
-//   전체  : 세 가지를 한눈에 — 안 한 할 일, 아직인 목표, 최근 메모
-//   메모  : 다시 보고 싶은 글, 그때그때 드는 생각. 위 칸에 한 줄로 바로 적거나 '새 메모'로 길게 쓴다.
-//           ★메인 메모의 '배너 글귀'는 달력 위 배너에 늘 보인다. 쓰는 대로 자동 저장.
+//   [전체 | 노트 | 목표 | 할 일 | 프로젝트]
+//   전체  : 한눈에 — 안 한 할 일(급한 것 먼저), 아직인 목표, 진행 중인 프로젝트, 최근 노트
+//   노트  : 다시 보고 싶은 글, 그때그때 드는 생각. 위 칸에 한 줄로 바로 적거나 '새 노트'로 길게 쓴다.
+//           ★메인 노트의 '배너 글귀'는 달력 위 배너에 늘 보인다. 쓰는 대로 자동 저장.
 //           마크다운(0.10.0): [보기 | 쓰기]. 보기에서는 **굵게**, 체크리스트, 링크가 꾸며져 보이고 체크리스트를 바로 누를 수 있다.
 //   목표  : 세 단계(0.11.0) — 인생 목표 → 올해 목표(체크·숫자·루틴 연결로 진행도) → 기한 목표(기한이 있으면 달력 위 D-day 띠에).
 //           체크하면 '이룬 목표'로.
 //   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 체크하면 '완료'로 접히고,
 //           날짜를 정하면(📅 버튼, 또는 달력으로 끌어다 놓기) 그날의 일정이 된다.
+//           ⚡ 급한 할 일(0.13.0): 맨 앞에 !를 붙여 적거나 ⚡를 누르면 맨 위로 올라오고, 첫 화면 '오늘 챙길 것'에도 보인다.
+//   프로젝트 (0.13.0): 몇 월까지 진행하는 일 — 기간(정확히 또는 '1월 중'처럼 대략), 상태, 세부 할 일과 진행률,
+//           연결한 일정. [목록 | 타임라인]으로 본다 (projects.js).
 //
 // 넓은 화면(1100px 이상)에서는 달력 왼쪽에 칸으로 붙어 있어서 달력을 쓰면서 계속 볼 수 있고,
 // 그보다 좁은 화면에서는 왼쪽에서 밀려 나오는 창으로 뜬다. 어느 쪽인지는 style.css가 정한다.
@@ -19,23 +24,25 @@ import { pickDate } from './datepop.js';
 import { renderMarkdown, stripMarkdown } from './markdown.js';
 import { makeSortable } from './reorder.js';
 import { ask, daysBetween, ddayLabel, el, formatShort, formatTimeRange, icon, todayStr, toast } from './utils.js';
+import { addProject, projectRowsForAll, renderProjects, showProject } from './projects.js';
 
 // 할 일 카드를 달력의 날짜로 끌고 있을 때, 어떤 일정인지 (놓는 처리는 main.js)
 export const dragState = { itemId: null };
 
 const OPEN_KEY = 'my-calendar:notes-open';
 const TAB_KEY = 'my-calendar:notes-tab';
-const TABS = ['all', 'memo', 'goal', 'todo'];
-const TAB_NAME = { all: '전체', memo: '메모', goal: '목표', todo: '할 일' };
+const TABS = ['all', 'memo', 'goal', 'todo', 'project'];
+const TAB_NAME = { all: '전체', memo: '노트', goal: '목표', todo: '할 일', project: '프로젝트' };
 const SAVE_DELAY_MS = 600;
 const ALL_LIMIT = 5;         // '전체' 탭에서 종류마다 보여 줄 개수
 const pushQuery = window.matchMedia('(min-width: 1100px)'); // style.css의 같은 값과 맞춰야 한다
 const canDrag = window.matchMedia('(hover: hover) and (pointer: fine)');
 
 const CAPTURE = {
-  memo: { label: '메모', max: 300, placeholder: '생각난 것을 적고 Enter' },
+  memo: { label: '노트', max: 300, placeholder: '생각난 것을 적고 Enter' },
   goal: { label: '목표', max: 100, placeholder: '예: 12월까지 풀업 15개' },
-  todo: { label: '할 일', max: 100, placeholder: '예: 교수님께 메일 보내기' },
+  todo: { label: '할 일', max: 100, placeholder: '예: 교수님께 메일 보내기 (급하면 맨 앞에 !)' },
+  project: { label: '프로젝트', max: 100, placeholder: '예: 텀프로젝트 ~12/6, 자취방 구하기 1~2월' },
 };
 // 목표 탭의 입력칸: 어느 단계에 넣을지 (0.11.0)
 const GOAL_CAPTURE = {
@@ -43,29 +50,32 @@ const GOAL_CAPTURE = {
   due: { label: '기한', placeholder: '예: 12월까지 풀업 15개' },
   life: { label: '인생', placeholder: '예: 건강한 몸 만들기' },
 };
-// 맨 앞 기호로 종류 고르기 (빠른 입력 창과 같은 규칙)
-const PREFIX = [[/^-\s+/, 'memo'], [/^\*\s+/, 'goal'], [/^\[\s*\]\s*/, 'todo']];
+// 맨 앞 기호로 종류 고르기 (빠른 입력 창과 같은 규칙). ! = 급한 할 일, # = 프로젝트 (0.13.0)
+const PREFIX = [[/^-\s+/, 'memo'], [/^\*\s+/, 'goal'], [/^\[\s*\]\s*/, 'todo'], [/^!\s*/, 'urgent'], [/^#\s+/, 'project']];
+const URGENT_RE = /^!\s*/;
 
 const ICON = {
   plus: 'M12 5v14M5 12h14',
   calendar: 'M8 3v3M16 3v3M4.5 9h15M6 5h12a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 18 20H6a1.5 1.5 0 0 1-1.5-1.5v-12A1.5 1.5 0 0 1 6 5z',
   handle: 'M5 9h14M5 15h14',
+  bolt: 'M13 3L5 13.5h6L10 21l8-10.5h-6z',
 };
 
 export class NotesPanel {
   /**
    * @param {HTMLElement} root      <aside id="notes">
    * @param {object} opts
-   * @param {HTMLElement} opts.toggle     상단의 '기록지' 버튼
-   * @param {HTMLElement} opts.badge      '기록지' 버튼의 숫자 (안 한 할 일 수)
+   * @param {HTMLElement} opts.toggle     상단의 '메모장' 버튼
+   * @param {HTMLElement} opts.badge      '메모장' 버튼의 숫자 (안 한 할 일 수)
    * @param {HTMLElement} opts.backdrop   좁은 화면에서 뒤를 어둡게 덮는 막
    * @param {() => void} opts.onStripChanged    배너 글귀·메인·목표 기한이 바뀌었을 때 (달력 위 띠 다시 그리기)
    * @param {() => void} opts.onLayoutChanged   칸이 열리고 닫혀서 달력 너비가 바뀔 때
    * @param {() => Promise} opts.onCalendarChanged  할 일에 날짜를 정해 달력이 바뀌었을 때 (전체 새로 고침)
    * @param {(item) => void} opts.onOpenItem    할 일을 눌렀을 때 (일정 입력 창으로 수정)
    * @param {(date: string) => void} opts.onOpenDate  알림의 '보기'
+   * @param {(prefill) => void} opts.onAddEvent  프로젝트에서 '일정 추가' (일정 입력 창, 0.13.0)
    */
-  constructor(root, { toggle, badge, backdrop, onStripChanged, onLayoutChanged, onCalendarChanged, onOpenItem, onOpenDate }) {
+  constructor(root, { toggle, badge, backdrop, onStripChanged, onLayoutChanged, onCalendarChanged, onOpenItem, onOpenDate, onAddEvent = () => {} }) {
     this.root = root;
     this.toggleBtn = toggle;
     this.badge = badge;
@@ -75,23 +85,25 @@ export class NotesPanel {
     this.onCalendarChanged = onCalendarChanged;
     this.onOpenItem = onOpenItem;
     this.onOpenDate = onOpenDate;
+    this.onAddEvent = onAddEvent;
     this.titleEl = root.querySelector('.notes-title');
     this.backBtn = root.querySelector('.notes-back');
     this.tabsEl = root.querySelector('.notes-tabs');
     this.bodyEl = root.querySelector('.notes-body');
     this.footEl = root.querySelector('.notes-foot');
 
-    this.data = { notes: [], goals: [], todos: [] };
+    this.data = { notes: [], goals: [], todos: [], projects: [] };
     this.loaded = false;
     this.tab = readTab();
-    this.view = 'list';        // 'list' | 'memo'(메모 쓰기) | 'goal'(목표 수정)
+    this.view = 'list';        // 'list' | 'memo'(노트 쓰기) | 'goal'(목표 수정) | 'project'(프로젝트 하나, 0.13.0)
     this.editingId = null;
     this.pending = null;       // 저장 대기 중인 메모 { id, fields }
     this.timer = null;
     this.captureKind = 'memo'; // '전체' 탭의 입력칸이 넣을 종류
     this.goalKind = 'year';    // '목표' 탭의 입력칸이 넣을 단계: 'year' | 'due' | 'life'
     this.memoMode = 'view';    // 메모 화면: 'view'(꾸며진 보기) | 'edit'(글 고치기)
-    this.openDone = { todo: false, goal: false };
+    this.openDone = { todo: false, goal: false, project: false };
+    this.projectMode = 'list'; // 프로젝트 탭: 'list' | 'timeline' (0.13.0)
 
     this.backBtn.addEventListener('click', () => this.showList());
     root.querySelector('.notes-close').addEventListener('click', () => this.close());
@@ -122,8 +134,8 @@ export class NotesPanel {
 
   get isOpen() { return document.body.classList.contains('notes-open'); }
 
-  /** @param {{tab?: string, noteId?: number, goalId?: number, focus?: boolean}} o */
-  async open({ tab = null, noteId = null, goalId = null, focus = true } = {}) {
+  /** @param {{tab?: string, noteId?: number, goalId?: number, projectId?: number, focus?: boolean}} o */
+  async open({ tab = null, noteId = null, goalId = null, projectId = null, focus = true } = {}) {
     document.body.classList.add('notes-open');
     this.root.hidden = false;
     this.syncLayout();
@@ -132,6 +144,7 @@ export class NotesPanel {
     await this.load();
     if (noteId && this.note(noteId)) { this.tab = 'memo'; this.showMemo(noteId); }
     else if (goalId && this.goal(goalId)) { this.tab = 'goal'; this.showGoal(goalId); }
+    else if (projectId) { this.tab = 'project'; await showProject(this, projectId); }
     else if (!tab && this.view === 'memo' && this.note(this.editingId)) this.showMemo(this.editingId);
     else this.showList();
     if (focus) this.titleEl.focus();
@@ -160,9 +173,10 @@ export class NotesPanel {
   }
 
   note(id) { return this.data.notes.find((n) => n.id === id); }
+  project(id) { return (this.data.projects || []).find((p) => p.id === id); }
   goal(id) { return this.data.goals.find((g) => g.id === id); }
 
-  // 메모 + 목표 + 할 일을 한 번에 받는다 (/api/inbox). 기록지가 닫혀 있어도 버튼의 숫자를 위해 부른다.
+  // 메모 + 목표 + 할 일을 한 번에 받는다 (/api/inbox). 메모장이 닫혀 있어도 버튼의 숫자를 위해 부른다.
   async load() {
     try {
       this.data = await api.inbox();
@@ -181,7 +195,9 @@ export class NotesPanel {
       badge.textContent = open;
       badge.hidden = open === 0;
     }
-    this.toggleBtn.setAttribute('aria-label', open ? `기록지 (안 한 할 일 ${open}개)` : '기록지');
+    this.toggleBtn.setAttribute('aria-label', open ? `메모장 (안 한 할 일 ${open}개)` : '메모장');
+    const urgent = this.data.todos.some((t) => t.urgent && !t.done);
+    this.toggleBtn.classList.toggle('has-urgent', urgent); // 급한 할 일이 있으면 숫자를 주황색으로
   }
 
   // 다른 기기·다른 화면에서 바뀐 내용이 들어왔을 때: 쓰고 있는 칸은 건드리지 않는다
@@ -196,6 +212,9 @@ export class NotesPanel {
       else this.renderMemoFoot(this.note(this.editingId));
     } else if (this.view === 'goal' && this.editingId && !this.goal(this.editingId)) {
       this.showList();
+    } else if (this.view === 'project') {
+      if (!this.project(this.editingId)) this.showList();
+      else if (!this.root.contains(document.activeElement)) await showProject(this, this.editingId, { keepScroll: true });
     }
   }
 
@@ -255,7 +274,7 @@ export class NotesPanel {
 
     this.view = 'list';
     this.editingId = null;
-    this.titleEl.textContent = '기록지';
+    this.titleEl.textContent = '메모장';
     this.backBtn.hidden = true;
     this.tabsEl.hidden = false;
     this.tabsEl.querySelectorAll('[data-tab]').forEach((b) => {
@@ -265,11 +284,14 @@ export class NotesPanel {
     });
     this.bodyEl.setAttribute('aria-label', TAB_NAME[this.tab]);
 
-    const content = { all: () => this.renderAll(), memo: () => this.renderMemos(), goal: () => this.renderGoals(), todo: () => this.renderTodos() }[this.tab]();
+    const content = {
+      all: () => this.renderAll(), memo: () => this.renderMemos(), goal: () => this.renderGoals(),
+      todo: () => this.renderTodos(), project: () => renderProjects(this),
+    }[this.tab]();
     const kind = this.tab === 'all' ? this.captureKind : this.tab;
     this.bodyEl.replaceChildren(this.capture(kind, this.tab === 'all'), ...content);
     this.setFoot(this.tab === 'memo'
-      ? el('button', { type: 'button', class: 'btn wide', onclick: () => this.createMemo() }, '새 메모 (길게 쓰기)')
+      ? el('button', { type: 'button', class: 'btn wide', onclick: () => this.createMemo() }, '새 노트 (길게 쓰기)')
       : null);
 
     if (keep) {
@@ -319,14 +341,17 @@ export class NotesPanel {
       e.preventDefault();
       let text = input.value.trim();
       let target = kind;
+      let urgent = false;
       if (switchable) {
         for (const [re, k] of PREFIX) if (re.test(text)) { target = k; text = text.replace(re, '').trim(); break; }
       }
+      if (target === 'urgent') { target = 'todo'; urgent = true; }
+      else if (target === 'todo' && URGENT_RE.test(text)) { urgent = true; text = text.replace(URGENT_RE, '').trim(); }
       if (!text) return;
       const typed = input.value;
       input.value = ''; // 저장하는 동안 목록을 다시 그려도 쓴 글자가 되살아나지 않게 먼저 비운다
       try {
-        await this.add(target, text);
+        await this.add(target, text, { urgent });
       } catch (err) {
         toast(err.message, 'error');
         const now = this.bodyEl.querySelector('.capture-input');
@@ -338,11 +363,13 @@ export class NotesPanel {
     return form;
   }
 
-  async add(kind, text) {
-    if (kind === 'memo') {
+  async add(kind, text, { urgent = false } = {}) {
+    if (kind === 'project') {
+      await addProject(this, text);
+    } else if (kind === 'memo') {
       await api.createNote({ body: text });
       await this.reload();
-      toast(this.tab === 'memo' ? '메모했어요' : '메모에 넣었어요');
+      toast(this.tab === 'memo' ? '노트에 적었어요' : '노트에 넣었어요');
     } else if (kind === 'goal' && this.tab === 'goal' && this.goalKind !== 'due') {
       await this.addBigGoal(this.goalKind, text);
     } else if (kind === 'goal') {
@@ -359,9 +386,10 @@ export class NotesPanel {
       this.onStripChanged();
       toast(due ? `목표를 넣었어요 · 기한 ${formatShort(due)}` : '목표를 넣었어요');
     } else {
-      await api.createItem({ title: text, dates: [] });
+      await api.createItem({ title: text, dates: [], urgent });
       await this.reload();
-      toast('할 일에 넣었어요');
+      if (urgent) this.onStripChanged(); // 첫 화면 '오늘 챙길 것'
+      toast(urgent ? '⚡ 급한 할 일로 넣었어요' : '할 일에 넣었어요');
     }
   }
 
@@ -422,10 +450,11 @@ export class NotesPanel {
       section('goal', goals.length,
         goals.length ? el('ul', { class: 'goal-list' }, goals.slice(0, ALL_LIMIT).map((g) => this.goalRow(g, false))) : null,
         '이루고 싶은 것을 적어 두세요.'),
+      projectRowsForAll(this, section),
       section('memo', notes.length,
         notes.length ? el('ul', { class: 'note-list compact' }, notes.slice(0, ALL_LIMIT - 1).map((n) => this.memoCard(n, false))) : null,
         '그때그때 드는 생각을 적어 두세요.'),
-    ];
+    ].filter(Boolean);
   }
 
   // ================================================================ 할 일
@@ -459,23 +488,30 @@ export class NotesPanel {
     return details;
   }
 
-  todoRow(item) {
+  todoRow(item, { onToggle = null } = {}) {
     const time = formatTimeRange(item.start_time, item.end_time);
     const meta = [
       item.category.is_default ? null : el('span', { class: 'todo-cat' }, el('span', { class: 'dot' }), item.category.name),
       time ? el('span', { class: 'todo-time' }, time) : null,
       item.memo ? el('span', { class: 'todo-memo' }, item.memo.split('\n')[0]) : null,
     ].filter(Boolean);
+    const toggle = onToggle || (() => this.toggleTodo(item));
     const li = el('li', {
-      class: item.done ? 'todo-li is-done' : 'todo-li',
+      class: ['todo-li', item.done ? 'is-done' : '', item.urgent && !item.done ? 'is-urgent' : ''].join(' ').trim(),
       style: { '--cat': item.category.color },
       dataset: { id: String(item.id) },
     },
-      checkbox(item.done, `'${item.title}' ${item.done ? '완료 취소' : '완료'}`, () => this.toggleTodo(item)),
+      checkbox(item.done, `'${item.title}' ${item.done ? '완료 취소' : '완료'}`, toggle),
       el('button', { type: 'button', class: 'todo-main', onclick: () => this.onOpenItem(item) },
         el('span', { class: 'todo-title' }, item.title),
         meta.length ? el('span', { class: 'todo-meta' }, meta) : null,
       ),
+      // ⚡ 급한 할 일 (0.13.0): 켜져 있으면 늘 보이고, 꺼져 있으면 마우스를 올렸을 때만 보인다
+      item.done ? null : el('button', {
+        type: 'button', class: item.urgent ? 'icon-btn sm todo-urgent is-on' : 'icon-btn sm todo-urgent', 'aria-pressed': String(item.urgent),
+        'aria-label': `'${item.title}' ${item.urgent ? '급한 일 해제' : '급한 일로'}`, title: item.urgent ? '급한 일 해제' : '⚡ 급한 일로 (맨 위, 첫 화면에도)',
+        onclick: () => this.toggleUrgent(item),
+      }, icon(ICON.bolt)),
       item.done ? null : el('button', {
         type: 'button', class: 'icon-btn sm todo-date', 'aria-label': `'${item.title}' 날짜 정하기`, title: '날짜 정하기',
         onclick: () => this.pickTodoDate(item),
@@ -483,8 +519,9 @@ export class NotesPanel {
     );
     li.addEventListener('contextmenu', (e) => openMenu(e, [
       { label: '수정', run: () => this.onOpenItem(item) },
+      item.done ? null : { label: item.urgent ? '급한 일 해제' : '⚡ 급한 일로', run: () => this.toggleUrgent(item) },
       item.done ? null : { label: '날짜 정하기…', run: () => this.pickTodoDate(item) },
-      { label: item.done ? '완료 취소' : '완료', run: () => this.toggleTodo(item) },
+      { label: item.done ? '완료 취소' : '완료', run: toggle },
       { label: '삭제', danger: true, run: () => this.deleteTodo(item) },
     ], { title: item.title }));
 
@@ -518,6 +555,21 @@ export class NotesPanel {
       save: () => api.setDone(item.id, next),
     });
     if (saved !== undefined && next) toast(`'${item.title}' 완료!`, 'info', { action: { label: '되돌리기', run: () => this.undoDone(item) } });
+  }
+
+  // ⚡ 급한 할 일 켜고 끄기 (0.13.0) — 화면부터 바꾸고 저장은 뒤에서
+  async toggleUrgent(item) {
+    const next = !item.urgent;
+    const local = this.data.todos.find((t) => t.id === item.id) || item;
+    const saved = await this.optimistic({
+      change: () => { local.urgent = next; },
+      undo: () => { local.urgent = !next; },
+      save: () => api.setUrgent(item.id, next),
+    });
+    if (saved === undefined) return;
+    this.onStripChanged();
+    if (this.view === 'project') await showProject(this, this.editingId, { keepScroll: true });
+    toast(next ? `⚡ '${item.title}'을(를) 먼저 할 일로` : '급한 일에서 뺐어요');
   }
 
   async undoDone(item) {
@@ -562,7 +614,13 @@ export class NotesPanel {
       { label: '취소', value: null, kind: 'ghost' },
     ]);
     if (!ok) return;
-    try { await api.deleteItem(item.id); toast('삭제했어요'); await this.reload(); } catch (e) { toast(e.message, 'error'); }
+    try {
+      await api.deleteItem(item.id);
+      toast('삭제했어요');
+      await this.reload();
+      if (this.view === 'project') await showProject(this, this.editingId, { keepScroll: true });
+      if (item.urgent) this.onStripChanged();
+    } catch (e) { toast(e.message, 'error'); }
   }
 
   async clearDone(count) {
@@ -934,7 +992,7 @@ export class NotesPanel {
     if (!this.data.notes.length) {
       return [el('div', { class: 'notes-empty' },
         el('p', {}, '다시 보고 싶은 글, 잊지 말아야 할 것을 적어두세요.'),
-        el('p', { class: 'muted' }, '첫 메모는 메인 메모가 되고, 메인 메모의 배너 글귀는 달력 위에 늘 보여요.'),
+        el('p', { class: 'muted' }, '첫 노트는 메인 노트가 되고, 메인 노트의 배너 글귀는 달력 위에 늘 보여요.'),
       )];
     }
     const sortable = this.data.notes.length > 1;
@@ -956,12 +1014,12 @@ export class NotesPanel {
   memoCard(n, sortable) {
     // 제목이 없는 한 줄 메모는 첫 줄을 제목처럼 보여 준다 (마크다운 기호는 걷어 내고)
     const lines = stripMarkdown((n.body || '').trim()).split('\n').map((l) => l.trim()).filter(Boolean);
-    const headline = n.title || lines.shift() || '빈 메모';
+    const headline = n.title || lines.shift() || '빈 노트';
     const preview = lines.slice(0, 2).join(' · ');
     return el('li', { class: 'note-li', dataset: { id: String(n.id) } },
       el('button', { type: 'button', class: 'note-card', onclick: () => { this.tab = this.tab === 'all' ? 'memo' : this.tab; this.showMemo(n.id); } },
         el('span', { class: n.title ? 'note-card-title' : 'note-card-title is-line' },
-          n.is_main ? el('span', { class: 'note-main', title: '메인 메모' }, '★') : null,
+          n.is_main ? el('span', { class: 'note-main', title: '메인 노트' }, '★') : null,
           headline),
         n.is_main && n.banner ? el('span', { class: 'note-card-banner' }, n.banner) : null,
         preview ? el('span', { class: 'note-card-preview' }, preview) : null,
@@ -992,13 +1050,13 @@ export class NotesPanel {
     else if (fresh) this.memoMode = (n.body || '').trim() ? 'view' : 'edit';
     this.view = 'memo';
     this.editingId = id;
-    this.titleEl.textContent = n.is_main ? '★ 메인 메모' : '메모';
+    this.titleEl.textContent = n.is_main ? '★ 메인 노트' : '노트';
     this.backBtn.hidden = false;
     this.tabsEl.hidden = true;
 
     const title = el('input', {
       type: 'text', class: 'input note-title-input', maxlength: '60', placeholder: '제목 (예: 다시 읽을 글)',
-      'aria-label': '메모 제목', value: n.title,
+      'aria-label': '노트 제목', value: n.title,
     });
     const banner = n.is_main
       ? el('textarea', {
@@ -1010,9 +1068,9 @@ export class NotesPanel {
     const editing = this.memoMode === 'edit';
     const body = editing
       ? el('textarea', {
-          class: 'input note-body-input', placeholder: '자유롭게 적어 두세요.\n\n- [ ] 체크리스트\n**굵게**  # 제목  [링크](주소)', 'aria-label': '메모 내용', value: text,
+          class: 'input note-body-input', placeholder: '자유롭게 적어 두세요.\n\n- [ ] 체크리스트\n**굵게**  # 제목  [링크](주소)', 'aria-label': '노트 내용', value: text,
         })
-      : el('div', { class: 'md-view', tabindex: '0', 'aria-label': '메모 내용 (보기)' });
+      : el('div', { class: 'md-view', tabindex: '0', 'aria-label': '노트 내용 (보기)' });
 
     const fields = () => ({
       title: title.value,
@@ -1037,7 +1095,7 @@ export class NotesPanel {
       type: 'button', class: 'seg-btn', 'aria-pressed': String(this.memoMode === m), onclick: () => this.switchMemoMode(id, m),
     }, label);
     const modeBar = el('div', { class: 'note-mode-row' },
-      el('div', { class: 'seg note-mode', role: 'group', 'aria-label': '메모 보기 방식' }, modeBtn('view', '보기'), modeBtn('edit', '쓰기')),
+      el('div', { class: 'seg note-mode', role: 'group', 'aria-label': '노트 보기 방식' }, modeBtn('view', '보기'), modeBtn('edit', '쓰기')),
       editing ? el('span', { class: 'note-md-hint' }, '마크다운: **굵게**, - [ ] 체크리스트, # 제목') : null,
     );
 
@@ -1082,7 +1140,7 @@ export class NotesPanel {
       el('span', { class: 'spacer' }),
       n.is_main
         ? null // 이미 메인이면 버튼 없음
-        : el('button', { type: 'button', class: 'btn sm ghost', title: '이 메모의 배너 글귀가 달력 위에 보이게 돼요', onclick: () => this.makeMain(n.id) }, '★ 메인으로'),
+        : el('button', { type: 'button', class: 'btn sm ghost', title: '이 노트의 배너 글귀가 달력 위에 보이게 돼요', onclick: () => this.makeMain(n.id) }, '★ 메인으로'),
       n.is_main
         ? null
         : el('button', { type: 'button', class: 'btn sm ghost', title: '할 일 목록으로 옮겨요 (날짜를 정하면 일정이 돼요)', onclick: () => this.memoToTodo(n.id) }, '할 일로'),
@@ -1127,7 +1185,7 @@ export class NotesPanel {
       await this.load();
       this.showMemo(id);
       this.onStripChanged();
-      toast('메인 메모로 정했어요. 배너 글귀를 적어 보세요.');
+      toast('메인 노트로 정했어요. 배너 글귀를 적어 보세요.');
       this.bodyEl.querySelector('.note-banner-input')?.focus();
     } catch (e) { toast(e.message, 'error'); }
   }
@@ -1140,7 +1198,7 @@ export class NotesPanel {
     const lines = (n.body || '').trim().split('\n');
     const title = (n.title || lines.shift() || '').trim().slice(0, 100);
     const memo = (n.title ? n.body : lines.join('\n')).trim().slice(0, 2000);
-    if (!title) { toast('빈 메모는 옮길 수 없어요.', 'error'); return; }
+    if (!title) { toast('빈 노트는 옮길 수 없어요.', 'error'); return; }
     try {
       const item = await api.createItem({ title, memo, dates: [] });
       await api.deleteNote(id);
@@ -1165,8 +1223,8 @@ export class NotesPanel {
   }
 
   async removeMemo(n) {
-    const name = n.title || (n.body || '').trim().split('\n')[0] || '빈 메모';
-    const ok = await ask(`'${name.slice(0, 30)}' 메모를 삭제할까요?${n.is_main ? ' 메인 메모를 지우면 맨 위 메모가 메인이 돼요.' : ''}`, [
+    const name = n.title || (n.body || '').trim().split('\n')[0] || '빈 노트';
+    const ok = await ask(`'${name.slice(0, 30)}' 노트를 삭제할까요?${n.is_main ? ' 메인 노트를 지우면 맨 위 노트가 메인이 돼요.' : ''}`, [
       { label: '삭제', value: true, kind: 'danger-fill' },
       { label: '취소', value: null, kind: 'ghost' },
     ]);
@@ -1178,7 +1236,7 @@ export class NotesPanel {
       await this.load();
       this.showList();
       this.onStripChanged();
-      toast('메모를 삭제했어요');
+      toast('노트를 삭제했어요');
     } catch (e) { toast(e.message, 'error'); }
   }
 }

@@ -3,7 +3,7 @@
 //   const date = await pickDate({ title: '어느 날로 옮길까요?', from: '2026-11-09' });
 //   → 고른 날짜('YYYY-MM-DD') 또는 취소하면 null
 //
-// 쓰는 곳: 일정 메뉴의 '다른 날로 옮기기·복사', 기록지 할 일의 '날짜 정하기'.
+// 쓰는 곳: 일정 메뉴의 '다른 날로 옮기기·복사', 메모장 할 일의 '날짜 정하기'.
 // 키보드: 화살표로 하루·한 주씩 움직이고 Enter로 고른다. Esc나 바깥을 누르면 취소.
 
 import { WEEKDAYS, addDays, el, formatShort, icon, parseDateStr, todayStr } from './utils.js';

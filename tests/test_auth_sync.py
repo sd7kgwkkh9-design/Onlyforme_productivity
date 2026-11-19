@@ -136,13 +136,13 @@ def test_demo_calendar_is_filled_around_today(tmp_path):
     c = app.test_client()
 
     assert [x["name"] for x in c.get("/api/categories").get_json()] == ["미분류", "수업", "과제", "알바", "개인"]
-    # 실행한 날짜가 속한 달에 일정이 보인다
-    month = c.get("/api/occurrences?start=2027-03-01&end=2027-04-01").get_json()
-    assert len(month) > 20
-    titles_today = [o["title"] for o in month if o["date"] == today.isoformat()]
+    # 실행한 날짜가 속한 달에 일정과 시간표의 수업이 보인다 (0.13.0부터 매주 수업은 시간표로)
+    month = c.get("/api/calendar?start=2027-03-01&end=2027-04-01").get_json()
+    assert len(month["items"]) + len(month["classes"]) > 20
+    titles_today = [o["title"] for o in month["items"] if o["date"] == today.isoformat()]
     assert "오늘 할 일 정리" in titles_today and "스터디" in titles_today
-    todos = c.get("/api/items/undated").get_json()                 # 기록지의 할 일 (하나는 완료)
-    assert len(todos) == 4 and [t["done"] for t in todos].count(True) == 1
+    todos = c.get("/api/inbox").get_json()["todos"]               # 메모장의 할 일 (하나는 완료, 하나는 급한 일)
+    assert len(todos) == 5 and [t["done"] for t in todos].count(True) == 1 and todos[0]["urgent"]
     inbox = c.get("/api/inbox").get_json()
     assert len(inbox["notes"]) == 5 and [g["title"] for g in inbox["goals"]][:2] == ["풀업 15개", "토익 900점"]
     assert any(d["kind"] == "goal" for d in c.get("/api/overview?today=2027-03-10").get_json()["ddays"])

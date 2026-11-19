@@ -23,12 +23,15 @@ from zoneinfo import ZoneInfo
 from flask import Flask, g, render_template, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-import api_tools  # 루틴·루틴 기록·기록지·D-day·시간 돌아보기·빠른 입력 주소를 같은 /api 묶음에 등록
+import api_plans  # noqa: F401  습관·프로젝트·기념일 주소를 같은 /api 묶음에 등록 (0.13.0)
+import api_tools  # 루틴·루틴 기록·메모장·D-day·시간 돌아보기·빠른 입력 주소를 같은 /api 묶음에 등록
 import auth
 import db
 import demo
 import links  # 공유 링크·캘린더 구독·위젯 (0.12.0) — 관리 주소는 /api 묶음에, 공개 주소는 links.public에
+import lock  # 캘린더만 잠그기 (0.13.0)
 import passkeys
+import timetable  # noqa: F401  시간표 주소를 같은 /api 묶음에 등록 (0.13.0)
 from api import bp as api_bp
 from assets import Assets
 
@@ -40,7 +43,7 @@ APP_SHORT_NAME = "Onlyforme"   # 휴대폰 홈 화면 아이콘 아래 이름 (�
 
 # 버전 (유의적 버전 MAJOR.MINOR.PATCH) — ⚙ 설정 메뉴 맨 아래에 보인다.
 # 새 기능을 넣으면 가운데 숫자(0.9.0 → 0.10.0), 고치기만 했으면 끝 숫자(0.9.0 → 0.9.1)를 올린다.
-APP_VERSION = "0.12.1"
+APP_VERSION = "0.13.0"
 
 KST = ZoneInfo("Asia/Seoul")  # 첫 화면에 실어 보낼 '오늘' (서버 시계는 한국이 아닐 수 있다)
 
@@ -82,6 +85,7 @@ def create_app(database_path=None, production=False, demo_mode=False):
     app.register_blueprint(api_bp)
     app.register_blueprint(links.public)
     app.register_blueprint(passkeys.bp)
+    app.register_blueprint(lock.bp)
 
     @app.context_processor
     def app_names():
@@ -99,7 +103,7 @@ def create_app(database_path=None, production=False, demo_mode=False):
             boot = None
         return render_template(
             "index.html", login_enabled=auth.login_required(), demo=app.config["DEMO"],
-            bio_lock=bool(session.get("bio_lock")), boot=boot,
+            bio_lock=bool(session.get("bio_lock")), boot=boot, lock=lock.client_settings(),
         )
 
     @app.before_request

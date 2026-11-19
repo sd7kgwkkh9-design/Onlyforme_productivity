@@ -303,15 +303,16 @@ export function routineManager({ onChanged, returnTo }) {
 }
 
 // 이모지 고르기: 자주 쓰는 이모지 칸 + '직접' 입력칸 (휴대폰 이모지 키보드로 아무거나)
-function emojiPicker(initial, name) {
+// 이모지 고르기 (루틴, 0.13.0부터 습관·기념일도 같이 쓴다 — choices로 보기를 바꿀 수 있다)
+export function emojiPicker(initial, name, choices = EMOJI_CHOICES) {
   let value = initial;
   let listener = () => {};
   const custom = el('input', {
     type: 'text', class: 'input emoji-custom', maxlength: '16', placeholder: '직접', 'aria-label': '이모지 직접 넣기',
-    value: EMOJI_CHOICES.includes(initial) ? '' : initial,
+    value: choices.includes(initial) ? '' : initial,
   });
   const grid = el('div', { class: 'emoji-grid', role: 'radiogroup', 'aria-label': '이모지' },
-    EMOJI_CHOICES.map((e) =>
+    choices.map((e) =>
       el('label', { class: 'emoji-choice' },
         el('input', { type: 'radio', name: `emoji-${name}`, value: e, checked: e === initial, 'aria-label': e }),
         el('span', { 'aria-hidden': 'true' }, e),
