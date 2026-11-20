@@ -86,7 +86,7 @@ export function openThemePicker({ mode, setMode, isDark, onChanged }) {
       onclick: () => pick(key, isDarkList),
     },
       // 미리보기: 그 테마의 바탕·카드·글자·포인트 색 (style.css의 [data-swatch])
-      el('span', { class: 'swatch', dataset: { swatch: key }, 'aria-hidden': 'true' },
+      el('span', { class: 'theme-swatch', dataset: { swatch: key }, 'aria-hidden': 'true' },
         el('span', { class: 'swatch-card' }, el('i'), el('i'), el('i', { class: 'sun' })),
         el('span', { class: 'swatch-side' }, el('span', { class: 'swatch-pill' }), el('span', { class: 'swatch-dots' }, el('i'), el('i')))),
       el('span', { class: 'theme-name' }, name, on ? el('span', { class: 'check', 'aria-hidden': 'true' }, '✓') : null));

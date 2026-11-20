@@ -193,11 +193,8 @@ export class TopStrip {
     if (!urgent.length && !habits.length && !projects.length) return null;
     const evening = new Date().getHours() >= EVENING_HOUR;
 
+    // 0.14.2: 체크(완료) 동그라미는 뺐다 — 할 일은 적어 두었다가 지우는 식으로 쓴다. 누르면 메모장의 할 일로
     const urgentChips = urgent.map((u) => el('span', { role: 'listitem', class: 'today-chip is-urgent' },
-      el('button', {
-        type: 'button', class: 'today-check', 'aria-label': `'${u.title}' 완료`, title: '완료',
-        onclick: () => this.completeTodo(u),
-      }),
       el('button', {
         type: 'button', class: 'today-text', title: `⚡ 급한 할 일${u.project ? ` · ${u.project.title}` : ''} — 눌러서 메모장에서 보기`,
         onclick: () => this.onOpenNotes({ tab: 'todo' }),
@@ -259,17 +256,5 @@ export class TopStrip {
     } finally {
       this.saving -= 1;
     }
-  }
-
-  async completeTodo(u) {
-    try {
-      await api.setDone(u.id, true);
-      this.data.urgent = this.data.urgent.filter((x) => x.id !== u.id);
-      this.render();
-      this.onTodosChanged();
-      toast(`'${u.title}' 완료!`, 'info', {
-        action: { label: '되돌리기', run: async () => { await api.setDone(u.id, false); await this.refresh(); this.onTodosChanged(); } },
-      });
-    } catch (e) { toast(e.message, 'error'); }
   }
 }

@@ -922,7 +922,7 @@ def parse_quick():
         raise ApiError(f"빠른 입력은 {MAX_PARSE_TEXT}자까지 쓸 수 있어요.")
     today = today_arg()
     db = get_db()
-    categories = [dict(r) for r in db.execute("SELECT id, name, color FROM categories ORDER BY is_default DESC, id")]
+    categories = [dict(r) for r in db.execute("SELECT id, name, color FROM categories ORDER BY is_default DESC, position, id")]
     routines = [dict(r) for r in db.execute("SELECT id, name, emoji FROM routines ORDER BY position, id")]
     projects = [dict(r) for r in db.execute("SELECT id, title, color FROM projects WHERE status != 'done' ORDER BY position, id")]
     return jsonify(quickadd.parse(text, today, categories, routines, projects))

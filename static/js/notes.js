@@ -10,7 +10,7 @@
 //   나    : 자기소개 (0.14.2) — 기본 정보, 좋아하는 것·싫어하는 것·요즘 빠진 것(칩), 자유롭게(글). aboutme.js
 //   목표  : 세 단계(0.11.0) — 인생 목표 → 올해 목표(체크·숫자·루틴 연결로 진행도) → 기한 목표(기한이 있으면 달력 위 D-day 띠에).
 //           체크하면 '이룬 목표'로.
-//   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 체크하면 '완료'로 접히고,
+//   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 다 하면 ×로 지운다(0.14.2, 그전에는 체크하면 '완료'로 접혔다),
 //           날짜를 정하면(📅 버튼, 또는 달력으로 끌어다 놓기) 그날의 일정이 된다.
 //           ⚡ 급한 할 일(0.13.0): 맨 앞에 !를 붙여 적거나 ⚡를 누르면 맨 위로 올라오고, 첫 화면 '오늘 챙길 것'에도 보인다.
 //   살 것 (0.14.2): 구매 예정 목록 — 가격·언제쯤·링크, ⭐ 꼭 살 것, 합계. wishlist.js
@@ -63,6 +63,7 @@ const ICON = {
   calendar: 'M8 3v3M16 3v3M4.5 9h15M6 5h12a1.5 1.5 0 0 1 1.5 1.5v12A1.5 1.5 0 0 1 18 20H6a1.5 1.5 0 0 1-1.5-1.5v-12A1.5 1.5 0 0 1 6 5z',
   handle: 'M5 9h14M5 15h14',
   bolt: 'M13 3L5 13.5h6L10 21l8-10.5h-6z',
+  x: 'M7 7l10 10M17 7L7 17',
 };
 
 export class NotesPanel {
@@ -481,7 +482,7 @@ export class NotesPanel {
     const parts = [];
     if (!open.length) {
       parts.push(el('div', { class: 'notes-empty' },
-        el('p', {}, done.length ? '할 일을 다 했어요! 👏' : '날짜를 아직 못 정한 일을 모아 두세요.'),
+        el('p', {}, '날짜를 아직 못 정한 일을 모아 두세요. 다 하면 ×로 지워요.'),
         el('p', { class: 'muted' }, '📅를 눌러 날짜를 정하면 그날의 일정이 돼요.'),
       ));
     } else {
@@ -490,7 +491,7 @@ export class NotesPanel {
         ? '📅로 날짜를 정하거나, 달력의 날짜로 끌어다 놓으면 일정이 돼요.'
         : '📅로 날짜를 정하면 그날의 일정이 돼요.'));
     }
-    if (done.length) parts.push(this.doneGroup('todo', `완료 ${done.length}개`, done.map((t) => this.todoRow(t)),
+    if (done.length) parts.push(this.doneGroup('todo', `예전에 완료한 할 일 ${done.length}개`, done.map((t) => this.todoRow(t)),
       el('button', { type: 'button', class: 'link-btn danger', onclick: () => this.clearDone(done.length) }, '완료한 할 일 비우기')));
     return parts;
   }
@@ -513,12 +514,15 @@ export class NotesPanel {
       item.memo ? el('span', { class: 'todo-memo' }, item.memo.split('\n')[0]) : null,
     ].filter(Boolean);
     const toggle = onToggle || (() => this.toggleTodo(item));
+    // 0.14.2: 할 일은 체크(완료)하지 않고 다 하면 지운다 (×). 프로젝트의 세부 할 일은 진행률 때문에 체크가 그대로 있고,
+    // 예전에 완료한 할 일은 '완료' 묶음에 그대로 보인다 (체크를 풀거나 비울 수 있게).
+    const canCheck = Boolean(onToggle) || item.done;
     const li = el('li', {
-      class: ['todo-li', item.done ? 'is-done' : '', item.urgent && !item.done ? 'is-urgent' : ''].join(' ').trim(),
+      class: ['todo-li', item.done ? 'is-done' : '', item.urgent && !item.done ? 'is-urgent' : '', canCheck ? '' : 'no-check'].join(' ').trim(),
       style: { '--cat': item.category.color },
       dataset: { id: String(item.id) },
     },
-      checkbox(item.done, `'${item.title}' ${item.done ? '완료 취소' : '완료'}`, toggle),
+      canCheck ? checkbox(item.done, `'${item.title}' ${item.done ? '완료 취소' : '완료'}`, toggle) : null,
       el('button', { type: 'button', class: 'todo-main', onclick: () => this.onOpenItem(item) },
         el('span', { class: 'todo-title' }, item.title),
         meta.length ? el('span', { class: 'todo-meta' }, meta) : null,
@@ -533,12 +537,16 @@ export class NotesPanel {
         type: 'button', class: 'icon-btn sm todo-date', 'aria-label': `'${item.title}' 날짜 정하기`, title: '날짜 정하기',
         onclick: () => this.pickTodoDate(item),
       }, icon(ICON.calendar)),
+      canCheck ? null : el('button', {
+        type: 'button', class: 'icon-btn sm todo-delete', 'aria-label': `'${item.title}' 지우기`, title: '지우기 (되돌리기 가능)',
+        onclick: () => this.removeTodo(item),
+      }, icon(ICON.x)),
     );
     li.addEventListener('contextmenu', (e) => openMenu(e, [
       { label: '수정', run: () => this.onOpenItem(item) },
       item.done ? null : { label: item.urgent ? '급한 일 해제' : '⚡ 급한 일로', run: () => this.toggleUrgent(item) },
       item.done ? null : { label: '날짜 정하기…', run: () => this.pickTodoDate(item) },
-      { label: item.done ? '완료 취소' : '완료', run: toggle },
+      canCheck ? { label: item.done ? '완료 취소' : '완료', run: toggle } : null,
       { label: '삭제', danger: true, run: () => this.deleteTodo(item) },
     ], { title: item.title }));
 
@@ -637,6 +645,30 @@ export class NotesPanel {
       await this.reload();
       if (this.view === 'project') await showProject(this, this.editingId, { keepScroll: true });
       if (item.urgent) this.onStripChanged();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  // × 지우기 (0.14.2): 묻지 않고 바로 지우고, 알림의 '되돌리기'로 같은 내용을 다시 만든다
+  async removeTodo(item) {
+    try {
+      await api.deleteItem(item.id);
+      await this.reload();
+      if (item.urgent) this.onStripChanged();
+      toast(`'${item.title}' 지웠어요`, 'info', {
+        action: {
+          label: '되돌리기',
+          run: async () => {
+            try {
+              await api.createItem({
+                title: item.title, memo: item.memo || '', category_id: item.category.id, dates: [], urgent: Boolean(item.urgent),
+                start_time: item.start_time || null, end_time: item.end_time || null, ...(item.project ? { project_id: item.project.id } : {}),
+              });
+              await this.reload();
+              if (item.urgent) this.onStripChanged();
+            } catch (e) { toast(e.message, 'error'); }
+          },
+        },
+      });
     } catch (e) { toast(e.message, 'error'); }
   }
 

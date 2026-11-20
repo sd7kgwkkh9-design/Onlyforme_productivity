@@ -276,5 +276,6 @@ export const api = {
   categories: () => cachedGet('/api/categories'),
   createCategory: (payload) => request('POST', '/api/categories', payload),
   updateCategory: (id, payload) => request('PUT', `/api/categories/${id}`, payload),
+  reorderCategories: (ids) => request('PUT', '/api/categories/order', { ids }), // 0.14.3 (미분류 빼고)
   deleteCategory: (id) => request('DELETE', `/api/categories/${id}`),
 };

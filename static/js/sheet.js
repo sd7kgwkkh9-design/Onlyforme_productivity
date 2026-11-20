@@ -566,12 +566,32 @@ export class Sheet {
       } catch (err) { showError(errorEl, err.message, nameInput); }
     });
 
-    this.setBody(el('ul', { class: 'cat-list' }, rows), addForm);
+    // 0.14.3: 미분류는 늘 맨 위에 따로, 나머지는 ≡ 손잡이를 끌어서(또는 ↑↓ 키) 순서를 바꾼다
+    const fixed = shared.categories.findIndex((c) => c.is_default);
+    const top = el('ul', { class: 'cat-list' }, fixed >= 0 ? [rows[fixed]] : []);
+    const list = el('ul', { class: 'cat-list cat-sortable' }, rows.filter((_, i) => i !== fixed));
+    const movable = shared.categories.filter((c) => !c.is_default);
+    if (movable.length > 1 && editingId === null) {
+      makeSortable(list, {
+        scroller: this.bodyEl,
+        onChange: async (ids) => {
+          try {
+            await api.reorderCategories(ids);
+            await dataChanged();
+          } catch (e) { toast(e.message, 'error'); await this.renderCategories(); }
+        },
+      });
+    }
+    this.setBody(top, list, movable.length > 1 ? el('p', { class: 'list-hint' }, '≡를 끌어서 순서를 바꿔요. 일정 입력 창의 카테고리도 이 순서로 보여요.') : null, addForm);
     this.setFoot();
   }
 
   categoryRow(c, editingId) {
-    return el('li', { class: 'cat-row', style: { '--cat': c.color } },
+    const sortable = !c.is_default && editingId === null && shared.categories.filter((x) => !x.is_default).length > 1;
+    return el('li', { class: 'cat-row', style: { '--cat': c.color }, dataset: { id: String(c.id) } },
+      sortable
+        ? el('button', { type: 'button', class: 'drag-handle', 'aria-label': `순서 바꾸기: ${c.name} (위아래 화살표로 이동)`, title: '끌어서 순서 바꾸기' }, icon('M5 9h14M5 15h14'))
+        : null,
       el('span', { class: 'dot lg' }),
       el('span', { class: 'cat-name' }, c.name),
       // 0.10.0: 줄마다 '일정 N개'는 보여 주지 않는다 (삭제할 때 확인 창에서만 알려 준다)
@@ -607,7 +627,7 @@ export class Sheet {
       } catch (err) { showError(errorEl, err.message, nameInput); }
     });
     setTimeout(() => nameInput.focus());
-    return el('li', { class: 'cat-row editing' }, form);
+    return el('li', { class: 'cat-row editing', dataset: { id: String(c.id) } }, form);
   }
 
   async deleteCategory(c) {

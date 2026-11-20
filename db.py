@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS categories (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
     color       TEXT    NOT NULL,             -- '#RRGGBB'
-    is_default  INTEGER NOT NULL DEFAULT 0    -- 1이면 삭제/수정 불가인 '미분류'
+    is_default  INTEGER NOT NULL DEFAULT 0,   -- 1이면 삭제/수정 불가인 '미분류' (늘 맨 위)
+    position    INTEGER NOT NULL DEFAULT 0    -- 0.14.3: 카테고리 창에서 끌어서 바꾼 순서
 );
 
 CREATE TABLE IF NOT EXISTS items (
@@ -314,6 +315,10 @@ def migrate(conn):
     for name, definition in GOAL_COLUMNS_V11:
         if name not in goal_cols:
             conn.execute(f"ALTER TABLE goals ADD COLUMN {name} {definition}")
+    # 0.14.3: 카테고리 순서. 예전 데이터는 만든 순서(id) 그대로
+    if "position" not in column_names(conn, "categories"):
+        conn.execute("ALTER TABLE categories ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+        conn.execute("UPDATE categories SET position = id")
     # 0.14.2: 기념일마다 'D-day를 며칠 전부터 띄울지'. 예전 켬(1) → 30일 전부터, 끔(0) → 안 띄움.
     # 예전 백업 파일을 되살린 경우(dday_days 칸이 없어서 기본값 30이 들어감)도 이 두 줄로 맞춰진다.
     if "dday_days" not in column_names(conn, "anniversaries"):

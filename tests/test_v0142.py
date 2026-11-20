@@ -272,3 +272,4 @@ def test_widget_script_has_no_year_percent(client):
     link = post(client, "/api/links", {"kind": "widget"})
     data = client.get(link["url"].replace("http://localhost", "")).get_json()
     assert "percent" in data["year"]
+

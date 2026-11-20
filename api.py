@@ -6,6 +6,7 @@ REST API (JSON) — 화면(JavaScript)이 fetch()로 호출하는 주소들.
   POST   /api/categories                  카테고리 추가
   PUT    /api/categories/<id>             이름/색상 수정 (미분류는 불가)
   DELETE /api/categories/<id>             삭제 → 소속 일정은 미분류로 이동
+  PUT    /api/categories/order            순서 바꾸기 {ids: [...]} — 미분류는 늘 맨 위라 빼고 보낸다 (0.14.3)
 
 일정
   GET    /api/occurrences?start=&end=     기간 안의 "날짜별 일정"
@@ -355,7 +356,7 @@ def list_categories():
         """
         SELECT c.*, (SELECT COUNT(*) FROM items i WHERE i.category_id = c.id) AS item_count
         FROM categories c
-        ORDER BY c.is_default DESC, c.id
+        ORDER BY c.is_default DESC, c.position, c.id
         """
     ).fetchall()
     return jsonify([{**category_dict(r), "item_count": r["item_count"]} for r in rows])
@@ -366,7 +367,8 @@ def create_category():
     db = get_db()
     fields = parse_category_payload(json_body(), db)
     cur = db.execute(
-        "INSERT INTO categories (name, color) VALUES (?, ?)", (fields["name"], fields["color"])
+        "INSERT INTO categories (name, color, position) VALUES (?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM categories))",
+        (fields["name"], fields["color"]),
     )
     db.commit()
     row = db.execute("SELECT * FROM categories WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -380,6 +382,20 @@ def get_editable_category(db, category_id):
     if row["is_default"]:
         raise ApiError("기본 카테고리(미분류)는 바꾸거나 지울 수 없어요.", 403)
     return row
+
+
+@bp.put("/categories/order")
+def reorder_categories():
+    ids = json_body().get("ids")
+    if not isinstance(ids, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids):
+        raise ApiError("ids는 번호(정수)의 목록이어야 해요.")
+    db = get_db()
+    movable = {r["id"] for r in db.execute("SELECT id FROM categories WHERE is_default = 0")}
+    if len(ids) != len(set(ids)) or set(ids) != movable:
+        raise ApiError("카테고리 목록이 바뀌었어요. 다시 열어 주세요.", 409)
+    db.executemany("UPDATE categories SET position = ? WHERE id = ?", [(n + 1, i) for n, i in enumerate(ids)])
+    db.commit()
+    return jsonify(ids=ids)
 
 
 @bp.put("/categories/<int:category_id>")
