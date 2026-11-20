@@ -2,16 +2,18 @@
 // 0.13.0: '기록지' → '메모장', 그 안의 '메모' → '노트'로 이름을 바꾸고, 급한 할 일(⚡)과 프로젝트 탭을 더했다.
 //         (코드 안의 이름은 예전 그대로 notes·memo를 쓴다 — 서버 주소·표 이름과 맞추려고)
 //
-//   [전체 | 노트 | 목표 | 할 일 | 프로젝트]
+//   [전체 | 노트 | 나 | 목표 | 할 일 | 살 것 | 프로젝트]
 //   전체  : 한눈에 — 안 한 할 일(급한 것 먼저), 아직인 목표, 진행 중인 프로젝트, 최근 노트
 //   노트  : 다시 보고 싶은 글, 그때그때 드는 생각. 위 칸에 한 줄로 바로 적거나 '새 노트'로 길게 쓴다.
 //           ★메인 노트의 '배너 글귀'는 달력 위 배너에 늘 보인다. 쓰는 대로 자동 저장.
 //           마크다운(0.10.0): [보기 | 쓰기]. 보기에서는 **굵게**, 체크리스트, 링크가 꾸며져 보이고 체크리스트를 바로 누를 수 있다.
+//   나    : 자기소개 (0.14.2) — 기본 정보, 좋아하는 것·싫어하는 것·요즘 빠진 것(칩), 자유롭게(글). aboutme.js
 //   목표  : 세 단계(0.11.0) — 인생 목표 → 올해 목표(체크·숫자·루틴 연결로 진행도) → 기한 목표(기한이 있으면 달력 위 D-day 띠에).
 //           체크하면 '이룬 목표'로.
 //   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 체크하면 '완료'로 접히고,
 //           날짜를 정하면(📅 버튼, 또는 달력으로 끌어다 놓기) 그날의 일정이 된다.
 //           ⚡ 급한 할 일(0.13.0): 맨 앞에 !를 붙여 적거나 ⚡를 누르면 맨 위로 올라오고, 첫 화면 '오늘 챙길 것'에도 보인다.
+//   살 것 (0.14.2): 구매 예정 목록 — 가격·언제쯤·링크, ⭐ 꼭 살 것, 합계. wishlist.js
 //   프로젝트 (0.13.0): 몇 월까지 진행하는 일 — 기간(정확히 또는 '1월 중'처럼 대략), 상태, 세부 할 일과 진행률,
 //           연결한 일정. [목록 | 타임라인]으로 본다 (projects.js).
 //
@@ -25,14 +27,16 @@ import { renderMarkdown, stripMarkdown } from './markdown.js';
 import { makeSortable } from './reorder.js';
 import { ask, daysBetween, ddayLabel, el, formatShort, formatTimeRange, icon, todayStr, toast } from './utils.js';
 import { addProject, projectRowsForAll, renderProjects, showProject } from './projects.js';
+import { flushAbout, refreshAbout, renderAbout } from './aboutme.js';
+import { refreshWishlist, renderWishlist } from './wishlist.js';
 
 // 할 일 카드를 달력의 날짜로 끌고 있을 때, 어떤 일정인지 (놓는 처리는 main.js)
 export const dragState = { itemId: null };
 
 const OPEN_KEY = 'my-calendar:notes-open';
 const TAB_KEY = 'my-calendar:notes-tab';
-const TABS = ['all', 'memo', 'goal', 'todo', 'project'];
-const TAB_NAME = { all: '전체', memo: '노트', goal: '목표', todo: '할 일', project: '프로젝트' };
+const TABS = ['all', 'memo', 'me', 'goal', 'todo', 'buy', 'project'];
+const TAB_NAME = { all: '전체', memo: '노트', me: '나', goal: '목표', todo: '할 일', buy: '살 것', project: '프로젝트' };
 const SAVE_DELAY_MS = 600;
 const ALL_LIMIT = 5;         // '전체' 탭에서 종류마다 보여 줄 개수
 const pushQuery = window.matchMedia('(min-width: 1100px)'); // style.css의 같은 값과 맞춰야 한다
@@ -111,7 +115,8 @@ export class NotesPanel {
     backdrop.addEventListener('click', () => this.close());
     root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pushQuery.matches && !e.defaultPrevented) this.close(); });
     pushQuery.addEventListener('change', () => this.syncLayout());
-    window.addEventListener('pagehide', () => this.flush()); // 앱을 닫기 직전에도 저장
+    window.addEventListener('pagehide', () => { flushAbout({ keepalive: true }); this.flush(); }); // 앱을 닫기 직전에도 저장
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushAbout({ keepalive: true }); });
 
     this.tabsEl.addEventListener('click', (e) => {
       const tab = e.target.closest('[data-tab]')?.dataset.tab;
@@ -204,7 +209,11 @@ export class NotesPanel {
   async refresh() {
     await this.load();
     if (!this.isOpen) return;
-    if (this.view === 'list') {
+    if (this.view === 'list' && this.tab === 'me') {
+      await refreshAbout();
+    } else if (this.view === 'list' && this.tab === 'buy') {
+      await refreshWishlist();
+    } else if (this.view === 'list') {
       if (!this.bodyEl.querySelector('.is-sorting')) this.showList({ keepCapture: true });
     } else if (this.view === 'memo') {
       if (!this.note(this.editingId)) this.showList();             // 다른 기기에서 지운 메모
@@ -284,6 +293,14 @@ export class NotesPanel {
     });
     this.bodyEl.setAttribute('aria-label', TAB_NAME[this.tab]);
 
+    // '나'는 쓰는 칸이 많아서, 다른 탭 때문에 다시 그릴 때(keepCapture)는 건드리지 않는다 (쓰던 글자·포커스 그대로)
+    // '살 것'(0.14.2)도 자기 입력칸·목록을 스스로 그린다
+    if (this.tab === 'me' || this.tab === 'buy') {
+      const [cls, render] = this.tab === 'me' ? ['.about-wrap', renderAbout] : ['.wish-wrap', renderWishlist];
+      if (!(keepCapture && this.bodyEl.querySelector(cls))) this.bodyEl.replaceChildren(...render());
+      this.setFoot(null);
+      return;
+    }
     const content = {
       all: () => this.renderAll(), memo: () => this.renderMemos(), goal: () => this.renderGoals(),
       todo: () => this.renderTodos(), project: () => renderProjects(this),
@@ -1162,6 +1179,7 @@ export class NotesPanel {
   }
 
   async flush() {
+    flushAbout(); // '나' 탭에 쓰던 것도 (0.14.2)
     clearTimeout(this.timer);
     const job = this.pending;
     if (!job) return;

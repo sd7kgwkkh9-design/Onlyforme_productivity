@@ -13,6 +13,7 @@ import { ask, ddayLabel, el, formatShort, toast, todayStr } from './utils.js';
 const KINDS = [['birthday', '생일'], ['yearly', '기념일'], ['days', '날짜 세기']];
 const KIND_NAME = Object.fromEntries(KINDS);
 const CHOICES = ['🎂', '💍', '💕', '🎉', '🎓', '🕯️', '🏠', '🐶', '💼', '✈️', '⭐', '🌸'];
+const DDAY_CHOICES = [[0, '안 띄움'], [7, '7일 전부터'], [14, '14일 전부터'], [30, '30일 전부터'], [60, '60일 전부터'], [100, '100일 전부터']];
 const DEFAULT_EMOJI = { birthday: '🎂', yearly: '💍', days: '💕' };
 
 /** 기념일 한 줄 설명: '음력 8/15 · D-13 6주년', '오늘 80일째 · 100일까지 20일' */
@@ -51,7 +52,7 @@ export function annivManager({ onChanged, date = null }) {
             el('span', { class: 'routine-row-emoji', 'aria-hidden': 'true' }, a.emoji),
             el('span', { class: 'routine-row-main' },
               el('span', { class: 'routine-row-name' }, a.title, el('span', { class: 'anniv-kind' }, KIND_NAME[a.kind])),
-              el('span', { class: 'routine-row-last' }, annivSummary(a))),
+              el('span', { class: 'routine-row-last' }, annivSummary(a), ` · ${a.dday_days ? `${a.dday_days}일 전부터 D-day` : 'D-day 안 띄움'}`)),
             el('span', { class: 'cat-actions' },
               el('button', { type: 'button', class: 'btn sm ghost', onclick: () => { editing = a; render(sheet); } }, '수정'),
               el('button', { type: 'button', class: 'btn sm ghost danger', onclick: () => remove(a, changed) }, '삭제')))))
@@ -76,7 +77,9 @@ export function annivManager({ onChanged, date = null }) {
     const leap = el('input', { type: 'checkbox', checked: Boolean(a?.leap) });
     const lunar = el('input', { type: 'checkbox', checked: Boolean(a?.lunar) });
     const fromOne = el('input', { type: 'checkbox', checked: a ? a.from_one : true });
-    const dday = el('input', { type: 'checkbox', checked: a ? a.dday : true });
+    // 0.14.2: 기념일마다 첫 화면 띠에 D-day를 며칠 전부터 띄울지
+    const dday = el('select', { class: 'input anniv-dday', 'aria-label': '첫 화면에 D-day 띄우기' },
+      DDAY_CHOICES.map(([v, label]) => el('option', { value: String(v), selected: v === (a ? a.dday_days ?? (a.dday ? 30 : 0) : 30) }, label)));
     const solarBox = el('div', { class: 'field' }, el('label', { class: 'label' }, '날짜'), solar);
     const lunarBox = el('div', { class: 'field' }, el('label', { class: 'label' }, '음력 날짜'),
       el('div', { class: 'anniv-lunar' }, lunarY, '년', lunarM, '월', lunarD, '일', el('label', { class: 'anniv-check' }, leap, '윤달')));
@@ -112,7 +115,8 @@ export function annivManager({ onChanged, date = null }) {
       el('div', { class: 'field' }, el('label', { class: 'label' }, '이름'), title),
       el('div', { class: 'field' }, el('label', { class: 'label' }, '종류'), seg, hint),
       solarBox, lunarBox,
-      el('div', { class: 'field anniv-switches' }, lunarSwitch, oneSwitch, el('label', { class: 'anniv-check' }, dday, '30일 안으로 다가오면 첫 화면 띠에 D-day로')),
+      el('div', { class: 'field anniv-switches' }, lunarSwitch, oneSwitch),
+      el('div', { class: 'field' }, el('label', { class: 'label' }, '첫 화면에 D-day'), dday),
       el('div', { class: 'field' }, el('label', { class: 'label' }, '이모지'), picker.node),
       errorEl,
       el('div', { class: 'form-buttons' },
@@ -123,7 +127,7 @@ export function annivManager({ onChanged, date = null }) {
       const pad = (n) => String(n).padStart(2, '0');
       const payload = {
         title: title.value, emoji: picker.value, kind, lunar: lunar.checked, leap: lunar.checked && leap.checked,
-        from_one: fromOne.checked, dday: dday.checked,
+        from_one: fromOne.checked, dday_days: Number(dday.value),
         date: lunar.checked ? `${lunarY.value}-${pad(lunarM.value)}-${pad(lunarD.value)}` : solar.value,
       };
       try {

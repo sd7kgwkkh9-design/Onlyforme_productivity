@@ -1,7 +1,7 @@
 """
 검색 (0.14.0) — 상단의 🔍(단축키 /). api.py와 같은 /api 묶음(blueprint)에 붙는다.
 
-  GET /api/search?q=&today=   일정·할 일·노트·목표·프로젝트·일기·루틴 기록 메모·시간표 칸·기념일에서 찾는다.
+  GET /api/search?q=&today=   일정·할 일·노트·목표·프로젝트·일기·루틴 기록 메모·시간표 칸·나·살 것(0.14.2)·기념일에서 찾는다.
 
 - 띄어 쓴 낱말은 모두 들어 있어야 찾는다 (AND). 대소문자는 가리지 않는다.
 - 종류마다 묶어서 돌려준다. 일정은 다가오는 날짜 먼저(가까운 순), 그다음 지난 날짜(최근 순).
@@ -146,6 +146,21 @@ def search():
         args,
     ).fetchall()
     add("log", "루틴 기록", [{"id": r["id"], "date": r["date"], "title": f"{r['emoji']} {r['name']}", "snippet": snippet(r["memo"], terms)} for r in rows])
+
+    # ---- 나 (0.14.2): 칸이 몇 개뿐이라 글로 풀어서 파이썬에서 찾는다 (JSON 속 "label" 같은 글자에 걸리지 않게)
+    from about import about_text
+    found = []
+    for r in db.execute("SELECT * FROM about_sections ORDER BY position, id"):
+        body = about_text(r)
+        hay = f"{r['title']} {body}".lower()
+        if all(t.lower() in hay for t in terms):
+            found.append({"id": r["id"], "title": r["title"], "snippet": snippet(body, terms)})
+    add("about", "나", found)
+
+    # ---- 살 것 (0.14.2)
+    sql, args = where(["title", "when_text", "url"], pats)
+    rows = db.execute(f"SELECT id, title, price, when_text, starred FROM wishlist WHERE {sql} ORDER BY starred DESC, position", args).fetchall()
+    add("wish", "살 것", [{"id": r["id"], "title": r["title"], "price": r["price"], "when": r["when_text"], "starred": bool(r["starred"])} for r in rows])
 
     # ---- 기념일
     sql, args = where(["title"], pats)

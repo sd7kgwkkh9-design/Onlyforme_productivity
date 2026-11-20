@@ -7,10 +7,11 @@
 //   4. 홈 화면 편집 → 위젯 추가 → Scriptable → 크기 고르기 → 위젯을 길게 눌러 Script에서 Onlyforme 고르기.
 //
 // 크기마다 보이는 것
-//   작게   : 날짜, 다음 일정, 오늘 일정 수, 가장 가까운 D-day, 올해 진행률
+//   작게   : 날짜, 다음 일정, 오늘 일정 수, 가장 가까운 D-day, 올해 목표 하나
 //   중간   : 왼쪽 오늘 일정(4개), 오른쪽 D-day와 올해 목표 진행도
 //   크게   : 오늘 일정(7개), 내일 일정, D-day, 올해 목표 진행도, 오늘의 인생 목표
-//   잠금 화면: 다음 일정 / 한 줄 / 올해 진행률(동그라미)
+//   잠금 화면: 다음 일정 / 한 줄 / 올해 목표 진행도(동그라미, 숫자 목표가 없으면 오늘 일정 수)
+// 0.14.2: '올해가 몇 % 지났는지'는 뺐다 (누구나 아는 것이라). 앱의 달력 위 띠와 같다.
 //
 // 이 파일 맨 위 세 줄은 캘린더가 채워 준다 (DATA_URL 안의 토큰이 열쇠라서 남에게 보내지 마세요).
 // 위젯 링크를 '끊으면' 이 위젯은 더 이상 새로 그려지지 않는다.
@@ -165,12 +166,8 @@ function small(w, data) {
     text(r, d.title, 11, { weight: "medium" });
     w.addSpacer(5);
   }
-  const y = row(w);
-  text(y, String(data.year.year), 10, { weight: "bold", color: muted });
-  y.addSpacer(5);
-  bar(y, data.year.percent / 100, 70, 5);
-  y.addSpacer(5);
-  text(y, `${data.year.percent}%`, 10, { weight: "semibold", color: muted });
+  const g = data.year.goals.find((x) => x.measure !== "check");
+  if (g) goalRow(w, g, 130);
 }
 
 function medium(w, data) {
@@ -208,9 +205,7 @@ function medium(w, data) {
       right.addSpacer(6);
     }
   } else {
-    text(right, `${data.year.year}년 ${data.year.percent}%`, 11, { weight: "semibold", color: muted });
-    right.addSpacer(3);
-    bar(right, data.year.percent / 100, 118, 4);
+    text(right, `${data.year.year} 목표가 아직 없어요`, 11, { color: faint });
   }
 }
 
@@ -218,7 +213,6 @@ function large(w, data) {
   const head = row(w);
   text(head, dateTitle(data), 15, { weight: "bold", color: accent });
   head.addSpacer();
-  text(head, `${data.year.year} · ${data.year.percent}%`, 11, { weight: "semibold", color: muted });
   if (data.life) {
     w.addSpacer(2);
     text(w, `🧭 ${data.life}`, 11.5, { color: muted });
@@ -278,7 +272,6 @@ function rectangular(w, data) {
   const g = data.year.goals.find((x) => x.measure !== "check");
   if (data.class) text(w, classText(data.class), 12);
   else if (g) text(w, `${g.emoji ? `${g.emoji} ` : ""}${g.title} ${progressText(g)}`, 12);
-  else text(w, `${data.year.year}년 ${data.year.percent}%`, 12);
 }
 
 function inline(w, data) {
@@ -290,8 +283,15 @@ function circular(w, data) {
   w.addAccessoryWidgetBackground = true;
   const c = column(w);
   c.centerAlignContent();
-  text(c, `${data.year.percent}%`, 15, { weight: "bold" }).centerAlignText();
-  text(c, String(data.year.year), 9, { color: muted }).centerAlignText();
+  // 숫자로 세는 올해 목표의 진행도 (운동 64/100 → 64%). 없으면 오늘 일정 수
+  const g = data.year.goals.find((x) => x.measure !== "check" && x.target);
+  if (g) {
+    text(c, `${Math.min(100, Math.round((g.current * 100) / g.target))}%`, 15, { weight: "bold" }).centerAlignText();
+    text(c, g.emoji || g.title.slice(0, 4), 9, { color: muted }).centerAlignText();
+  } else {
+    text(c, String(data.today.length), 17, { weight: "bold" }).centerAlignText();
+    text(c, "오늘", 9, { color: muted }).centerAlignText();
+  }
 }
 
 function problem(w, message) {

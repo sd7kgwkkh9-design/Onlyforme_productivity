@@ -239,6 +239,18 @@ export const api = {
   search: (text, today) => request('GET', `/api/search?${q({ q: text, today })}`),
   restoreBackup: (data) => request('POST', '/api/backup/restore', data),
 
+  // 0.14.2: 메모장의 '나' (about.py)
+  about: () => request('GET', '/api/about'),
+  createAbout: (payload) => request('POST', '/api/about', payload),
+  saveAbout: (id, payload, opts) => request('PUT', `/api/about/${id}`, payload, opts),
+  deleteAbout: (id) => request('DELETE', `/api/about/${id}`),
+  orderAbout: (ids) => request('PUT', '/api/about/order', { ids }),
+  // 0.14.2: 메모장의 '살 것' (wishlist.py)
+  wishlist: () => request('GET', '/api/wishlist'),
+  createWish: (payload) => request('POST', '/api/wishlist', payload),
+  updateWish: (id, payload) => request('PUT', `/api/wishlist/${id}`, payload),
+  deleteWish: (id) => request('DELETE', `/api/wishlist/${id}`),
+
   // 동기화
   version: () => request('GET', '/api/version', undefined, { poll: true }),
 

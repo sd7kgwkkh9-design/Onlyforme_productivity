@@ -21,7 +21,9 @@
 
 기념일 (생일·기념일은 매년, 음력 가능 / 날짜 세기는 100일마다 + 해마다)
   GET    /api/anniversaries?today=        목록 + 다음에 오는 날 + (날짜 세기) 오늘이 며칠째인지
-  POST   /api/anniversaries               추가 {title, emoji, kind, date, lunar, leap, from_one, dday}
+  POST   /api/anniversaries               추가 {title, emoji, kind, date, lunar, leap, from_one, dday_days}
+                                            dday_days: 며칠 전부터 첫 화면 띠에 D-day로 (0 = 안 띄움, 7·14·30·60·100. 0.14.2)
+                                            예전처럼 dday(true/false)만 보내면 true → 30, false → 0
   PUT    /api/anniversaries/<id>          수정 (보낸 칸만)
   DELETE /api/anniversaries/<id>          삭제
   달력에 보이는 날짜는 /api/calendar, /api/day의 annivs에 같이 실린다.
@@ -534,7 +536,8 @@ def anniv_dict(a, today):
         "lunar": bool(a["lunar"]),
         "leap": bool(a["leap"]),
         "from_one": bool(a["from_one"]),
-        "dday": bool(a["dday"]),
+        "dday": bool(a["dday_days"]),
+        "dday_days": a["dday_days"],
         "solar_date": base.isoformat() if base else None,
         "next": {"date": nxt["date"], "label": nxt["label"], "days_left": (Date.fromisoformat(nxt["date"]) - today).days} if nxt else None,
         "day_count": None,
@@ -555,12 +558,25 @@ def anniv_payload(data, existing=None):
         if kind not in ANNIV_KINDS:
             raise ApiError("종류는 birthday(생일), yearly(기념일), days(날짜 세기) 중 하나예요.")
         out["kind"] = kind
-    for key in ("lunar", "leap", "from_one", "dday"):
+    for key in ("lunar", "leap", "from_one"):
         if key in data or existing is None:
-            value = data.get(key, {"from_one": True, "dday": True}.get(key, False))
+            value = data.get(key, key == "from_one")
             if not isinstance(value, bool):
                 raise ApiError(f"{key}는 true/false여야 해요.")
             out[key] = int(value)
+    if "dday_days" in data:
+        days = data["dday_days"]
+        if isinstance(days, bool) or days not in ANNIV_DDAY_CHOICES:
+            raise ApiError("D-day는 0(안 띄움), 7, 14, 30, 60, 100일 전부터 중에서 골라 주세요.")
+        out["dday_days"] = days
+    elif "dday" in data:
+        if not isinstance(data["dday"], bool):
+            raise ApiError("dday는 true/false여야 해요.")
+        out["dday_days"] = ANNIV_DDAY_DAYS if data["dday"] else 0
+    elif existing is None:
+        out["dday_days"] = ANNIV_DDAY_DAYS
+    if "dday_days" in out:
+        out["dday"] = int(out["dday_days"] > 0)
     if existing is None or "date" in data or "lunar" in data:
         lunar = out.get("lunar", existing["lunar"] if existing else 0)
         raw = data.get("date", existing["date"] if existing else None)
@@ -604,8 +620,8 @@ def create_anniversary():
         raise ApiError(f"기념일은 {MAX_ANNIVS}개까지 넣을 수 있어요.")
     f = anniv_payload(json_body())
     cur = db.execute(
-        "INSERT INTO anniversaries (title, emoji, kind, date, lunar, leap, from_one, dday) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (f["title"], f["emoji"], f["kind"], f["date"], f["lunar"], f["leap"], f["from_one"], f["dday"]),
+        "INSERT INTO anniversaries (title, emoji, kind, date, lunar, leap, from_one, dday, dday_days) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (f["title"], f["emoji"], f["kind"], f["date"], f["lunar"], f["leap"], f["from_one"], f["dday"], f["dday_days"]),
     )
     db.commit()
     return jsonify(anniv_dict(get_anniv_or_404(db, cur.lastrowid), today_arg())), 201
@@ -635,7 +651,8 @@ def delete_anniversary(anniv_id):
 
 
 # ======================================================================== 첫 화면 띠에 더할 것
-ANNIV_DDAY_DAYS = 30     # 기념일은 30일 안으로 다가오면 D-day 띠에
+ANNIV_DDAY_DAYS = 30     # 기념일 D-day 기본값: 30일 안으로 다가오면 띠에 (기념일마다 바꿀 수 있다)
+ANNIV_DDAY_CHOICES = (0, 7, 14, 30, 60, 100)
 MAX_URGENT = 8
 
 
@@ -662,11 +679,14 @@ def overview_extras(db, today):
         and (not p["start_date"] or p["start_date"] <= (today + timedelta(days=7)).isoformat())
         and (not p["end_date"] or p["end_date"] >= today.isoformat())
     ]
-    rows = db.execute("SELECT * FROM anniversaries WHERE dday = 1").fetchall()
+    # 기념일마다 정한 날(dday_days)만큼 전부터 띄운다 (0.14.2)
+    rows = db.execute("SELECT * FROM anniversaries WHERE dday_days > 0").fetchall()
+    lead = {r["id"]: r["dday_days"] for r in rows}
     annivs = [
         {**o, "days_left": (Date.fromisoformat(o["date"]) - today).days}
-        for o in anniv_occurrences(db, today.isoformat(), (today + timedelta(days=ANNIV_DDAY_DAYS + 1)).isoformat(), rows=rows)
+        for o in anniv_occurrences(db, today.isoformat(), (today + timedelta(days=max(lead.values(), default=0) + 1)).isoformat(), rows=rows)
     ]
+    annivs = [a for a in annivs if a["days_left"] <= lead[a["id"]]]
     return {
         "urgent": [{"id": r["id"], "title": r["title"], "project": {"title": r["p_title"], "color": r["p_color"]} if r["p_title"] else None} for r in urgent],
         "habits": habit_list(db, today),

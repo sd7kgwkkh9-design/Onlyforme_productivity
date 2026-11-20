@@ -444,12 +444,14 @@ function openRoutines() {
   modalSheet?.showView('routines', routineManager({ onChanged: refreshAll, returnTo: null }));
 }
 
-// 챙기기 (0.14.0): 상단 메모장 옆 버튼 → [🏃 루틴 / 💧 습관 / 🎂 기념일]
+// 챙기기 (0.14.0): 상단 버튼 → [🏃 루틴 / 💧 습관 / 🎂 기념일]
 // 반복해서 챙기는 것을 한곳에 모았다. 0.13.0까지 습관·기념일은 ⚙ 설정 안에 있었다 ('설정은 설정만').
 safely('챙기기', () => {
-  const button = $('btn-care');
+  // 버튼이 두 개다 (0.14.2): 넓은 화면은 '빠른 입력' 오른쪽(#btn-care), 휴대폰은 위 줄(#btn-care-m). 보이는 쪽에 메뉴를 붙인다.
+  const buttons = [$('btn-care'), $('btn-care-m')].filter(Boolean);
   const menu = $('care-menu');
-  if (!button || !menu) return;
+  if (!buttons.length || !menu) return;
+  const shown = () => buttons.find((b) => b.offsetParent) || buttons[0];
   const item = (emoji, label, sub, run) => el('button', {
     type: 'button', role: 'menuitem', class: 'menu-choice care-choice',
     onclick: () => { menu.hidePopover?.(); run(); },
@@ -464,15 +466,17 @@ safely('챙기기', () => {
   if (typeof menu.showPopover === 'function') {
     menu.addEventListener('beforetoggle', (e) => {
       const open = e.newState === 'open';
-      button.setAttribute('aria-expanded', String(open));
+      for (const b of buttons) b.setAttribute('aria-expanded', String(open));
       if (!open) return;
-      const r = button.getBoundingClientRect(); // 버튼 아래, 왼쪽 끝을 맞춰서
+      const r = shown().getBoundingClientRect(); // 버튼 아래, 왼쪽 끝을 맞춰서
       menu.style.top = `${r.bottom + 6}px`;
-      menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 268))}px`;
+      menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - Math.min(288, window.innerWidth - 16) - 8))}px`;
     });
   } else {
-    button.removeAttribute('popovertarget');
-    button.addEventListener('click', openRoutines);
+    for (const b of buttons) {
+      b.removeAttribute('popovertarget');
+      b.addEventListener('click', openRoutines);
+    }
   }
 });
 

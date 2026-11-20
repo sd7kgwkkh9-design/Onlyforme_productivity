@@ -39,6 +39,9 @@ export function goalProgressText(g) {
   return g.measure === 'check' ? '' : `${g.current}/${g.target}`;
 }
 
+// D-day 강조 (0.14.2): 7일 이내는 꽉 찬 색, 14일 이내는 테두리·숫자 강조, 그보다 멀면 차분하게
+const near = (days) => (days <= 7 ? 'is-near' : days <= 14 ? 'is-soon' : '');
+
 export class TopStrip {
   /**
    * @param {HTMLElement} root  <section id="top-strip">
@@ -131,20 +134,15 @@ export class TopStrip {
       ));
     }
 
-    // 올해: 진행률 + 올해 목표 하나
+    // 올해 목표 하나 (0.14.2: '올해가 몇 % 지났는지' 막대·숫자는 뺐다 — 누구나 아는 것이라서)
     if (year && (year.total > 0 || year.nudge)) {
       const goal = pickToday(year.goals);
-      const label = [
-        `${year.year}년이 ${year.percent}% 지났어요 (남은 ${year.days_left}일).`,
-        year.total ? `올해 목표 ${year.total}개 중 ${year.done}개 이룸.` : '',
-      ].join(' ');
+      const label = year.total ? `올해 목표 ${year.total}개 중 ${year.done}개 이룸.` : `${year.year} 목표가 아직 없어요.`;
       chips.push(el('button', {
         type: 'button', role: 'listitem', class: 'dday-chip is-year', title: `${label} 눌러서 목표 보기`,
         onclick: () => (goal ? this.onOpenGoal(goal.id) : this.onOpenGoals()),
       },
         el('span', { class: 'year-name' }, String(year.year)),
-        el('span', { class: 'year-bar', 'aria-hidden': 'true' }, el('span', { style: { width: `${year.percent}%` } })),
-        el('span', { class: 'dday-left' }, `${year.percent}%`),
         goal
           ? el('span', { class: 'dday-title year-goal' }, goal.routine ? `${goal.routine.emoji} ` : '', goal.title)
           : el('span', { class: 'dday-title year-goal' },
@@ -156,7 +154,7 @@ export class TopStrip {
     for (const d of ddays) {
       if (d.kind === 'anniv') { // 기념일 (0.13.0): 🎂 D-3 엄마 생신
         chips.push(el('button', {
-          type: 'button', role: 'listitem', class: ['dday-chip is-anniv', d.days_left === 0 ? 'is-today' : ''].join(' ').trim(),
+          type: 'button', role: 'listitem', class: ['dday-chip is-anniv', d.days_left === 0 ? 'is-today' : '', near(d.days_left)].join(' ').trim(),
           title: `${formatShort(d.date)} — 눌러서 그 날짜 보기`, onclick: () => this.onOpenDate(d.date),
         },
           el('span', { class: 'dday-goal', 'aria-hidden': 'true' }, d.emoji || '🎉'),
@@ -168,7 +166,7 @@ export class TopStrip {
       chips.push(el('button', {
         type: 'button',
         role: 'listitem',
-        class: ['dday-chip', goal ? 'is-goal' : '', d.days_left === 0 ? 'is-today' : ''].join(' ').trim(),
+        class: ['dday-chip', goal ? 'is-goal' : '', d.days_left === 0 ? 'is-today' : '', near(d.days_left)].join(' ').trim(),
         style: goal ? {} : { '--cat': d.color },
         title: goal ? `목표 · 기한 ${formatShort(d.date)} — 눌러서 메모장에서 보기` : `${formatShort(d.date)} — 눌러서 그 날짜 보기`,
         onclick: () => (goal ? this.onOpenGoal(d.id) : this.onOpenDate(d.date)),
@@ -215,7 +213,8 @@ export class TopStrip {
         onclick: () => this.stepHabit(h, 1),
       },
         el('span', { class: 'habit-emoji', 'aria-hidden': 'true' }, h.emoji),
-        el('span', { class: 'habit-num' }, h.target > 1 ? `${h.count}/${h.target}` : h.done ? '✓' : h.name),
+        el('span', { class: 'habit-name' }, h.name),   // 0.14.2: 이모지만으로는 무슨 습관인지 헷갈려서 이름도
+        el('span', { class: 'habit-num' }, h.target > 1 ? `${h.count}/${h.target}` : h.done ? '✓' : ''),
         h.streak > 1 ? el('span', { class: 'habit-streak', 'aria-hidden': 'true' }, `🔥${h.streak}`) : null);
       chip.addEventListener('contextmenu', (e) => openMenu(e, [
         { label: '+1', run: () => this.stepHabit(h, 1) },

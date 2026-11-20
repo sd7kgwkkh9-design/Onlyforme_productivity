@@ -8,9 +8,9 @@
   POST /api/backup/restore        파일 내용(JSON)으로 지금 데이터를 통째로 바꾼다.
                                   바꾸기 전에 지금 데이터를 instance/backups/에 자동으로 한 벌 남겨 둔다 (최근 5개).
 
-- 들어가는 것: 일정·할 일, 카테고리, 루틴·루틴 기록, 노트, 목표, 스티커, 습관, 시간표, 기념일, 프로젝트, 일기
+- 들어가는 것: 일정·할 일, 카테고리, 루틴·루틴 기록, 노트, 목표, 스티커, 습관, 시간표, 기념일, 프로젝트, 일기, 메모장의 '나'·'살 것'(0.14.2)
 - 들어가지 않는 것: 비밀번호·PIN(auth.json), 패스키, 공유 링크·구독 주소(links) — 열쇠 같은 것들이라 파일로 돌아다니면 안 된다.
-- 예전 버전에서 받은 파일도 되살릴 수 있다 (없는 표·칸은 비거나 기본값). 모르는 칸은 버린다.
+- 예전 버전에서 받은 파일도 되살릴 수 있다 (파일에 없는 칸은 기본값, 없는 표는 비운다 — '나'·'살 것'만은 지금 것을 그대로 둔다). 모르는 칸은 버린다.
 """
 
 import json
@@ -37,7 +37,9 @@ TABLES = [
     "categories", "routines", "projects", "timetables",
     "items", "item_dates", "routine_logs", "notes", "goals", "day_marks",
     "habits", "habit_logs", "timetable_blocks", "timetable_skips", "anniversaries", "diaries",
+    "about_sections", "wishlist",
 ]
+KEEP_IF_MISSING = {"about_sections", "wishlist"}
 MAX_BYTES = 20 * 1024 * 1024   # 20MB (일기·노트를 아주 많이 써도 넉넉하다)
 KEEP_SAFETY = 5
 
@@ -113,8 +115,10 @@ def restore_backup():
     db.execute("PRAGMA foreign_keys = OFF")   # 표를 통째로 바꾸는 동안만 (끝나고 한꺼번에 검사한다)
     try:
         db.execute("BEGIN")
+        # 0.14.2의 '나'·'살 것'은 예전 버전 파일에 없으면 지금 것을 그대로 둔다 (다른 표와 이어지지 않아서 섞여도 안전하다)
         for name in reversed(TABLES):
-            db.execute(f"DELETE FROM {name}")
+            if name in tables or name not in KEEP_IF_MISSING:
+                db.execute(f"DELETE FROM {name}")
         for name in TABLES:
             cols = column_names(db, name)
             for row in tables.get(name, []):

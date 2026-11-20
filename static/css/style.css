@@ -9,18 +9,18 @@
   --paper:   #F4F6F9;   /* 바탕 */
   --surface: #FFFFFF;   /* 달력, 창 */
   --ink:     #1A2130;   /* 본문 글자 */
-  --muted:   #697186;   /* 보조 글자 */
-  --faint:   #A3A9B6;   /* 더 옅은 글자 (일정 없음, 손잡이) */
-  --line:    #E0E4EB;   /* 선 */
+  --muted:   #5E667B;   /* 보조 글자 */
+  --faint:   #888E9B;   /* 더 옅은 글자 (일정 없음, 손잡이) */
+  --line:    #D8DDE6;   /* 선 */
   --hover:   #EEF1F6;
   --cell-hover: #F7F9FC;
   --seg-bg:  #E4E8EF;   /* 월간/이번 주 같은 묶음 버튼 바탕 */
   --accent:  #2347C8;   /* 만년필 파랑: 오늘, 주요 버튼 */
   --accent-hover: #1C3BAA;
   --on-accent: #FFFFFF; /* 파란 바탕 위 글자 */
-  --sun:     #D2443B;   /* 일요일·공휴일 */
+  --sun:     #C9322D;   /* 일요일·공휴일 */
   --sat:     #2E66C2;   /* 토요일 */
-  --danger:  #C9372C;
+  --danger:  #C7362C;
   --danger-bg: #FCEDEC;
   --switch-off: #CDD3DD;
   --toast-bg: #1A2130;
@@ -60,9 +60,9 @@
     --hover:   #252B35;
     --cell-hover: #20252D;
     --seg-bg:  #262C36;
-    --accent:  #5B7BFF;
-    --accent-hover: #7690FF;
-    --on-accent: #FFFFFF;
+    --accent:  #738BFF;
+    --accent-hover: #97A9FF;
+    --on-accent: #0E1220;   /* 0.14.2: 밝아진 파랑 위에는 어두운 글자가 더 잘 읽힌다 (흰 글자 3.2:1 → 6:1) */
     --sun:     #FF6E64;
     --sat:     #6FA0FF;
     --danger:  #FF6E64;
@@ -86,9 +86,9 @@
   --hover:   #252B35;
   --cell-hover: #20252D;
   --seg-bg:  #262C36;
-  --accent:  #5B7BFF;
-  --accent-hover: #7690FF;
-  --on-accent: #FFFFFF;
+  --accent:  #738BFF;
+  --accent-hover: #97A9FF;
+  --on-accent: #0E1220;
   --sun:     #FF6E64;
   --sat:     #6FA0FF;
   --danger:  #FF6E64;
@@ -1157,7 +1157,7 @@ textarea.note-body-input { min-height: max(240px, 46dvh); line-height: 1.7; }
 .link-btn.danger { color: var(--danger); }
 
 /* ---------- 루틴 (8차): 일정과 따로. 카테고리 색 대신 루틴 전용 색 하나 + 이모지 ---------- */
-:root { --routine: #0F9D8A; }
+:root { --routine: #0F9784; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --routine: #3CCBB4; } }
 :root[data-theme="dark"] { --routine: #3CCBB4; }
 
@@ -1539,9 +1539,6 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 .dday-chip.is-year { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 .dday-chip.is-year::before, .dday-chip.is-rain::before { display: none; }
 .year-name { font-weight: 700; font-variant-numeric: tabular-nums; }
-.year-bar { flex: none; width: 44px; height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, var(--paper)); overflow: hidden; }
-.year-bar > span { display: block; height: 100%; background: var(--accent); }
-.dday-chip.is-year .dday-left { color: var(--muted); font-weight: 600; }
 .dday-chip.is-year { max-width: 340px; }
 .year-goal { padding-left: calc(8px * var(--fs)); border-left: 1px solid var(--line); }
 .year-num { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
@@ -2022,7 +2019,7 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
 .care-choice { gap: calc(12px * var(--fs)); }
 .care-emoji { flex: none; width: 28px; font-size: calc(20px * var(--fs)); line-height: 1; text-align: center; }
 .care-text { display: grid; gap: 1px; min-width: 0; text-align: left; }
-#btn-care[aria-expanded="true"] {
+#btn-care[aria-expanded="true"], #btn-care-m[aria-expanded="true"] {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
@@ -2036,12 +2033,13 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
    settings.js(+ 첫 화면 전에는 _head.html)가 <html data-palette="…">를 붙인다. 기본 테마(만년필 파랑)는 data-palette가 없다.
    0.11.0의 '색 테마'(포인트 색 6가지 + 나만의 색)는 이걸로 바꿨다.
    색 값은 각 테마의 공식 팔레트에서 가져왔다 (README 6장의 오픈소스 표). 바탕·선·눌림 색 몇 개만 팔레트 색 사이에서 골랐다.
+   0.14.2: 글자가 잘 보이게 색상(hue)은 그대로 두고 밝기만 옮겨 대비를 올렸다 — 본문 7:1, 보조 글자·포인트·일요일 4.5:1 이상, 옅은 글자 3:1 이상 (WCAG).
    [data-swatch]는 테마 고르는 창의 미리보기 칸 — 같은 변수를 그 칸 안에서만 쓴다. */
 [data-swatch="light"] {
-  --paper: #F4F6F9; --surface: #FFFFFF; --ink: #1A2130; --muted: #697186; --line: #E0E4EB; --accent: #2347C8; --on-accent: #FFFFFF; --sun: #D2443B; --routine: #0F9D8A;
+  --paper: #F4F6F9; --surface: #FFFFFF; --ink: #1A2130; --muted: #5E667B; --line: #E0E4EB; --accent: #2347C8; --on-accent: #FFFFFF; --sun: #C9322D; --routine: #0F9D8A;
 }
 [data-swatch="dark"] {
-  --paper: #111419; --surface: #1A1E25; --ink: #E8EBF1; --muted: #9AA2B2; --line: #2C323D; --accent: #5B7BFF; --on-accent: #FFFFFF; --sun: #FF6E64; --routine: #3CCBB4;
+  --paper: #111419; --surface: #1A1E25; --ink: #E8EBF1; --muted: #9AA2B2; --line: #2C323D; --accent: #738BFF; --on-accent: #0E1220; --sun: #FF6E64; --routine: #3CCBB4;
 }
 /* Tokyo Night — folke/tokyonight.nvim · night */
 :root[data-palette="tokyo-night"], [data-swatch="tokyo-night"] {
@@ -2050,13 +2048,13 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   --surface: #1a1b26;
   --ink: #c0caf5;
   --muted: #9aa5ce;
-  --faint: #565f89;
-  --line: #292e42;
+  --faint: #5b6493;
+  --line: #2d324a;
   --hover: #292e42;
   --cell-hover: #1f2335;
   --seg-bg: #24283b;
   --accent: #7aa2f7;
-  --accent-hover: #9ab8ff;
+  --accent-hover: #9cbaf9;
   --on-accent: #16161e;
   --sun: #f7768e;
   --sat: #7dcfff;
@@ -2075,17 +2073,17 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   --surface: #24283b;
   --ink: #c0caf5;
   --muted: #a9b1d6;
-  --faint: #565f89;
+  --faint: #6970a2;
   --line: #3b4261;
   --hover: #2f3549;
   --cell-hover: #292e42;
   --seg-bg: #292e42;
   --accent: #7aa2f7;
-  --accent-hover: #9ab8ff;
+  --accent-hover: #9cbaf9;
   --on-accent: #1f2335;
-  --sun: #f7768e;
+  --sun: #f77890;
   --sat: #7dcfff;
-  --danger: #f7768e;
+  --danger: #f77890;
   --danger-bg: #41293a;
   --switch-off: #414868;
   --toast-bg: #c0caf5;
@@ -2101,12 +2099,12 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   --ink: #cdd6f4;
   --muted: #a6adc8;
   --faint: #6c7086;
-  --line: #313244;
+  --line: #343547;
   --hover: #313244;
   --cell-hover: #252536;
   --seg-bg: #313244;
   --accent: #cba6f7;
-  --accent-hover: #dcc2fb;
+  --accent-hover: #dec7fa;
   --on-accent: #1e1e2e;
   --sun: #f38ba8;
   --sat: #89b4fa;
@@ -2125,17 +2123,17 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   --surface: #3b4252;
   --ink: #eceff4;
   --muted: #c2cad8;
-  --faint: #7b88a1;
+  --faint: #808da6;
   --line: #4c566a;
   --hover: #434c5e;
   --cell-hover: #404859;
   --seg-bg: #3b4252;
-  --accent: #88c0d0;
-  --accent-hover: #a3d2df;
+  --accent: #94c6d6;
+  --accent-hover: #aed4e0;
   --on-accent: #2e3440;
-  --sun: #e3828b;
-  --sat: #81a1c1;
-  --danger: #e3828b;
+  --sun: #ebaeb7;
+  --sat: #b5bedb;
+  --danger: #ebaeb7;
   --danger-bg: #4a3a44;
   --switch-off: #4c566a;
   --toast-bg: #eceff4;
@@ -2155,12 +2153,12 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   --hover: #44475a;
   --cell-hover: #30323f;
   --seg-bg: #343746;
-  --accent: #bd93f9;
-  --accent-hover: #d0b0fb;
+  --accent: #caabf9;
+  --accent-hover: #dfccfb;
   --on-accent: #21222c;
-  --sun: #ff5555;
+  --sun: #ff9d9d;
   --sat: #8be9fd;
-  --danger: #ff5555;
+  --danger: #ff9d9d;
   --danger-bg: #45283a;
   --switch-off: #44475a;
   --toast-bg: #f8f8f2;
@@ -2173,24 +2171,24 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   color-scheme: light;
   --paper: #e6e9ef;
   --surface: #eff1f5;
-  --ink: #4c4f69;
-  --muted: #6c6f85;
-  --faint: #9ca0b0;
+  --ink: #42455e;
+  --muted: #585b71;
+  --faint: #818595;
   --line: #ccd0da;
   --hover: #dce0e8;
   --cell-hover: #e8ebf1;
   --seg-bg: #dce0e8;
-  --accent: #8839ef;
-  --accent-hover: #7428d6;
+  --accent: #7f27ef;
+  --accent-hover: #6d11e2;
   --on-accent: #ffffff;
-  --sun: #d20f39;
-  --sat: #1e66f5;
-  --danger: #d20f39;
+  --sun: #c20f31;
+  --sat: #0a50f0;
+  --danger: #c20f31;
   --danger-bg: #f5dce2;
   --switch-off: #bcc0cc;
   --toast-bg: #4c4f69;
   --toast-fg: #eff1f5;
-  --routine: #179299;
+  --routine: #17888f;
   --shadow: rgba(16, 24, 44, .4); --shadow-soft: rgba(16, 24, 44, .12); --backdrop: rgba(18, 24, 38, .32);
 }
 /* Tokyo Night Day — folke/tokyonight.nvim · day */
@@ -2198,24 +2196,24 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   color-scheme: light;
   --paper: #d0d5e3;
   --surface: #e1e2e7;
-  --ink: #3760bf;
-  --muted: #5a68a6;
-  --faint: #8990b3;
-  --line: #c4c8da;
+  --ink: #1e3e7b;
+  --muted: #46547f;
+  --faint: #5f7a9c;
+  --line: #bcc4d6;
   --hover: #d0d5e3;
   --cell-hover: #dadde6;
   --seg-bg: #c4c8da;
-  --accent: #2e7de9;
-  --accent-hover: #1f69d0;
+  --accent: #1658b6;
+  --accent-hover: #124996;
   --on-accent: #ffffff;
-  --sun: #d0244f;
-  --sat: #007197;
-  --danger: #d0244f;
+  --sun: #ac243d;
+  --sat: #006382;
+  --danger: #ac243d;
   --danger-bg: #f2d3dd;
   --switch-off: #a8aecb;
   --toast-bg: #3760bf;
   --toast-fg: #e1e2e7;
-  --routine: #118c74;
+  --routine: #11826a;
   --shadow: rgba(16, 24, 44, .4); --shadow-soft: rgba(16, 24, 44, .12); --backdrop: rgba(18, 24, 38, .32);
 }
 /* Rosé Pine Dawn — rose-pine · dawn */
@@ -2223,24 +2221,24 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   color-scheme: light;
   --paper: #faf4ed;
   --surface: #fffaf3;
-  --ink: #575279;
-  --muted: #797593;
-  --faint: #9893a5;
-  --line: #dfdad9;
+  --ink: #4e4968;
+  --muted: #635f7d;
+  --faint: #908b9d;
+  --line: #ddd8d7;
   --hover: #f2e9e1;
   --cell-hover: #f4ede8;
   --seg-bg: #f2e9e1;
-  --accent: #b4637a;
-  --accent-hover: #9d5068;
+  --accent: #a04d6c;
+  --accent-hover: #88415c;
   --on-accent: #fffaf3;
-  --sun: #b4637a;
+  --sun: #a04d6c;
   --sat: #286983;
-  --danger: #b4637a;
+  --danger: #a04d6c;
   --danger-bg: #f6e2e2;
   --switch-off: #cecacd;
   --toast-bg: #575279;
   --toast-fg: #faf4ed;
-  --routine: #56949f;
+  --routine: #518a95;
   --shadow: rgba(16, 24, 44, .4); --shadow-soft: rgba(16, 24, 44, .12); --backdrop: rgba(18, 24, 38, .32);
 }
 /* Solarized Light — Solarized (Ethan Schoonover) */
@@ -2248,24 +2246,24 @@ mark.k-project { background: color-mix(in srgb, #7C5CD6 22%, transparent); }
   color-scheme: light;
   --paper: #eee8d5;
   --surface: #fdf6e3;
-  --ink: #586e75;
-  --muted: #657b83;
-  --faint: #93a1a1;
-  --line: #e0d9c3;
+  --ink: #394f51;
+  --muted: #4f656d;
+  --faint: #7a8888;
+  --line: #dcd5bb;
   --hover: #eee8d5;
   --cell-hover: #f6efdc;
   --seg-bg: #e4ddc8;
-  --accent: #268bd2;
-  --accent-hover: #1f74b0;
+  --accent: #256d96;
+  --accent-hover: #1e5879;
   --on-accent: #ffffff;
-  --sun: #dc322f;
-  --sat: #268bd2;
-  --danger: #dc322f;
+  --sun: #c52623;
+  --sat: #256d96;
+  --danger: #c52623;
   --danger-bg: #f6dfd2;
   --switch-off: #c9c2ae;
   --toast-bg: #073642;
   --toast-fg: #fdf6e3;
-  --routine: #2aa198;
+  --routine: #238f86;
   --shadow: rgba(16, 24, 44, .4); --shadow-soft: rgba(16, 24, 44, .12); --backdrop: rgba(18, 24, 38, .32);
 }
 
@@ -2418,6 +2416,137 @@ dialog.search::backdrop { background: var(--backdrop); }
 dialog.backup .sec-block > .btn { justify-self: start; }
 dialog.backup a.btn { text-decoration: none; }
 
+
+/* ---------- 0.14.2: D-day 강조 — 7일 이내 꽉 찬 색, 14일 이내 테두리·숫자, 그보다 멀면 차분하게 ----------
+   --dd = 그 칩의 색 (일정은 카테고리 색, 목표는 포인트 색, 기념일은 분홍).
+   꽉 찬 'D-3' 표는 그 색에 글자색(--ink)을 섞어서 만든다: 라이트 테마에선 진해지고 다크 테마에선 밝아져서 위의 바탕색 글자가 늘 잘 읽힌다. */
+.dday-chip { --dd: var(--cat, var(--accent)); }
+.dday-chip.is-goal { --dd: var(--accent); }
+.dday-chip.is-anniv { --dd: #D45A9A; }
+.dday-chip.is-today { --dd: var(--danger); }
+.dday-left { font-size: 1.05em; }
+.dday-chip.is-soon { border: 1.5px solid color-mix(in srgb, var(--dd) 75%, var(--line)); }
+.dday-chip.is-soon .dday-left { color: color-mix(in srgb, var(--dd) 70%, var(--ink)); font-weight: 800; }
+.dday-chip.is-near {
+  border: 1.5px solid color-mix(in srgb, var(--dd) 80%, var(--ink));
+  background: color-mix(in srgb, var(--dd) 18%, var(--surface)); font-weight: 600;
+}
+.dday-chip.is-near .dday-left {
+  padding: 2px 8px; border-radius: 999px; font-weight: 800;
+  background: color-mix(in srgb, var(--dd) 62%, var(--ink)); color: var(--surface);
+}
+.dday-chip.is-near::before { display: none; }
+@media (hover: hover) { .dday-chip.is-near:hover { background: color-mix(in srgb, var(--dd) 26%, var(--surface)); } }
+.dday-chip.is-goal.is-near, .dday-chip.is-goal.is-soon { border-style: dashed; }
+
+/* 습관 칩: 이모지 + 이름 + 횟수 (0.14.2) */
+.habit-name { font-weight: 500; max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.habit-num:empty { display: none; }
+
+/* 챙기기 자리 (0.14.2): 넓은 화면은 '빠른 입력' 오른쪽, 휴대폰은 빠른 입력이 오른쪽 아래 + 버튼이라 위 줄 '일기' 옆에
+   (휴대폰 아래 줄은 검색·보기·카테고리·공유·설정으로 이미 꽉 찬다) */
+#btn-care-m { display: none; }
+@media (max-width: 640px) { #btn-care { display: none; } #btn-care-m { display: inline-flex; } }
+@media (max-width: 380px) { #btn-prev, #btn-next { width: 30px; min-width: 30px; } .topbar { padding-inline: 10px; } }
+
+/* 잠그기 버튼 하나만 (0.14.2): 컴퓨터는 위의 🔒, 휴대폰은 ⚙ 메뉴의 '지금 잠그기' */
+@media (min-width: 641px) { .menu-lock-now { display: none !important; } }
+
+
+/* ---------- 0.14.2: 메모장의 '나' (aboutme.js) ---------- */
+/* 탭 7개 (0.14.2: + 나, 살 것): 글자 길이만큼 나눠 가진다 (짧은 '나'는 좁게) */
+.notes-tab { flex: 1 1 auto; font-size: calc(12.5px * var(--fs)); padding: 0 calc(3px * var(--fs)); gap: calc(2px * var(--fs)); letter-spacing: -.02em; }
+.notes-tab .count { min-width: 16px; padding: 0 calc(4px * var(--fs)); }
+.about-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(14px * var(--fs)); padding-bottom: calc(8px * var(--fs)); }
+.about-intro { margin: 0; color: var(--muted); font-size: calc(13px * var(--fs)); line-height: 1.5; }
+.about-status { color: var(--faint); white-space: nowrap; }
+.about-sec {
+  display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: calc(6px * var(--fs)); padding: calc(10px * var(--fs)) calc(12px * var(--fs)) calc(12px * var(--fs));
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+}
+.about-head { display: flex; align-items: center; gap: 4px; }
+.about-title {
+  flex: 1; min-width: 0; padding: 2px 4px; margin-left: -4px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: var(--ink); font: inherit; font-size: calc(15px * var(--fs)); font-weight: 700;
+}
+.about-tools { display: inline-flex; gap: 0; opacity: .55; }
+.about-sec:hover .about-tools, .about-sec:focus-within .about-tools { opacity: 1; }
+.about-mini { width: 28px; height: 28px; color: var(--muted); }
+.about-mini svg { width: 15px; height: 15px; }
+.about-mini.is-danger:hover { color: var(--danger); }
+.about-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(4px * var(--fs)); }
+.about-row { display: grid; grid-template-columns: minmax(64px, 30%) minmax(0, 1fr) 28px; align-items: start; gap: 6px; }
+.about-label, .about-value, .about-chip-input {
+  min-width: 0; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: transparent;
+  color: var(--ink); font: inherit; font-size: calc(14px * var(--fs));
+}
+.about-label { color: var(--muted); font-weight: 600; font-size: calc(13px * var(--fs)); }
+.about-title:hover, .about-label:hover, .about-value:hover { border-color: var(--line); }
+.about-title:focus, .about-label:focus, .about-value:focus, .about-chip-input:focus { outline: none; border-color: var(--accent); background: var(--paper); }
+.about-label::placeholder, .about-value::placeholder, .about-chip-input::placeholder, .about-title::placeholder { color: var(--faint); font-weight: 400; }
+.about-row-del { opacity: 0; width: 28px; height: 28px; }
+.about-row:hover .about-row-del, .about-row:focus-within .about-row-del { opacity: 1; }
+@media (hover: none) { .about-row-del, .about-tools { opacity: .7; } }
+.about-sec.is-lists .about-row { grid-template-columns: minmax(0, 1fr) 28px; grid-template-areas: "label del" "chips chips"; row-gap: 0; }
+.about-sec.is-lists .about-label { grid-area: label; justify-self: start; width: 100%; }
+.about-sec.is-lists .about-row-del { grid-area: del; }
+.about-sec.is-lists .about-chips { grid-area: chips; padding: 0 0 6px 6px; }
+.about-sec.is-lists .about-row + .about-row { border-top: 1px dashed var(--line); padding-top: 4px; }
+.about-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-height: 32px; padding: 2px 0; cursor: text; }
+.about-chip {
+  display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface)); color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  font-size: calc(13.5px * var(--fs)); line-height: 1.3; overflow-wrap: anywhere;
+}
+.about-chip-x {
+  display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer;
+}
+.about-chip-x:hover { background: color-mix(in srgb, var(--accent) 20%, var(--surface)); color: var(--ink); }
+.about-chip-input { flex: 1 0 44px; width: 44px; padding: 4px 6px; }
+.about-add-row { justify-self: start; margin-top: 2px; font-size: calc(13px * var(--fs)); }
+textarea.about-text {
+  width: 100%; min-height: 96px; resize: vertical; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--paper); color: var(--ink); font: inherit; font-size: calc(14px * var(--fs)); line-height: 1.6;
+}
+textarea.about-text:focus { outline: none; border-color: var(--accent); }
+.about-sec.is-text .about-body { margin-top: 2px; }
+
+/* ---------- 0.14.2: 메모장의 '살 것' (wishlist.js) ---------- */
+.wish-wrap { display: grid; grid-template-columns: minmax(0, 1fr); }
+.wish-summary { margin: 0 0 calc(8px * var(--fs)); color: var(--muted); font-size: calc(13px * var(--fs)); font-variant-numeric: tabular-nums; }
+.wish-summary-star { display: block; color: var(--ink); font-weight: 600; }
+.wish-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(4px * var(--fs)); }
+.wish-row {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; align-items: center; gap: 2px;
+  padding: 2px 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+}
+.wish-row.is-starred { border-color: color-mix(in srgb, var(--sun) 35%, var(--line)); background: color-mix(in srgb, var(--sun) 5%, var(--surface)); }
+.wish-row .icon-btn { width: 32px; height: 32px; }
+.wish-row .icon-btn svg { width: 17px; height: 17px; }
+.wish-star { color: var(--faint); }
+.wish-star[aria-pressed="true"] { color: #E0A100; }
+.wish-star[aria-pressed="true"] svg { fill: currentColor; }
+.wish-main {
+  display: grid; gap: 1px; min-width: 0; padding: 6px 4px; border: 0; background: none; text-align: left; color: var(--ink); cursor: pointer;
+}
+.wish-title { font-size: calc(14px * var(--fs)); font-weight: 500; overflow-wrap: anywhere; }
+.wish-sub { color: var(--muted); font-size: calc(12.5px * var(--fs)); font-variant-numeric: tabular-nums; }
+.wish-link { color: var(--accent); }
+.wish-bought { color: var(--muted); }
+@media (hover: hover) {
+  .wish-main:hover .wish-title { text-decoration: underline; text-underline-offset: 3px; }
+  .wish-bought:hover { color: var(--routine); }
+}
+.wish-row.is-editing { display: block; padding: calc(10px * var(--fs)); border-color: var(--accent); }
+.wish-form { display: grid; gap: calc(8px * var(--fs)); }
+.wish-field { display: grid; gap: 3px; min-width: 0; }
+.wish-field > span { color: var(--muted); font-size: calc(12px * var(--fs)); font-weight: 600; }
+.wish-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.wish-form-buttons { display: flex; align-items: center; gap: 6px; }
+.wish-form-buttons .spacer { flex: 1; }
+
 /* 0.14.0 끝 */
 
 /* ==========================================================================
@@ -2500,7 +2629,7 @@ p, li, .item-title, .goal-title { text-wrap-style: pretty; }
   body { display: block !important; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .demo-banner, .top-strip, .notes, .notes-backdrop, .pane, .fab, .toast, dialog, [popover],
-  .topbar .actions, #btn-notes, #btn-prev, #btn-next, #btn-today, #btn-diary, #btn-care, #btn-search, #btn-week-layout,
+  .topbar .actions, #btn-notes, #btn-prev, #btn-next, #btn-today, #btn-diary, #btn-care, #btn-care-m, #btn-search, #btn-week-layout,
   .month-title .caret, .wx-source { display: none !important; }
   .topbar { padding: 0 0 4mm !important; }
   .month-title .title-btn { padding: 0; margin: 0; }

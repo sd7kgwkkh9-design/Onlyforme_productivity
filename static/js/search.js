@@ -1,6 +1,6 @@
 // 검색 (0.14.0) — 상단 🔍 또는 키보드 /
 //
-// 일정·할 일·일기·노트·목표·프로젝트·시간표 칸·루틴 기록 메모·기념일에서 한 번에 찾는다 (서버는 search.py).
+// 일정·할 일·일기·노트·나·살 것(0.14.2)·목표·프로젝트·시간표 칸·루틴 기록 메모·기념일에서 한 번에 찾는다 (서버는 search.py).
 // 띄어 쓴 낱말은 모두 들어 있어야 찾는다. 위아래 화살표로 고르고 Enter로 연다. Esc로 닫는다.
 // 지난 검색어는 남기지 않는다 (공용 컴퓨터에서 쓰는 경우를 생각해서).
 
@@ -80,7 +80,7 @@ function build() {
 
 function hint() {
   return el('div', { class: 'search-hint' },
-    el('p', {}, '일정·할 일·일기·노트·목표·프로젝트·시간표·루틴 기록 메모·기념일에서 한 번에 찾아요.'),
+    el('p', {}, '일정·할 일·일기·노트·나·목표·살 것·프로젝트·시간표·루틴 기록 메모·기념일에서 한 번에 찾아요.'),
     el('p', {}, '띄어 쓴 낱말은 모두 들어 있는 것만 · ↑↓로 고르고 Enter로 열기 · 단축키 ', el('span', { class: 'kbd' }, '/')));
 }
 
@@ -143,6 +143,8 @@ function draw(box, data) {
       onOpen: () => hooks.onOpenBlock?.(r.id),
     }),
     log: (r) => row({ lead: r.title.split(' ')[0], title: `${r.title.split(' ').slice(1).join(' ')} · ${formatShort(r.date)}`, snippet: r.snippet, onOpen: () => hooks.onOpenDate?.(r.date) }),
+    about: (r) => row({ lead: '🙋', title: r.title, sub: '나', snippet: r.snippet, onOpen: () => hooks.onOpenNotes?.({ tab: 'me' }) }),
+    wish: (r) => row({ lead: r.starred ? '⭐' : '🛍️', title: r.title, sub: ['살 것', r.price != null ? `${r.price.toLocaleString('ko-KR')}원` : '', r.when].filter(Boolean).join(' · '), onOpen: () => hooks.onOpenNotes?.({ tab: 'buy' }) }),
     anniv: (r) => row({ lead: r.title.split(' ')[0], title: r.title.split(' ').slice(1).join(' '), sub: '기념일', onOpen: () => hooks.onOpenAnnivs?.() }),
   };
 

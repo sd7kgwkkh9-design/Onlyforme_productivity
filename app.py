@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 from flask import Flask, g, render_template, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import about  # noqa: F401  메모장의 '나' (0.14.2)
 import api_plans  # noqa: F401  습관·프로젝트·기념일 주소를 같은 /api 묶음에 등록 (0.13.0)
 import api_tools  # 루틴·루틴 기록·메모장·D-day·빠른 입력 주소를 같은 /api 묶음에 등록
 import auth
@@ -35,6 +36,7 @@ import lock  # 캘린더만 잠그기 (0.13.0)
 import passkeys
 import search  # noqa: F401  검색 (0.14.0)
 import timetable  # noqa: F401  시간표 주소를 같은 /api 묶음에 등록 (0.13.0)
+import wishlist  # noqa: F401  메모장의 '살 것' (0.14.2)
 from api import bp as api_bp
 from assets import Assets
 
@@ -46,7 +48,7 @@ APP_SHORT_NAME = "Onlyforme"   # 휴대폰 홈 화면 아이콘 아래 이름 (�
 
 # 버전 (유의적 버전 MAJOR.MINOR.PATCH) — ⚙ 설정 메뉴 맨 아래에 보인다.
 # 새 기능을 넣으면 가운데 숫자(0.9.0 → 0.10.0), 고치기만 했으면 끝 숫자(0.9.0 → 0.9.1)를 올린다.
-APP_VERSION = "0.14.1"
+APP_VERSION = "0.14.2"
 
 KST = ZoneInfo("Asia/Seoul")  # 첫 화면에 실어 보낼 '오늘' (서버 시계는 한국이 아닐 수 있다)
 

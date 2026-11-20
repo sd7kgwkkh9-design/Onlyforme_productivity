@@ -251,8 +251,9 @@ function renderMenu(loginEnabled, appName, version) {
       ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onOpenSecurity(); } },
           '잠금 · 패스키…', hooks.bioLock ? el('span', { class: 'menu-size-name' }, '자동 잠금 켬') : null)
       : null,
+    // 컴퓨터에서는 위의 🔒 버튼이 있으니 휴대폰(위 버튼이 숨는 좁은 화면)에서만 보인다 (0.14.2, style.css)
     loginEnabled && hooks.onLockNow
-      ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onLockNow(); } },
+      ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice menu-lock-now', onclick: () => { menu.hidePopover?.(); hooks.onLockNow(); } },
           '🔒 지금 잠그기', el('span', { class: 'menu-size-name' }, 'L'))
       : null,
     // 0.14.0: 내 데이터 내려받기·되살리기 (backup.js)

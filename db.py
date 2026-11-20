@@ -40,6 +40,7 @@ item_dates에 줄이 하나도 없는 일정 = 메모장의 "할 일"이다 (0.8
 반복 일정(매주·격주)도 따로 표를 두지 않고 '날짜 여러 개짜리 일정'으로 저장한다 (0.9.0).
 """
 
+import json
 import sqlite3
 
 from flask import current_app, g
@@ -206,7 +207,8 @@ CREATE TABLE IF NOT EXISTS anniversaries (
     lunar       INTEGER NOT NULL DEFAULT 0,        -- 1이면 음력 (생일·기념일만)
     leap        INTEGER NOT NULL DEFAULT 0,        -- 1이면 윤달
     from_one    INTEGER NOT NULL DEFAULT 1,        -- 날짜 세기: 1이면 그날을 1일로 센다 (사귄 날 = 1일)
-    dday        INTEGER NOT NULL DEFAULT 1,        -- 1이면 다가올 때 달력 위 띠에 D-day로
+    dday        INTEGER NOT NULL DEFAULT 1,        -- 1이면 다가올 때 달력 위 띠에 D-day로 (dday_days > 0과 늘 같게 둔다)
+    dday_days   INTEGER NOT NULL DEFAULT 30,       -- 0.14.2: 며칠 전부터 띠에 띄울지 (0 = 안 띄움, 7·14·30·60·100)
     created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -230,6 +232,29 @@ CREATE TABLE IF NOT EXISTS diaries (
     mood        TEXT    NOT NULL DEFAULT '',       -- 기분 이모지 하나 (고르지 않으면 '')
     created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- 0.14.2: 메모장의 '나' 탭 — 나를 적어 두는 칸들. 칸마다 종류가 있다:
+--   fields(이름: 내용 줄), lists(분류마다 칩 — 좋아하는 운동: 수영, 러닝), text(긴 글)
+CREATE TABLE IF NOT EXISTS about_sections (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    kind        TEXT    NOT NULL DEFAULT 'lists',  -- 'fields' | 'lists' | 'text'
+    data        TEXT    NOT NULL DEFAULT '[]',     -- JSON. fields: [{label, value}], lists: [{label, items: [..]}], text: "글"
+    position    INTEGER NOT NULL DEFAULT 0,
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- 0.14.2: 메모장의 '살 것' — 구매 예정 목록
+CREATE TABLE IF NOT EXISTS wishlist (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    price       INTEGER,                           -- 원. 모르면 NULL
+    url         TEXT    NOT NULL DEFAULT '',       -- 상품 페이지 (http/https만)
+    starred     INTEGER NOT NULL DEFAULT 0,        -- 1이면 ⭐ 꼭 살 것 (맨 위로)
+    when_text   TEXT    NOT NULL DEFAULT '',       -- 언제쯤: '12월', '세일하면'
+    position    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -289,6 +314,12 @@ def migrate(conn):
     for name, definition in GOAL_COLUMNS_V11:
         if name not in goal_cols:
             conn.execute(f"ALTER TABLE goals ADD COLUMN {name} {definition}")
+    # 0.14.2: 기념일마다 'D-day를 며칠 전부터 띄울지'. 예전 켬(1) → 30일 전부터, 끔(0) → 안 띄움.
+    # 예전 백업 파일을 되살린 경우(dday_days 칸이 없어서 기본값 30이 들어감)도 이 두 줄로 맞춰진다.
+    if "dday_days" not in column_names(conn, "anniversaries"):
+        conn.execute("ALTER TABLE anniversaries ADD COLUMN dday_days INTEGER NOT NULL DEFAULT 30")
+    conn.execute("UPDATE anniversaries SET dday_days = 0 WHERE dday = 0 AND dday_days != 0")
+    conn.execute("UPDATE anniversaries SET dday_days = 30 WHERE dday = 1 AND dday_days = 0")
     conn.execute("DELETE FROM day_marks WHERE sticker = ''")
     conn.execute("UPDATE day_marks SET color = '' WHERE color != ''")
 
@@ -359,12 +390,36 @@ def migrate_routines_v8(conn):
     conn.execute("PRAGMA foreign_keys = ON")
 
 
+# '나' 탭을 처음 열면 보이는 칸들 (0.14.2) — 비워 둔 채로 시작하고, 이름·순서·칸은 마음대로 바꿀 수 있다
+ABOUT_DEFAULT = [
+    ("기본 정보", "fields", [{"label": k, "value": ""} for k in ("이름", "생일", "사는 곳", "학교 · 일", "MBTI")]),
+    ("좋아하는 것", "lists", [{"label": k, "items": []} for k in ("운동", "브랜드", "음식", "음악", "영화 · 드라마", "책", "장소", "캐릭터")]),
+    ("싫어하는 것", "lists", [{"label": k, "items": []} for k in ("음식", "그 밖에")]),
+    ("요즘 빠진 것", "lists", [{"label": k, "items": []} for k in ("노래", "보는 것", "하는 것")]),
+    ("자유롭게", "text", ""),
+]
+
+
+def seed_about(conn):
+    """'나' 탭의 기본 칸을 한 번만 넣는다 (다 지운 뒤에 다시 생기지 않게 meta에 표시)"""
+    if conn.execute("SELECT 1 FROM meta WHERE key = 'about_seeded'").fetchone():
+        return
+    if not conn.execute("SELECT 1 FROM about_sections").fetchone():
+        for i, (title, kind, data) in enumerate(ABOUT_DEFAULT):
+            conn.execute(
+                "INSERT INTO about_sections (title, kind, data, position) VALUES (?, ?, ?, ?)",
+                (title, kind, json.dumps(data, ensure_ascii=False), i),
+            )
+    conn.execute("INSERT INTO meta (key, value) VALUES ('about_seeded', 1)")
+
+
 def init_db(path):
     """테이블이 없으면 만들고, 기본 카테고리 '미분류'가 없으면 넣는다."""
     conn = connect(path)
     try:
         conn.executescript(SCHEMA)
         migrate(conn)
+        seed_about(conn)
         conn.execute(
             """
             INSERT INTO categories (name, color, is_default)

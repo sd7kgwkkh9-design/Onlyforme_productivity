@@ -1,0 +1,1566 @@
+{
+ "app": "my-calendar",
+ "format": 1,
+ "version": "0.14.2",
+ "exported_at": "2026-11-20 11:22:05",
+ "tables": {
+  "categories": [
+   {
+    "id": 1,
+    "name": "미분류",
+    "color": "#9AA0AA",
+    "is_default": 1
+   },
+   {
+    "id": 2,
+    "name": "수업",
+    "color": "#3D6FD9",
+    "is_default": 0
+   },
+   {
+    "id": 3,
+    "name": "과제",
+    "color": "#E5534B",
+    "is_default": 0
+   },
+   {
+    "id": 4,
+    "name": "알바",
+    "color": "#3FA66B",
+    "is_default": 0
+   },
+   {
+    "id": 5,
+    "name": "개인",
+    "color": "#7C5CD6",
+    "is_default": 0
+   }
+  ],
+  "routines": [
+   {
+    "id": 1,
+    "name": "운동",
+    "emoji": "🏃",
+    "position": 1
+   },
+   {
+    "id": 2,
+    "name": "독서",
+    "emoji": "📖",
+    "position": 2
+   },
+   {
+    "id": 3,
+    "name": "영어 단어",
+    "emoji": "🔤",
+    "position": 3
+   }
+  ],
+  "projects": [
+   {
+    "id": 1,
+    "title": "오픈소스 텀프로젝트",
+    "status": "active",
+    "start_date": "2026-10-21",
+    "end_date": "2026-12-08",
+    "period": "",
+    "memo": "1.0.0을 제출한다",
+    "color": "#7C5CD6",
+    "position": 1,
+    "created_at": "2026-11-20 11:21:48",
+    "done_at": null
+   },
+   {
+    "id": 2,
+    "title": "자취방 구하기",
+    "status": "active",
+    "start_date": "2027-01-01",
+    "end_date": "2027-02-28",
+    "period": "1~2월",
+    "memo": "서울 안, 지하철 두 노선 이상",
+    "color": "#3D6FD9",
+    "position": 2,
+    "created_at": "2026-11-20 11:21:48",
+    "done_at": null
+   },
+   {
+    "id": 3,
+    "title": "블로그 글 10편",
+    "status": "paused",
+    "start_date": null,
+    "end_date": null,
+    "period": "",
+    "memo": "",
+    "color": "#2BA5B5",
+    "position": 3,
+    "created_at": "2026-11-20 11:21:48",
+    "done_at": null
+   }
+  ],
+  "timetables": [
+   {
+    "id": 1,
+    "name": "2학기 수업",
+    "color": "#3D6FD9",
+    "start_date": "2026-09-02",
+    "end_date": "2026-12-31",
+    "skip_holidays": 1,
+    "position": 1
+   },
+   {
+    "id": 2,
+    "name": "알바",
+    "color": "#F08C2E",
+    "start_date": null,
+    "end_date": null,
+    "skip_holidays": 0,
+    "position": 2
+   }
+  ],
+  "items": [
+   {
+    "id": 1,
+    "title": "오늘 할 일 정리",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 2,
+    "title": "스터디",
+    "memo": "3장 문제 풀이",
+    "category_id": 3,
+    "start_time": "19:00",
+    "end_time": "21:00",
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 3,
+    "title": "선형대수 퀴즈",
+    "memo": "행렬식",
+    "category_id": 3,
+    "start_time": "10:30",
+    "end_time": null,
+    "dday": 1,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 4,
+    "title": "레포트 제출",
+    "memo": "",
+    "category_id": 3,
+    "start_time": null,
+    "end_time": "23:59",
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 5,
+    "title": "장보기",
+    "memo": "세제, 우유",
+    "category_id": 5,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 6,
+    "title": "동아리 MT",
+    "memo": "",
+    "category_id": 5,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 7,
+    "title": "도서관 책 반납",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 8,
+    "title": "회로이론2 기말고사",
+    "memo": "",
+    "category_id": 2,
+    "start_time": "13:00",
+    "end_time": "15:00",
+    "dday": 1,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 9,
+    "title": "읽고 싶은 책 정리",
+    "memo": "",
+    "category_id": 5,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 10,
+    "title": "노트북 배터리 교체 알아보기",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 11,
+    "title": "교수님께 면담 메일 보내기",
+    "memo": "학부연구생 관련",
+    "category_id": 2,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 12,
+    "title": "자취방 관리비 이체",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": "2026-11-20 11:21:47",
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 0,
+    "project_id": null
+   },
+   {
+    "id": 13,
+    "title": "장학금 서류 제출",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:47",
+    "urgent": 1,
+    "project_id": null
+   },
+   {
+    "id": 14,
+    "title": "README 정리",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": "2026-11-20 11:21:48",
+    "created_at": "2026-11-20 11:21:48",
+    "urgent": 0,
+    "project_id": 1
+   },
+   {
+    "id": 15,
+    "title": "스크린샷 다시 찍기",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:48",
+    "urgent": 0,
+    "project_id": 1
+   },
+   {
+    "id": 16,
+    "title": "발표 자료 만들기",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:48",
+    "urgent": 0,
+    "project_id": 1
+   },
+   {
+    "id": 17,
+    "title": "버전 태그 붙이기",
+    "memo": "",
+    "category_id": 1,
+    "start_time": null,
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:48",
+    "urgent": 1,
+    "project_id": 1
+   },
+   {
+    "id": 18,
+    "title": "텀프로젝트 중간 점검",
+    "memo": "",
+    "category_id": 3,
+    "start_time": "16:00",
+    "end_time": null,
+    "dday": 0,
+    "done_at": null,
+    "created_at": "2026-11-20 11:21:48",
+    "urgent": 0,
+    "project_id": 1
+   }
+  ],
+  "item_dates": [
+   {
+    "item_id": 1,
+    "date": "2026-11-20",
+    "position": 1
+   },
+   {
+    "item_id": 2,
+    "date": "2026-11-20",
+    "position": 2
+   },
+   {
+    "item_id": 3,
+    "date": "2026-11-22",
+    "position": 1
+   },
+   {
+    "item_id": 4,
+    "date": "2026-11-24",
+    "position": 1
+   },
+   {
+    "item_id": 5,
+    "date": "2026-11-21",
+    "position": 1
+   },
+   {
+    "item_id": 6,
+    "date": "2026-11-29",
+    "position": 1
+   },
+   {
+    "item_id": 6,
+    "date": "2026-11-30",
+    "position": 1
+   },
+   {
+    "item_id": 6,
+    "date": "2026-12-01",
+    "position": 1
+   },
+   {
+    "item_id": 7,
+    "date": "2026-11-26",
+    "position": 1
+   },
+   {
+    "item_id": 8,
+    "date": "2026-12-23",
+    "position": 1
+   },
+   {
+    "item_id": 18,
+    "date": "2026-11-25",
+    "position": 1
+   }
+  ],
+  "routine_logs": [
+   {
+    "id": 1,
+    "routine_id": 1,
+    "date": "2026-11-17",
+    "start_time": "07:00",
+    "end_time": "08:00",
+    "memo": "5km 러닝",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 2,
+    "routine_id": 1,
+    "date": "2026-11-19",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "풀업 5세트",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 3,
+    "routine_id": 2,
+    "date": "2026-11-18",
+    "start_time": "22:00",
+    "end_time": "22:40",
+    "memo": "30쪽",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 4,
+    "routine_id": 2,
+    "date": "2026-11-20",
+    "start_time": "23:00",
+    "end_time": null,
+    "memo": "자기 전 20쪽",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 5,
+    "routine_id": 3,
+    "date": "2026-11-20",
+    "start_time": null,
+    "end_time": null,
+    "memo": "30개",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 6,
+    "routine_id": 1,
+    "date": "2026-11-14",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 7,
+    "routine_id": 1,
+    "date": "2026-11-09",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 8,
+    "routine_id": 1,
+    "date": "2026-11-04",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 9,
+    "routine_id": 1,
+    "date": "2026-10-30",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 10,
+    "routine_id": 1,
+    "date": "2026-10-25",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 11,
+    "routine_id": 1,
+    "date": "2026-10-20",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 12,
+    "routine_id": 1,
+    "date": "2026-10-15",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 13,
+    "routine_id": 1,
+    "date": "2026-10-10",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 14,
+    "routine_id": 1,
+    "date": "2026-10-05",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 15,
+    "routine_id": 1,
+    "date": "2026-09-30",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 16,
+    "routine_id": 1,
+    "date": "2026-09-25",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 17,
+    "routine_id": 1,
+    "date": "2026-09-20",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 18,
+    "routine_id": 1,
+    "date": "2026-09-15",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 19,
+    "routine_id": 1,
+    "date": "2026-09-10",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 20,
+    "routine_id": 1,
+    "date": "2026-09-05",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 21,
+    "routine_id": 1,
+    "date": "2026-08-31",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 22,
+    "routine_id": 1,
+    "date": "2026-08-26",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 23,
+    "routine_id": 1,
+    "date": "2026-08-21",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 24,
+    "routine_id": 1,
+    "date": "2026-08-16",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 25,
+    "routine_id": 1,
+    "date": "2026-08-11",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 26,
+    "routine_id": 1,
+    "date": "2026-08-06",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 27,
+    "routine_id": 1,
+    "date": "2026-08-01",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 28,
+    "routine_id": 1,
+    "date": "2026-07-27",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 29,
+    "routine_id": 1,
+    "date": "2026-07-22",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 30,
+    "routine_id": 1,
+    "date": "2026-07-17",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 31,
+    "routine_id": 1,
+    "date": "2026-07-12",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 32,
+    "routine_id": 1,
+    "date": "2026-07-07",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 33,
+    "routine_id": 1,
+    "date": "2026-07-02",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 34,
+    "routine_id": 1,
+    "date": "2026-06-27",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:47"
+   },
+   {
+    "id": 35,
+    "routine_id": 1,
+    "date": "2026-06-22",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 36,
+    "routine_id": 1,
+    "date": "2026-06-17",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 37,
+    "routine_id": 1,
+    "date": "2026-06-12",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 38,
+    "routine_id": 1,
+    "date": "2026-06-07",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 39,
+    "routine_id": 1,
+    "date": "2026-06-02",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 40,
+    "routine_id": 1,
+    "date": "2026-05-28",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 41,
+    "routine_id": 1,
+    "date": "2026-05-23",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 42,
+    "routine_id": 1,
+    "date": "2026-05-18",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 43,
+    "routine_id": 1,
+    "date": "2026-05-13",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 44,
+    "routine_id": 1,
+    "date": "2026-05-08",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 45,
+    "routine_id": 1,
+    "date": "2026-05-03",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 46,
+    "routine_id": 1,
+    "date": "2026-04-28",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 47,
+    "routine_id": 1,
+    "date": "2026-04-23",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 48,
+    "routine_id": 1,
+    "date": "2026-04-18",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 49,
+    "routine_id": 1,
+    "date": "2026-04-13",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 50,
+    "routine_id": 1,
+    "date": "2026-04-08",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 51,
+    "routine_id": 1,
+    "date": "2026-04-03",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 52,
+    "routine_id": 1,
+    "date": "2026-03-29",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 53,
+    "routine_id": 1,
+    "date": "2026-03-24",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 54,
+    "routine_id": 1,
+    "date": "2026-03-19",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 55,
+    "routine_id": 1,
+    "date": "2026-03-14",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 56,
+    "routine_id": 1,
+    "date": "2026-03-09",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 57,
+    "routine_id": 1,
+    "date": "2026-03-04",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 58,
+    "routine_id": 1,
+    "date": "2026-02-27",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 59,
+    "routine_id": 1,
+    "date": "2026-02-22",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 60,
+    "routine_id": 1,
+    "date": "2026-02-17",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 61,
+    "routine_id": 1,
+    "date": "2026-02-12",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 62,
+    "routine_id": 1,
+    "date": "2026-02-07",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 63,
+    "routine_id": 1,
+    "date": "2026-02-02",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 64,
+    "routine_id": 1,
+    "date": "2026-01-28",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 65,
+    "routine_id": 1,
+    "date": "2026-01-23",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 66,
+    "routine_id": 1,
+    "date": "2026-01-18",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 67,
+    "routine_id": 1,
+    "date": "2026-01-13",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 68,
+    "routine_id": 1,
+    "date": "2026-01-08",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 69,
+    "routine_id": 1,
+    "date": "2026-01-03",
+    "start_time": "07:00",
+    "end_time": "07:40",
+    "memo": "",
+    "created_at": "2026-11-20 11:21:48"
+   }
+  ],
+  "notes": [
+   {
+    "id": 1,
+    "title": "힘들 때 읽을 것",
+    "body": "완벽하지 않아도 괜찮아. 어제보다 조금만 나아가면 돼.\n지칠 땐 10분 산책하고 다시 시작하기.",
+    "banner": "오늘 걷는 한 걸음이 내일의 나를 만든다",
+    "is_main": 1,
+    "position": 1,
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 2,
+    "title": "잊지 말 것",
+    "body": "부모님께 주 1회 전화\n잠은 7시간 이상\n물 자주 마시기",
+    "banner": "",
+    "is_main": 0,
+    "position": 2,
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 3,
+    "title": "",
+    "body": "블로그 주제: 파이프라인 해저드를 그림으로 정리해 보기",
+    "banner": "",
+    "is_main": 0,
+    "position": 3,
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 4,
+    "title": "",
+    "body": "MT 챙길 것 — 보조배터리, 담요, 상비약",
+    "banner": "",
+    "is_main": 0,
+    "position": 4,
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 5,
+    "title": "이번 주 공부",
+    "body": "## 시험 범위\n- [x] 선형대수 1~3장\n- [ ] 회로이론2 4장 **페이저**\n- [ ] 컴퓨터구조 파이프라인 정리\n\n> 하루에 한 과목씩\n\n참고: [강의자료](https://example.com)",
+    "banner": "",
+    "is_main": 0,
+    "position": 5,
+    "updated_at": "2026-11-20 11:21:48"
+   }
+  ],
+  "goals": [
+   {
+    "id": 1,
+    "title": "풀업 15개",
+    "due": "2026-12-31",
+    "memo": "지금 8개 → 주 3회 연습",
+    "done_at": null,
+    "position": 1,
+    "created_at": "2026-11-20 11:21:48",
+    "kind": "due",
+    "year": null,
+    "parent_id": 6,
+    "measure": "check",
+    "target": null,
+    "current": 0,
+    "routine_id": null
+   },
+   {
+    "id": 2,
+    "title": "토익 900점",
+    "due": null,
+    "memo": "매일 단어 30개",
+    "done_at": null,
+    "position": 2,
+    "created_at": "2026-11-20 11:21:48",
+    "kind": "due",
+    "year": null,
+    "parent_id": null,
+    "measure": "check",
+    "target": null,
+    "current": 0,
+    "routine_id": null
+   },
+   {
+    "id": 3,
+    "title": "이번 학기 지각 0번",
+    "due": null,
+    "memo": "",
+    "done_at": "2026-11-20 11:21:48",
+    "position": 3,
+    "created_at": "2026-11-20 11:21:48",
+    "kind": "due",
+    "year": null,
+    "parent_id": null,
+    "measure": "check",
+    "target": null,
+    "current": 0,
+    "routine_id": null
+   },
+   {
+    "id": 4,
+    "title": "건강한 몸과 마음",
+    "due": null,
+    "memo": "오래 달릴 수 있는 사람",
+    "done_at": null,
+    "position": 4,
+    "created_at": "2026-11-20 11:21:48",
+    "kind": "life",
+    "year": null,
+    "parent_id": null,
+    "measure": "check",
+    "target": null,
+    "current": 0,
+    "routine_id": null
+   },
+   {
+    "id": 5,
+    "title": "좋아하는 일을 잘하는 사람",
+    "due": null,
+    "memo": "",
+    "done_at": null,
+    "position": 5,
+    "created_at": "2026-11-20 11:21:48",
+    "kind": "life",
+    "year": null,
+    "parent_id": null,
+    "measure": "check",
+    "target": null,
+    "current": 0,
+    "routine_id": null
+   },
+   {
+    "id": 6,
+    "title": "운동 100번",
+    "due": null,
+    "memo": "",
+    "done_at": null,
+    "position": 6,
+    "created_at": "2026-11-20 11:21:48",
+    "kind": "year",
+    "year": 2026,
+    "parent_id": 4,
+    "measure": "routine",
+    "target": 100,
+    "current": 0,
+    "routine_id": 1
+   },
+   {
+    "id": 7,
+    "title": "책 12권",
+    "due": null,
+    "memo": "",
+    "done_at": null,
+    "position": 7,
+    "created_at": "2026-11-20 11:21:48",
+    "kind": "year",
+    "year": 2026,
+    "parent_id": 5,
+    "measure": "count",
+    "target": 12,
+    "current": 7,
+    "routine_id": null
+   },
+   {
+    "id": 8,
+    "title": "개인 프로젝트 하나 끝내기",
+    "due": null,
+    "memo": "",
+    "done_at": null,
+    "position": 8,
+    "created_at": "2026-11-20 11:21:48",
+    "kind": "year",
+    "year": 2026,
+    "parent_id": 5,
+    "measure": "check",
+    "target": null,
+    "current": 0,
+    "routine_id": null
+   }
+  ],
+  "day_marks": [
+   {
+    "date": "2026-11-22",
+    "sticker": "🎂",
+    "color": ""
+   },
+   {
+    "date": "2026-11-29",
+    "sticker": "✈️",
+    "color": ""
+   },
+   {
+    "date": "2026-12-04",
+    "sticker": "⭐",
+    "color": ""
+   }
+  ],
+  "habits": [
+   {
+    "id": 1,
+    "name": "물",
+    "emoji": "💧",
+    "target": 8,
+    "position": 1,
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 2,
+    "name": "스트레칭",
+    "emoji": "🧘",
+    "target": 1,
+    "position": 2,
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 3,
+    "name": "영양제",
+    "emoji": "💊",
+    "target": 1,
+    "position": 3,
+    "created_at": "2026-11-20 11:21:48"
+   }
+  ],
+  "habit_logs": [
+   {
+    "habit_id": 1,
+    "date": "2026-11-19",
+    "count": 8
+   },
+   {
+    "habit_id": 2,
+    "date": "2026-11-19",
+    "count": 1
+   },
+   {
+    "habit_id": 1,
+    "date": "2026-11-18",
+    "count": 8
+   },
+   {
+    "habit_id": 1,
+    "date": "2026-11-17",
+    "count": 8
+   },
+   {
+    "habit_id": 2,
+    "date": "2026-11-17",
+    "count": 1
+   },
+   {
+    "habit_id": 1,
+    "date": "2026-11-16",
+    "count": 8
+   },
+   {
+    "habit_id": 1,
+    "date": "2026-11-15",
+    "count": 8
+   },
+   {
+    "habit_id": 2,
+    "date": "2026-11-15",
+    "count": 1
+   },
+   {
+    "habit_id": 1,
+    "date": "2026-11-14",
+    "count": 8
+   },
+   {
+    "habit_id": 1,
+    "date": "2026-11-20",
+    "count": 5
+   },
+   {
+    "habit_id": 3,
+    "date": "2026-11-20",
+    "count": 1
+   }
+  ],
+  "timetable_blocks": [
+   {
+    "id": 1,
+    "timetable_id": 1,
+    "title": "컴퓨터구조",
+    "weekday": 1,
+    "start_time": "09:00",
+    "end_time": "10:15",
+    "place": "공학관 301",
+    "memo": "",
+    "color": null
+   },
+   {
+    "id": 2,
+    "timetable_id": 1,
+    "title": "컴퓨터구조",
+    "weekday": 3,
+    "start_time": "09:00",
+    "end_time": "10:15",
+    "place": "공학관 301",
+    "memo": "",
+    "color": null
+   },
+   {
+    "id": 3,
+    "timetable_id": 1,
+    "title": "회로이론2",
+    "weekday": 2,
+    "start_time": "13:30",
+    "end_time": "14:45",
+    "place": "공학관 405",
+    "memo": "",
+    "color": null
+   },
+   {
+    "id": 4,
+    "timetable_id": 1,
+    "title": "회로이론2",
+    "weekday": 4,
+    "start_time": "13:30",
+    "end_time": "14:45",
+    "place": "공학관 405",
+    "memo": "",
+    "color": null
+   },
+   {
+    "id": 5,
+    "timetable_id": 1,
+    "title": "선형대수",
+    "weekday": 3,
+    "start_time": "15:00",
+    "end_time": "16:15",
+    "place": "미래관 202",
+    "memo": "",
+    "color": null
+   },
+   {
+    "id": 6,
+    "timetable_id": 1,
+    "title": "딥러닝",
+    "weekday": 5,
+    "start_time": "10:30",
+    "end_time": "12:00",
+    "place": "프론티어관 107",
+    "memo": "",
+    "color": null
+   },
+   {
+    "id": 7,
+    "timetable_id": 2,
+    "title": "카페 알바",
+    "weekday": 5,
+    "start_time": "18:00",
+    "end_time": "22:00",
+    "place": "학교 앞 카페",
+    "memo": "",
+    "color": null
+   },
+   {
+    "id": 8,
+    "timetable_id": 2,
+    "title": "카페 알바",
+    "weekday": 6,
+    "start_time": "12:00",
+    "end_time": "17:00",
+    "place": "학교 앞 카페",
+    "memo": "",
+    "color": null
+   }
+  ],
+  "timetable_skips": [
+   {
+    "timetable_id": 1,
+    "block_id": 2,
+    "date": "2026-12-02"
+   }
+  ],
+  "anniversaries": [
+   {
+    "id": 1,
+    "title": "엄마 생신",
+    "emoji": "🎂",
+    "kind": "birthday",
+    "date": "1970-10-24",
+    "lunar": 1,
+    "leap": 0,
+    "from_one": 1,
+    "dday": 1,
+    "dday_days": 30,
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 2,
+    "title": "만난 날",
+    "emoji": "💕",
+    "kind": "days",
+    "date": "2025-10-22",
+    "lunar": 0,
+    "leap": 0,
+    "from_one": 1,
+    "dday": 1,
+    "dday_days": 30,
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 3,
+    "title": "입학",
+    "emoji": "🎓",
+    "kind": "yearly",
+    "date": "2024-12-10",
+    "lunar": 0,
+    "leap": 0,
+    "from_one": 1,
+    "dday": 0,
+    "dday_days": 0,
+    "created_at": "2026-11-20 11:21:48"
+   }
+  ],
+  "diaries": [
+   {
+    "date": "2026-11-19",
+    "body": "텀프로젝트 시간표 화면을 처음 써 봤다. 매주 수업을 일정으로 안 넣어도 되니 달력이 깔끔하다.\n내일은 회로이론 4장 연습문제부터.",
+    "mood": "😊",
+    "created_at": "2026-11-20 11:21:48",
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "date": "2026-11-14",
+    "body": "알바 끝나고 너무 피곤했다. 그래도 물 8잔은 채웠다 💧",
+    "mood": "😴",
+    "created_at": "2026-11-20 11:21:48",
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "date": "2026-11-03",
+    "body": "선형대수 퀴즈 공부. 1~3장 다시 보니까 행렬식이 이제 좀 보인다.",
+    "mood": "",
+    "created_at": "2026-11-20 11:21:48",
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "date": "2026-11-20",
+    "body": "다른 날짜를 누르기 직전에 쓴 글",
+    "mood": "",
+    "created_at": "2026-11-20 11:21:59",
+    "updated_at": "2026-11-20 11:21:59"
+   }
+  ],
+  "about_sections": [
+   {
+    "id": 1,
+    "title": "기본 정보",
+    "kind": "fields",
+    "data": "[{\"label\": \"이름\", \"value\": \"김시연\"}, {\"label\": \"생일\", \"value\": \"3월 14일\"}, {\"label\": \"사는 곳\", \"value\": \"서울 노원구\"}, {\"label\": \"학교 · 일\", \"value\": \"대학교 3학년\"}, {\"label\": \"MBTI\", \"value\": \"INFJ\"}]",
+    "position": 0,
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 2,
+    "title": "좋아하는 것",
+    "kind": "lists",
+    "data": "[{\"label\": \"운동\", \"items\": [\"러닝\", \"클라이밍\", \"수영\"]}, {\"label\": \"음식\", \"items\": [\"마라탕\", \"평양냉면\", \"딸기 케이크\"]}, {\"label\": \"음악\", \"items\": [\"시티팝\", \"lo-fi\"]}, {\"label\": \"영화 · 드라마\", \"items\": [\"SF 영화\"]}, {\"label\": \"장소\", \"items\": [\"동네 도서관\", \"한강 공원\"]}, {\"label\": \"브랜드\", \"items\": []}, {\"label\": \"책\", \"items\": []}]",
+    "position": 1,
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 3,
+    "title": "싫어하는 것",
+    "kind": "lists",
+    "data": "[{\"label\": \"음식\", \"items\": [\"오이\"]}, {\"label\": \"그 밖에\", \"items\": [\"만원 지하철\"]}]",
+    "position": 2,
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 4,
+    "title": "요즘 빠진 것",
+    "kind": "lists",
+    "data": "[{\"label\": \"하는 것\", \"items\": [\"필름 카메라\"]}, {\"label\": \"보는 것\", \"items\": [\"우주 다큐\"]}]",
+    "position": 3,
+    "updated_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 5,
+    "title": "자유롭게",
+    "kind": "text",
+    "data": "\"아침형 인간이 되고 싶다. 밤에 집중이 잘 되는 건 함정.\"",
+    "position": 4,
+    "updated_at": "2026-11-20 11:21:48"
+   }
+  ],
+  "wishlist": [
+   {
+    "id": 1,
+    "title": "러닝화",
+    "price": 139000,
+    "url": "",
+    "starred": 1,
+    "when_text": "12월",
+    "position": 0,
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 2,
+    "title": "무선 이어폰",
+    "price": 259000,
+    "url": "https://example.com/earbuds",
+    "starred": 0,
+    "when_text": "세일하면",
+    "position": 1,
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 3,
+    "title": "전공책 (회로이론)",
+    "price": 38000,
+    "url": "",
+    "starred": 0,
+    "when_text": "",
+    "position": 2,
+    "created_at": "2026-11-20 11:21:48"
+   },
+   {
+    "id": 4,
+    "title": "책상 조명",
+    "price": null,
+    "url": "",
+    "starred": 0,
+    "when_text": "",
+    "position": 3,
+    "created_at": "2026-11-20 11:21:48"
+   }
+  ]
+ }
+}

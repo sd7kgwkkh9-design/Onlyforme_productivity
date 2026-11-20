@@ -14,18 +14,18 @@ export const DARK_KEY = 'my-calendar:theme-dark';
 // [키, 이름, 포인트 색(홈 화면 위젯에도 쓴다)] — 'light'·'dark'는 기본 테마
 export const LIGHT_THEMES = [
   ['light', '기본 (만년필 파랑)', '#2347C8'],
-  ['latte', 'Catppuccin Latte', '#8839EF'],
-  ['tokyo-day', 'Tokyo Night Day', '#2E7DE9'],
-  ['rose-dawn', 'Rosé Pine Dawn', '#B4637A'],
-  ['solarized-light', 'Solarized Light', '#268BD2'],
+  ['latte', 'Catppuccin Latte', '#7F27EF'],
+  ['tokyo-day', 'Tokyo Night Day', '#1658B6'],
+  ['rose-dawn', 'Rosé Pine Dawn', '#A04D6C'],
+  ['solarized-light', 'Solarized Light', '#256D96'],
 ];
 export const DARK_THEMES = [
-  ['dark', '기본 (만년필 파랑)', '#5B7BFF'],
+  ['dark', '기본 (만년필 파랑)', '#738BFF'],
   ['tokyo-night', 'Tokyo Night', '#7AA2F7'],
   ['tokyo-storm', 'Tokyo Night Storm', '#7AA2F7'],
   ['mocha', 'Catppuccin Mocha', '#CBA6F7'],
-  ['nord', 'Nord', '#88C0D0'],
-  ['dracula', 'Dracula', '#BD93F9'],
+  ['nord', 'Nord', '#94C6D6'],
+  ['dracula', 'Dracula', '#CAABF9'],
 ];
 
 export const themeName = (key) => [...LIGHT_THEMES, ...DARK_THEMES].find(([k]) => k === key)?.[1].replace(' (만년필 파랑)', '') || '기본';

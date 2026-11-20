@@ -203,7 +203,29 @@ def seed_v013(client, post, today, cat):
         post("/api/anniversaries", {"title": "엄마 생신", "emoji": "🎂", "kind": "birthday", "date": (today + timedelta(days=12)).replace(year=1970).isoformat()})
     post("/api/anniversaries", {"title": "만난 날", "emoji": "💕", "kind": "days", "date": (today - timedelta(days=394)).isoformat()})
     entrance = today + timedelta(days=20)
-    post("/api/anniversaries", {"title": "입학", "emoji": "🎓", "kind": "yearly", "date": entrance.replace(year=today.year - 2).isoformat(), "dday": False})
+    post("/api/anniversaries", {"title": "입학", "emoji": "🎓", "kind": "yearly", "date": entrance.replace(year=today.year - 2).isoformat(), "dday_days": 0})
+
+    # 메모장의 '나' (0.14.2): 기본 칸에 예시를 조금
+    about = {s["title"]: s for s in client.get("/api/about").get_json()}
+    fill = {
+        "기본 정보": [{"label": "이름", "value": "김시연"}, {"label": "생일", "value": "3월 14일"}, {"label": "사는 곳", "value": "서울 노원구"},
+                    {"label": "학교 · 일", "value": "대학교 3학년"}, {"label": "MBTI", "value": "INFJ"}],
+        "좋아하는 것": [{"label": "운동", "items": ["러닝", "클라이밍", "수영"]}, {"label": "음식", "items": ["마라탕", "평양냉면", "딸기 케이크"]},
+                    {"label": "음악", "items": ["시티팝", "lo-fi"]}, {"label": "영화 · 드라마", "items": ["SF 영화"]},
+                    {"label": "장소", "items": ["동네 도서관", "한강 공원"]}, {"label": "브랜드", "items": []}, {"label": "책", "items": []}],
+        "싫어하는 것": [{"label": "음식", "items": ["오이"]}, {"label": "그 밖에", "items": ["만원 지하철"]}],
+        "요즘 빠진 것": [{"label": "하는 것", "items": ["필름 카메라"]}, {"label": "보는 것", "items": ["우주 다큐"]}],
+        "자유롭게": "아침형 인간이 되고 싶다. 밤에 집중이 잘 되는 건 함정.",
+    }
+    for title, data in fill.items():
+        if title in about:
+            client.put(f"/api/about/{about[title]['id']}", json={"data": data})
+
+    # 메모장의 '살 것' (0.14.2)
+    post("/api/wishlist", {"title": "러닝화", "price": 139000, "when": "12월", "starred": True})
+    post("/api/wishlist", {"title": "무선 이어폰", "price": 259000, "when": "세일하면", "url": "https://example.com/earbuds"})
+    post("/api/wishlist", {"title": "전공책 (회로이론)", "price": 38000})
+    post("/api/wishlist", {"title": "책상 조명"})
 
     # 프로젝트: 마감이 있는 것(세부 할 일·연결한 일정), 대략 정한 것, 잠시 멈춘 것
     term = post(f"/api/projects?today={today.isoformat()}", {"title": "오픈소스 텀프로젝트", "start_date": (today - timedelta(days=30)).isoformat(),
