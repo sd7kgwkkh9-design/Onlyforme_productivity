@@ -182,7 +182,7 @@ def test_login_page_shows_app_name(tmp_path):
 
 
 def test_font_files_are_served(client):
-    for name in ["gowun-dodum", "gowun-batang", "jua", "noto-sans-kr"]:
+    for name in ["gowun-dodum", "gowun-batang", "jua", "noto-sans-kr", "ibm-plex-sans-kr", "hahmlet", "gaegu", "nanum-pen-script"]:
         css = client.get(f"/static/vendor/fonts/{name}/font.css")
         assert css.status_code == 200
         first = css.get_data(as_text=True).split("url(./files/")[1].split(")")[0]

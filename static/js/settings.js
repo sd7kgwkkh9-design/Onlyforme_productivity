@@ -36,6 +36,11 @@ const FONTS = [
   ['gowun-batang', '고운바탕', "'Gowun Batang'"],
   ['jua', '주아', "'Jua'"],
   ['noto-sans-kr', 'Noto Sans KR', "'Noto Sans KR Variable'"],
+  // 0.15.0: 4개 더 — 또렷한 고딕, 세련된 명조, 동글동글 손글씨, 펜으로 쓴 다이어리
+  ['ibm-plex-sans-kr', 'IBM Plex Sans KR', "'IBM Plex Sans KR'"],
+  ['hahmlet', '함렛', "'Hahmlet Variable'"],
+  ['gaegu', '개구', "'Gaegu'"],
+  ['nanum-pen-script', '나눔손글씨 펜', "'Nanum Pen Script'"],
 ];
 
 // 글자 크기: [값(%), 이름]
@@ -81,7 +86,7 @@ function applyTheme() {
   if (theme === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
   applyPalette(isDark()); // 0.14.0: 밝을 때·어두울 때 고른 테마
-  syncBarColor();
+  requestAnimationFrame(syncBarColor); // 0.15.0: 그려진 색을 읽는 일은 다음 프레임에 (첫 화면 그리기를 붙잡지 않게)
 }
 
 // 휴대폰 상태 표시줄 색을 지금 바탕색(--paper)에 맞춘다. 테마에 따라 바탕색이 달라지므로 그려진 색을 읽어 온다.
@@ -261,6 +266,11 @@ function renderMenu(loginEnabled, appName, version) {
     hooks.onOpenBackup
       ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice', onclick: () => { menu.hidePopover?.(); hooks.onOpenBackup(); } }, '백업 · 되살리기…')
       : null,
+    // 0.15.0: 단축키 목록 (shortcuts.js). 키보드가 없는 휴대폰에서는 숨긴다 (style.css)
+    hooks.onOpenShortcuts
+      ? el('button', { type: 'button', role: 'menuitem', class: 'menu-choice menu-shortcuts', onclick: () => { menu.hidePopover?.(); hooks.onOpenShortcuts(); } },
+          '⌨ 단축키…', el('span', { class: 'menu-size-name' }, '?'))
+      : null,
     loginEnabled
       ? el('form', {
           class: 'menu-logout', method: 'post', action: '/logout',
@@ -350,11 +360,11 @@ function placeMenu() {
 
 export function initSettings({
   loginEnabled = false, appName = '', version = '', onOpenLinks = null, onOpenSecurity = null, bioLock = false,
-  onLockNow = null, onOpenBackup = null,
+  onLockNow = null, onOpenBackup = null, onOpenShortcuts = null,
 } = {}) {
   button = document.getElementById('btn-settings');
   menu = document.getElementById('settings-menu');
-  hooks = { onOpenLinks, onOpenSecurity, bioLock, onLockNow, onOpenBackup };
+  hooks = { onOpenLinks, onOpenSecurity, bioLock, onLockNow, onOpenBackup, onOpenShortcuts };
   menuArgs = [loginEnabled, appName, version];
   veil = read(VEIL_KEY, VEILS.map(([v]) => v), 'mid');
   theme = read(THEME_KEY, ['light', 'dark'], 'auto');

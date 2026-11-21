@@ -56,14 +56,6 @@ export function ddayLabel(daysLeft) {
   return daysLeft > 0 ? `D-${daysLeft}` : `D+${-daysLeft}`;
 }
 
-// 분 → '3시간 20분' / '45분' / '0분'
-export function formatMinutes(total) {
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  if (!h) return `${m}분`;
-  return m ? `${h}시간 ${m}분` : `${h}시간`;
-}
-
 // 시간 표시 (24시간) — 모든 화면이 이 규칙 하나를 쓴다.
 //   둘 다   → '09:00~10:30'
 //   시작만  → '09:00~'
@@ -225,4 +217,32 @@ export function ask(message, buttons) {
     dialog.onclick = (e) => { if (e.target === dialog) finish(null); }; // 바깥(배경) 클릭
     dialog.showModal();
   });
+}
+
+// ---------------------------------------------------------------- 오른쪽 칸 → 달력으로 끌기 (0.15.0)
+// 넓은 화면에서 오른쪽 하루 칸의 일정·루틴 기록을 달력(월간·주간)의 날짜로 끌어다 놓는다.
+// 지금 끌고 있는 것: {type: 'item', id, date, title} 또는 {type: 'log', log}. main.js가 놓는 자리를 처리한다.
+export const paneDrag = { current: null };
+const fineDrag = window.matchMedia('(hover: hover) and (pointer: fine)');
+
+/** li를 달력으로 끌 수 있게 한다. ≡ 손잡이(같은 날 안에서 순서 바꾸기)를 잡았을 때는 끌지 않는다. */
+export function dragToCalendar(li, payload, title) {
+  if (!fineDrag.matches) return li;
+  let fromHandle = false;
+  li.draggable = true;
+  li.addEventListener('pointerdown', (e) => { fromHandle = Boolean(e.target.closest?.('.drag-handle')); });
+  li.addEventListener('dragstart', (e) => {
+    if (fromHandle) { e.preventDefault(); return; }
+    paneDrag.current = payload;
+    e.dataTransfer.effectAllowed = 'copyMove';
+    e.dataTransfer.setData('text/plain', title); // 파이어폭스는 데이터가 있어야 끌기가 시작된다
+    li.classList.add('is-dragging');
+    document.body.classList.add('is-dragging-item');
+  });
+  li.addEventListener('dragend', () => {
+    paneDrag.current = null;
+    li.classList.remove('is-dragging');
+    document.body.classList.remove('is-dragging-item');
+  });
+  return li;
 }

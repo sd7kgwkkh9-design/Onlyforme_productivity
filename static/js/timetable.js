@@ -46,11 +46,6 @@ export const minutesText = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간${m % 6
 
 const SKIP_TEXT = { skip: '쉼', all: '쉼', holiday: '공휴일' };
 
-/** 하루 화면·주간 화면에 쓰는 수업 한 줄 이름표 */
-export function classLabel(c) {
-  return `${c.title}${c.place ? ` · ${c.place}` : ''}`;
-}
-
 /** 하루 화면(sheet.js)의 '시간표' 묶음. 쉬는 수업도 흐리게 보여 주고, 오른쪽 클릭으로 이날만 쉬기·다시 하기 */
 export function classSection({ date, classes, onChanged, onOpenTimetable }) {
   if (!classes.length) return null;

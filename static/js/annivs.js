@@ -153,8 +153,3 @@ export function annivManager({ onChanged, date = null }) {
 
   return { render, refresh: (sheet) => { if (!editing) render(sheet); }, returnTo: null };
 }
-
-/** 달력 칸·주간·하루 화면에 붙이는 이름표: '🎂 엄마 생신' / '💕 만난 날 100일' */
-export function annivLabel(a) {
-  return `${a.emoji} ${a.title}${a.label ? ` ${a.label}` : ''}`;
-}

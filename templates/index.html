@@ -10,7 +10,7 @@
   {% set modules = module_map() %}
   <script type="importmap">{"imports": {{ modules|tojson }}}</script>
   {#- 0.12.1: 누를 때만 쓰는 모듈(공유·구독·위젯, 패스키, 습관·기념일 창, 검색, 백업)과 다른 화면 전용 모듈은 미리 받지 않는다 #}
-  {% set later = ['links.js', 'security.js', 'webauthn.js', 'habits.js', 'annivs.js', 'search.js', 'backup.js', 'gate.js', 'shared.js'] %}
+  {% set later = ['links.js', 'security.js', 'webauthn.js', 'habits.js', 'annivs.js', 'search.js', 'backup.js', 'shortcuts.js', 'aboutme.js', 'wishlist.js', 'gate.js', 'shared.js'] %}
   {% for key, url in modules.items() if key.rsplit('/', 1)[-1] not in later %}<link rel="modulepreload" href="{{ url }}">
   {% endfor %}
 </head>
@@ -27,7 +27,6 @@
       <button class="text-btn tool-btn" id="btn-notes" type="button" aria-controls="notes" aria-expanded="false" aria-label="메모장" title="메모장 (노트·나·목표·할 일·살 것·프로젝트)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6zM9 10h6M9 14h6M9 18h3"/></svg>
         <span class="tool-label">메모장</span>
-        <span class="count tool-count" id="todo-count" hidden>0</span>
       </button>
       <button class="icon-btn" id="btn-prev" type="button" aria-label="이전 달">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
@@ -125,7 +124,7 @@
         <button class="notes-tab" type="button" role="tab" data-tab="memo" aria-selected="false">노트</button>
         <button class="notes-tab" type="button" role="tab" data-tab="me" aria-selected="false" title="나 — 자기소개">나</button>
         <button class="notes-tab" type="button" role="tab" data-tab="goal" aria-selected="false">목표</button>
-        <button class="notes-tab" type="button" role="tab" data-tab="todo" aria-selected="false">할 일 <span class="count" hidden>0</span></button>
+        <button class="notes-tab" type="button" role="tab" data-tab="todo" aria-selected="false">할 일</button>
         <button class="notes-tab" type="button" role="tab" data-tab="buy" aria-selected="false" title="살 것 — 구매 예정 목록">살 것</button>
         <button class="notes-tab" type="button" role="tab" data-tab="project" aria-selected="false">프로젝트</button>
       </div>

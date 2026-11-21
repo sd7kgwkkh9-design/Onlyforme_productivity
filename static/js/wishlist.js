@@ -2,15 +2,17 @@
 //
 //   맨 위 칸에 `에어팟 프로 25만원`처럼 적고 Enter → 가격은 알아서 읽는다 (원·만원·천원, 쉼표). 상품 주소를 붙여 넣으면 링크로.
 //   ⭐ 꼭 살 것은 맨 위로. 언제쯤('12월', '세일하면')·링크·가격은 항목을 눌러서 고친다.
-//   ✓ 샀어요 → 목록에서 빠진다 (알림의 '되돌리기'로 되살리기). 위쪽에 가격을 적은 것의 합계.
+//   샀거나 마음이 바뀌면 오른쪽 클릭 → 삭제 (휴대폰은 눌러서 연 창의 삭제). 알림의 '되돌리기'로 되살린다.
+//   (0.14.2의 ✓ 샀어요 버튼은 0.15.0에서 뺐다 — 남겨 둘 필요가 없어서 다른 목록처럼 지우기로)
+//   위쪽에 가격을 적은 것의 합계.
 // 나만 보는 목록이라 공유 링크·캘린더 구독·위젯에는 나가지 않는다. 검색·백업에는 들어간다.
 
 import { api } from './api.js';
-import { ask, el, icon, toast } from './utils.js';
+import { openMenu } from './ctxmenu.js';
+import { el, icon, toast } from './utils.js';
 
 const ICON = {
   star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z',
-  check: 'M5 12.5l4.5 4.5L19 7.5',
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2',
   plus: 'M12 5v14M5 12h14',
 };
@@ -30,15 +32,15 @@ export function parseWish(text) {
   let price = null;
   const p = rest.trim().match(/(?:^|\s)(\d[\d,]*(?:\.\d+)?)\s*(만\s*원|만|천\s*원|천|원)$/);
   if (p) {
-    const n = Number(p[1].replace(/,/g, ''));
-    const unit = p[2].replace(/\s/g, '');
+    const n = Number(p[1].replaceAll(',', ''));
+    const unit = p[2].replaceAll(/\s/g, '');
     const mult = unit.startsWith('만') ? 10000 : unit.startsWith('천') ? 1000 : 1;
     if (Number.isFinite(n)) {
       price = Math.round(n * mult);
       rest = rest.trim().slice(0, -p[0].length);
     }
   }
-  return { title: rest.trim().replace(/\s+/g, ' '), price, url };
+  return { title: rest.trim().replaceAll(/\s+/g, ' '), price, url };
 }
 
 /** notes.js의 showList가 부른다 */
@@ -108,19 +110,26 @@ function summary() {
 
 function row(w) {
   const sub = [w.price != null ? won(w.price) : null, w.when || null].filter(Boolean);
-  return el('li', { class: `wish-row${w.starred ? ' is-starred' : ''}` },
+  const edit = () => { editing = w.id; draw(); wrap.querySelector('.wish-form input')?.focus(); };
+  const li = el('li', { class: `wish-row${w.starred ? ' is-starred' : ''}` },
     el('button', {
       type: 'button', class: 'icon-btn wish-star', 'aria-pressed': String(w.starred),
       'aria-label': w.starred ? `'${w.title}' 꼭 살 것 해제` : `'${w.title}' 꼭 살 것으로`, title: '꼭 살 것 (맨 위로)',
       onclick: () => save(w, { starred: !w.starred }),
     }, icon(ICON.star)),
-    el('button', { type: 'button', class: 'wish-main', onclick: () => { editing = w.id; draw(); wrap.querySelector('.wish-form input')?.focus(); } },
+    el('button', { type: 'button', class: 'wish-main', onclick: edit },
       el('span', { class: 'wish-title' }, w.title),
       sub.length ? el('span', { class: 'wish-sub' }, sub.join(' · ')) : null),
     w.url
       ? el('a', { class: 'icon-btn wish-link', href: w.url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `'${w.title}' 상품 페이지 열기`, title: hostOf(w.url) }, icon(ICON.link))
-      : null,
-    el('button', { type: 'button', class: 'icon-btn wish-bought', 'aria-label': `'${w.title}' 샀어요`, title: '샀어요 (목록에서 빼기)', onclick: () => bought(w) }, icon(ICON.check)));
+      : null);
+  li.addEventListener('contextmenu', (e) => openMenu(e, [
+    { label: '수정', run: edit },
+    { label: w.starred ? '꼭 살 것 해제' : '⭐ 꼭 살 것으로', run: () => save(w, { starred: !w.starred }) },
+    w.url ? { label: '상품 페이지 열기', run: () => window.open(w.url, '_blank', 'noopener,noreferrer') } : null,
+    { label: '삭제', danger: true, run: () => remove(w) },
+  ], { title: w.title }));
+  return li;
 }
 
 function hostOf(url) {
@@ -141,7 +150,7 @@ function form(w) {
     el('label', { class: 'wish-field' }, el('span', {}, '링크'), url),
     err,
     el('div', { class: 'wish-form-buttons' },
-      el('button', { type: 'button', class: 'btn sm ghost danger', onclick: () => remove(w) }, '빼기'),
+      el('button', { type: 'button', class: 'btn sm ghost danger', onclick: () => remove(w) }, '삭제'),
       el('span', { class: 'spacer' }),
       el('button', { type: 'button', class: 'btn sm ghost', onclick: () => { editing = null; draw(); } }, '취소'),
       el('button', { type: 'submit', class: 'btn sm primary' }, '저장')));
@@ -173,23 +182,13 @@ async function save(w, fields, errEl = null) {
   }
 }
 
-async function bought(w) {
-  try {
-    await api.deleteWish(w.id);
-    await load();
-    toast(`'${w.title}' 샀어요 🎉 목록에서 뺐어요`, 'info', { action: { label: '되돌리기', run: () => restore(w) } });
-  } catch (e) { toast(e.message, 'error'); }
-}
-
+// 묻지 않고 바로 지우고, 알림의 '되돌리기'로 같은 내용을 다시 만든다 (할 일의 ×와 같다)
 async function remove(w) {
-  const ok = await ask(`'${w.title}'을(를) 목록에서 뺄까요?`, [
-    { label: '빼기', value: true, kind: 'danger-fill' }, { label: '취소', value: null, kind: 'ghost' }]);
-  if (!ok) return;
   editing = null;
   try {
     await api.deleteWish(w.id);
     await load();
-    toast(`'${w.title}' 뺐어요`, 'info', { action: { label: '되돌리기', run: () => restore(w) } });
+    toast(`'${w.title}' 지웠어요`, 'info', { action: { label: '되돌리기', run: () => restore(w) } });
   } catch (e) { toast(e.message, 'error'); }
 }
 

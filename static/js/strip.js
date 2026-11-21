@@ -134,7 +134,7 @@ export class TopStrip {
       ));
     }
 
-    // 올해 목표 하나 (0.14.2: '올해가 몇 % 지났는지' 막대·숫자는 뺐다 — 누구나 아는 것이라서)
+    // 올해 목표 하나 (0.14.2: '올해가 몇 % 지났는지' 막대·숫자는 뺐다 — 누구나 아는 것이라서. 0.15.0: 모양을 D-day와 다르게)
     if (year && (year.total > 0 || year.nudge)) {
       const goal = pickToday(year.goals);
       const label = year.total ? `올해 목표 ${year.total}개 중 ${year.done}개 이룸.` : `${year.year} 목표가 아직 없어요.`;
@@ -142,7 +142,8 @@ export class TopStrip {
         type: 'button', role: 'listitem', class: 'dday-chip is-year', title: `${label} 눌러서 목표 보기`,
         onclick: () => (goal ? this.onOpenGoal(goal.id) : this.onOpenGoals()),
       },
-        el('span', { class: 'year-name' }, String(year.year)),
+        // 0.15.0: D-day(둥근 알약)와 섞여 보이지 않게, 올해 목표는 왼쪽에 포인트 색 띠가 있는 네모 카드로
+        el('span', { class: 'year-name' }, el('span', { 'aria-hidden': 'true' }, '🎯 '), `${year.year} 목표`),
         goal
           ? el('span', { class: 'dday-title year-goal' }, goal.routine ? `${goal.routine.emoji} ` : '', goal.title)
           : el('span', { class: 'dday-title year-goal' },

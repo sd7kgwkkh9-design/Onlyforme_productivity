@@ -19,7 +19,7 @@ def test_index_uses_fingerprinted_urls_and_import_map(client):
     assert f"/static/js/main.js?v={digest('js/main.js')}" in html
     assert '<script type="importmap">' in html
     # 모든 JS 모듈이 import map에 들어 있고, 첫 화면에 쓰는 모듈만 미리 불러온다 (0.12.1: 누를 때만 쓰는 모듈은 나중에)
-    later = {"links.js", "security.js", "webauthn.js", "habits.js", "annivs.js", "search.js", "backup.js", "gate.js", "shared.js"}
+    later = {"links.js", "security.js", "webauthn.js", "habits.js", "annivs.js", "search.js", "backup.js", "shortcuts.js", "aboutme.js", "wishlist.js", "gate.js", "shared.js"}
     for name in os.listdir(os.path.join(STATIC, "js")):
         assert f'"/static/js/{name}": "/static/js/{name}?v={digest("js/" + name)}"' in html
         preloaded = f'rel="modulepreload" href="/static/js/{name}?v=' in html

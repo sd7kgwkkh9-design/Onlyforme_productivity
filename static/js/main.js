@@ -20,7 +20,7 @@
 // 어느 한 기능에 문제가 생겨도(예: 서버를 새 버전으로 바꿨는데 화면 파일 일부가 예전 것) 달력은 계속 보인다.
 
 import { api, leavePage, prefetch } from './api.js';
-import { openMenu } from './ctxmenu.js';
+import { chooseAt, openMenu } from './ctxmenu.js';
 import { pickDate } from './datepop.js';
 import { applyMark, decorateMarks, openDecor, setMarks } from './decor.js';
 import { diaryEditor, diaryList } from './diary.js';
@@ -37,7 +37,7 @@ import { initSettings } from './settings.js';
 import { Sheet, configureSheets } from './sheet.js';
 import { STRIP_KEY, TopStrip } from './strip.js';
 import { startSync } from './sync.js';
-import { addDays, ask, el, formatShort, formatTimeRange, icon, toDateStr, toast, todayStr } from './utils.js';
+import { addDays, ask, el, formatShort, formatTimeRange, icon, paneDrag, toDateStr, toast, todayStr } from './utils.js';
 import { TimetableView, displayMode } from './timetable.js';
 import { WeekView, startOfWeek, weekTitle } from './week.js';
 
@@ -51,7 +51,9 @@ const later = {
   annivs: () => import('./annivs.js'),   // 기념일 창 (0.13.0)
   search: () => import('./search.js'),   // 검색 (0.14.0)
   backup: () => import('./backup.js'),   // 백업 · 되살리기 (0.14.0)
+  shortcuts: () => import('./shortcuts.js'), // 단축키 목록 (0.15.0)
 };
+const openShortcuts = () => later.shortcuts().then((m) => m.openShortcuts()).catch(loadFailed);
 const openLinks = (tab) => later.links().then((m) => m.openLinks(tab)).catch(loadFailed);
 const openSecurity = () => later.security().then((m) => m.openSecurity()).catch(loadFailed);
 function loadFailed(e) {
@@ -225,7 +227,7 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
   eventDisplay: 'block',
   eventOrder: 'order',
 
-  // 일정을 다른 날짜로 끌어서 옮기기 (맥은 Option, 윈도우는 Alt/Ctrl을 누르고 있으면 복사). 휴대폰은 꾹 누른 뒤 끌기.
+  // 일정을 다른 날짜로 끌어서 옮기기 (맥은 Option, 윈도우는 Alt를 누르고 있으면 바로 복사, 아니면 놓을 때 옮기기·복사를 고른다). 휴대폰은 꾹 누른 뒤 끌기.
   editable: true,
   eventDurationEditable: false,
   eventLongPressDelay: 350,
@@ -237,6 +239,7 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
   eventDragStop: (info) => {
     document.body.classList.remove('is-dragging-event');
     copyDrag.stop(info); // eventDrop보다 먼저 불린다 → 이 순간 복사인지 정해 둔다
+    paneDrop.finish(info); // 0.15.0: 오른쪽 칸(그날 목록)에 놓았으면 그 날짜로
     setTimeout(() => { state.dragging = false; }, 50); // 손을 뗄 때의 스와이프 판정이 끝난 뒤
   },
   eventDrop: (info) => dropEvent(info),
@@ -753,9 +756,14 @@ function anyMenuOpen() {
   try { return Boolean(document.querySelector('.jump-menu:popover-open, .settings-menu:popover-open')); } catch { return false; }
 }
 document.addEventListener('keydown', (e) => {
-  if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  if (e.altKey || e.metaKey || e.ctrlKey) return;
   if (document.querySelector('dialog[open]') || anyMenuOpen()) return;
   if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+  // ? (Shift + /) = 단축키 목록 (0.15.0). 키 자리(code)로 보니 한글 자판이어도 된다. 그 밖의 키는 Shift를 누르면 무시
+  if (e.shiftKey) {
+    if (e.code === 'Slash') { e.preventDefault(); openShortcuts(); }
+    return;
+  }
   if (e.code === 'KeyN') { e.preventDefault(); quick?.open(); return; } // N = 빠른 입력 (한글 자판이어도)
   if (e.code === 'KeyL' && lockConfig.login) { e.preventDefault(); lockNow(); return; } // L = 지금 잠그기 (0.13.0)
   if (e.code === 'Slash') { e.preventDefault(); openSearchBox(); return; } // / = 검색 (0.14.0)
@@ -778,12 +786,12 @@ function setDropTarget(cell) {
 }
 
 on(wrapEl, 'dragover', (e) => {
-  if (!dragState.itemId) return; // 할 일 카드가 아닌 것(파일 등)은 무시
+  if (!dragState.itemId && !paneDrag.current) return; // 할 일·오른쪽 칸의 일정이 아닌 것(파일 등)은 무시
   const cell = e.target.closest(DROP_SELECTOR);
   setDropTarget(cell);
   if (cell) {
     e.preventDefault(); // "여기에 놓을 수 있음" 표시
-    e.dataTransfer.dropEffect = 'move';
+    e.dataTransfer.dropEffect = paneDrag.current && copyDrag.isKey(e) ? 'copy' : 'move';
   }
 });
 on(wrapEl, 'dragleave', (e) => {
@@ -792,9 +800,15 @@ on(wrapEl, 'dragleave', (e) => {
 on(wrapEl, 'drop', async (e) => {
   const cell = e.target.closest(DROP_SELECTOR);
   const itemId = dragState.itemId;
+  const fromPane = paneDrag.current;
   setDropTarget(null);
-  if (!cell || !itemId) return;
+  if (!cell || (!itemId && !fromPane)) return;
   e.preventDefault();
+  if (fromPane) { // 0.15.0: 오른쪽 칸의 일정·루틴 기록 → 달력의 날짜
+    paneDrag.current = null;
+    await dropTo(fromPane, cell.dataset.date, { x: e.clientX, y: e.clientY, copyKey: copyDrag.isKey(e) });
+    return;
+  }
   if (await notes?.assignDate(itemId, cell.dataset.date)) flashDate(cell.dataset.date);
 });
 document.addEventListener('dragend', () => setDropTarget(null));
@@ -812,7 +826,7 @@ function flashDate(date) {
   });
 }
 
-// ---- 5-2. Option(⌥)을 누르고 끌기 = 복사 (윈도우는 Alt 또는 Ctrl)
+// ---- 5-2. Option(⌥)을 누르고 끌기 = 복사 (윈도우는 Alt. Ctrl은 끄는 도중에 누를 때만 된다 — 끌기 전에 누르면 FullCalendar가 끌기를 시작하지 않는다)
 //
 // 0.8까지는 복사가 되긴 했지만 '실패한 것처럼' 보였다:
 //   ① 끄는 동안 원래 일정이 사라져서 옮기기처럼 보였고  ② 놓으면 원래 자리로 튕겨 돌아갔고
@@ -854,9 +868,13 @@ const copyDrag = {
   track(e) {
     if (!copyDrag.active) return;
     if (e.type === 'keydown' || e.type === 'keyup') {
-      if (e.key === 'Alt' || (!isMac && e.key === 'Control')) copyDrag.set(e.type === 'keydown');
+      if (e.key === 'Alt' || (!isMac && e.key === 'Control')) {
+        e.preventDefault(); // 윈도우: Alt를 떼는 순간 브라우저 메뉴 막대로 포커스가 가지 않게
+        copyDrag.set(e.type === 'keydown');
+      }
     } else {
       copyDrag.set(copyDrag.isKey(e));
+      paneDrop.update(e.clientX, e.clientY); // 오른쪽 칸 위인지 (0.15.0)
     }
   },
   // 놓은 칸에 바로 보여 주는 자리 표시 (저장 → 다시 불러오기가 끝나면 지운다)
@@ -898,8 +916,13 @@ copyDrag.listen = (on) => {
 async function dropEvent(info) {
   const { itemId, date: from, kind, log } = info.oldEvent.extendedProps;
   const to = info.event.startStr.slice(0, 10);
-  const copy = copyDrag.decided || copyDrag.isKey(info.jsEvent);
+  const copyKey = copyDrag.decided || copyDrag.isKey(info.jsEvent);
   copyDrag.decided = false;
+  // 0.15.0: 놓으면 '옮기기 / 복사 / 취소'를 고른다 (Option·Alt를 누르고 끌었으면 묻지 않고 복사)
+  const name = kind === 'routine' ? logLabel(log) : info.oldEvent.title;
+  const action = copyKey ? 'copy' : await chooseDrop(pointOf(info.jsEvent, info.el), name, to);
+  if (!action) { info.revert(); return; }
+  const copy = action === 'copy';
   let placeholder = null;
   if (copy) {
     info.revert(); // 원래 일정은 제자리에 그대로
@@ -918,6 +941,72 @@ async function dropEvent(info) {
     toast(e.message, 'error');
   }
 }
+
+// ---- 5-2b. 놓은 뒤 '옮기기 / 복사 / 취소' 고르기 (0.15.0)
+//   실수로 옮겨지는 일이 없고, Option(Alt) 키를 몰라도 복사할 수 있다. 키보드: Enter = 옮기기, C = 복사, Esc = 취소
+function chooseDrop({ x, y }, name, to) {
+  return chooseAt(x, y, {
+    title: `${name} → ${formatShort(to)}`,
+    choices: [
+      { label: '옮기기', value: 'move', hint: 'Enter' },
+      { label: '복사', value: 'copy', key: 'KeyC', hint: 'C' },
+      { label: '취소', value: null, hint: 'Esc' },
+    ],
+  });
+}
+
+// 손을 뗀 자리 (마우스 · 손가락). 모르면 끌던 일정 자리
+function pointOf(jsEvent, fallbackEl) {
+  const t = jsEvent?.changedTouches?.[0] || jsEvent;
+  if (Number.isFinite(t?.clientX) && (t.clientX || t.clientY)) return { x: t.clientX, y: t.clientY };
+  const r = fallbackEl?.getBoundingClientRect?.();
+  return r ? { x: r.left + 12, y: r.bottom } : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+}
+
+// 끌어 온 것(일정의 한 날짜 · 루틴 기록)을 to 날짜로 옮기거나 복사한다. 오른쪽 칸 → 달력, 달력 → 오른쪽 칸이 같이 쓴다
+//   what: {type: 'item', id, date, title} | {type: 'log', log}
+async function dropTo(what, to, { x, y, copyKey = false }) {
+  const from = what.type === 'log' ? what.log.date : what.date;
+  if (!to || to === from) return;
+  const name = what.type === 'log' ? logLabel(what.log) : what.title;
+  const action = copyKey ? 'copy' : await chooseDrop({ x, y }, name, to);
+  if (!action) return;
+  try {
+    if (what.type === 'log') await (action === 'copy' ? copyLog(what.log, to) : moveLog(what.log, to));
+    else await (action === 'copy' ? copyItem(what.id, to) : moveItem(what.id, from, to));
+    await refreshAll();
+    flashDate(to);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// 달력의 일정을 오른쪽 칸(그날 목록)으로 끌어다 놓기 (0.15.0)
+//   FullCalendar는 달력 바깥에 놓으면 제자리로 돌려놓기만 하니, 끄는 동안 손이 오른쪽 칸 위에 있는지 지켜보다가
+//   그 위에서 손을 떼면 오른쪽 칸이 보여 주는 날짜로 옮기거나 복사한다.
+const paneDrop = {
+  over: false,
+  target() { return wide.matches && paneSheet?.view === 'day' && paneSheet.day ? paneHost : null; },
+  update(x, y) {
+    const host = this.target();
+    const r = host?.getBoundingClientRect();
+    const over = Boolean(r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
+    if (over === this.over) return;
+    this.over = over;
+    paneHost.classList.toggle('is-drop-target', over);
+  },
+  finish(info) {
+    const { x, y } = pointOf(info.jsEvent, info.el);
+    this.update(x, y);
+    const over = this.over;
+    this.over = false;
+    paneHost.classList.remove('is-drop-target');
+    if (!over) return;
+    const { itemId, date, kind, log } = info.event.extendedProps;
+    const copyKey = copyDrag.decided;
+    copyDrag.decided = false;
+    const what = kind === 'routine' ? { type: 'log', log } : { type: 'item', id: itemId, date, title: info.event.title };
+    setTimeout(() => dropTo(what, paneSheet.day, { x, y, copyKey }), 0); // FullCalendar가 끌기를 다 끝낸 뒤
+  },
+};
 
 // ---- 5-3. 옮기기·복사 (끌어다 놓기와 오른쪽 클릭 메뉴가 같이 쓴다)
 async function moveItem(itemId, from, to) {
@@ -1137,6 +1226,7 @@ safely('설정', () => initSettings({
   bioLock: document.body.dataset.bioLock === '1' || lockConfig.auto,
   onLockNow: lockConfig.login ? () => lockNow() : null,
   onOpenBackup: () => later.backup().then((m) => m.openBackup()).catch(loadFailed),   // 내 데이터 (0.14.0)
+  onOpenShortcuts: openShortcuts,                                                    // 단축키 목록 (0.15.0)
 }));
 
 // ---- 달력 위 띠, 메모장, 빠른 입력
@@ -1155,7 +1245,6 @@ safely('달력 위 띠', () => {
 safely('메모장', () => {
   notes = new NotesPanel($('notes'), {
     toggle: $('btn-notes'),
-    badge: $('todo-count'),
     backdrop: $('notes-backdrop'),
     onStripChanged: refreshStrip,
     onLayoutChanged: () => requestAnimationFrame(() => calendar.updateSize()),
@@ -1233,7 +1322,6 @@ if (startUrl.timetable && ttView) {
 urlSync.ready = true;
 syncUrl({ replace: true }); // 처음 연 화면을 주소에 적어 둔다 (기록은 쌓지 않음)
 if (wide.matches) safely('오른쪽 칸', () => paneSheet?.showDay(state.selected)); // 오른쪽 칸: 오늘 (또는 주소의 날짜)
-if (notes && !notes.loaded) notes.load(); // '메모장' 버튼의 숫자 (안 한 할 일)
 
 // 날씨 (0.10.0): 받아 오면 보이는 화면에 붙인다. 못 받아 오면 아무것도 안 한다.
 onWeather(() => safely('날씨', () => {

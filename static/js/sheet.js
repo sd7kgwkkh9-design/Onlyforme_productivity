@@ -22,7 +22,7 @@ import { makeSortable } from './reorder.js';
 import { timeSelect } from './timepicker.js';
 import { routineBar, routineLogView, routineManager, routineSection } from './routines.js';
 import {
-  addDays, ask, categoryChips, daysBetween, ddayLabel, el, formatLong, formatShort, icon, todayStr, toast,
+  addDays, ask, categoryChips, daysBetween, ddayLabel, dragToCalendar, el, formatLong, formatShort, icon, todayStr, toast,
 } from './utils.js';
 import { openDecor, setMarks } from './decor.js';
 import { diaryEditor, diarySection } from './diary.js';
@@ -237,6 +237,7 @@ export class Sheet {
         list.map((o) => itemRow({
           ...o,
           sortable,
+          toCalendar: this.kind === 'pane',
           badge: o.date_count > 1 ? `${o.date_count}일` : null,
           dday: o.dday && o.date >= todayStr() ? ddayLabel(daysBetween(todayStr(), o.date)) : null,
           onclick: () => this.editFromDay(o),
@@ -251,6 +252,7 @@ export class Sheet {
           date, logs,
           onOpen: (log) => this.showRoutineLog({ mode: 'edit', log }),
           onMenu: shared.onLogMenu ? (e, log) => shared.onLogMenu(e, log, this) : null,
+          toCalendar: this.kind === 'pane',
         })
       : null;
     // 맨 위: 그날 서울 날씨(오늘부터 일주일만) + 스티커 / 맨 아래: 일기 (0.14.0)
@@ -651,10 +653,10 @@ export class Sheet {
 // 일정 한 줄 (하루 목록)
 //   showTime=false : 시간 칸을 아예 빼서 제목을 왼쪽에 붙인다 (시간 있는 일정이 하나도 없는 목록용)
 //   sortable=true  : 오른쪽에 순서 바꾸기 손잡이(≡)를 붙인다
-function itemRow({ id, title, memo, date = null, start_time, end_time, category, badge, dday = null, onclick, oncontextmenu = null, showTime = true, sortable = false }) {
+function itemRow({ id, title, memo, date = null, start_time, end_time, category, badge, dday = null, onclick, oncontextmenu = null, showTime = true, sortable = false, toCalendar = false }) {
   // 시작 시간이 있으면 '그 시간의 날씨'를 붙일 수 있게 표시해 둔다 (weather.js의 decorateTimed)
   const wx = date && start_time ? { wxDate: date, wxTime: start_time } : {};
-  return el('li', { class: 'item-li', dataset: { id: String(id), ...wx }, style: { '--cat': category.color }, oncontextmenu },
+  const li = el('li', { class: 'item-li', dataset: { id: String(id), ...wx }, style: { '--cat': category.color }, oncontextmenu },
     el('button', { type: 'button', class: showTime ? 'item-row' : 'item-row no-time', onclick },
       showTime ? timeCell(start_time, end_time) : null,
       el('span', { class: 'item-main' },
@@ -675,6 +677,8 @@ function itemRow({ id, title, memo, date = null, start_time, end_time, category,
         }, icon('M5 9h14M5 15h14'))
       : null,
   );
+  // 0.15.0: 넓은 화면의 오른쪽 칸에서는 달력의 다른 날짜로 끌어다 놓을 수 있다 (놓으면 옮기기·복사를 고른다)
+  return toCalendar && date ? dragToCalendar(li, { type: 'item', id, date, title }, title) : li;
 }
 
 // 시간 칸 (시간 없는 일정은 빈칸)

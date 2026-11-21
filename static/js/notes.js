@@ -8,9 +8,9 @@
 //           ★메인 노트의 '배너 글귀'는 달력 위 배너에 늘 보인다. 쓰는 대로 자동 저장.
 //           마크다운(0.10.0): [보기 | 쓰기]. 보기에서는 **굵게**, 체크리스트, 링크가 꾸며져 보이고 체크리스트를 바로 누를 수 있다.
 //   나    : 자기소개 (0.14.2) — 기본 정보, 좋아하는 것·싫어하는 것·요즘 빠진 것(칩), 자유롭게(글). aboutme.js
-//   목표  : 세 단계(0.11.0) — 인생 목표 → 올해 목표(체크·숫자·루틴 연결로 진행도) → 기한 목표(기한이 있으면 달력 위 D-day 띠에).
-//           체크하면 '이룬 목표'로.
-//   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 다 하면 ×로 지운다(0.14.2, 그전에는 체크하면 '완료'로 접혔다),
+//   목표  : 세 단계(0.11.0) — 인생 목표 → 올해 목표(적어 두기·숫자·루틴 연결로 진행도) → 기한 목표(기한이 있으면 달력 위 D-day 띠에).
+//           0.15.0: 체크(이뤘어요)는 없다. 이룬 목표는 지운다. 숫자·루틴 목표가 다 차면 🏅로 '이룬 목표'에 접힌다.
+//   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 다 하면 ×로 지운다(0.14.3, 그전에는 체크하면 '완료'로 접혔다),
 //           날짜를 정하면(📅 버튼, 또는 달력으로 끌어다 놓기) 그날의 일정이 된다.
 //           ⚡ 급한 할 일(0.13.0): 맨 앞에 !를 붙여 적거나 ⚡를 누르면 맨 위로 올라오고, 첫 화면 '오늘 챙길 것'에도 보인다.
 //   살 것 (0.14.2): 구매 예정 목록 — 가격·언제쯤·링크, ⭐ 꼭 살 것, 합계. wishlist.js
@@ -27,8 +27,11 @@ import { renderMarkdown, stripMarkdown } from './markdown.js';
 import { makeSortable } from './reorder.js';
 import { ask, daysBetween, ddayLabel, el, formatShort, formatTimeRange, icon, todayStr, toast } from './utils.js';
 import { addProject, projectRowsForAll, renderProjects, showProject } from './projects.js';
-import { flushAbout, refreshAbout, renderAbout } from './aboutme.js';
-import { refreshWishlist, renderWishlist } from './wishlist.js';
+// '나'·'살 것'은 그 탭을 처음 열 때 받아 온다 (0.15.0: 첫 화면이 읽을 코드를 줄이려고)
+const lazy = { me: null, buy: null };
+const loadTab = (tab) => (lazy[tab] ||= import(tab === 'me' ? './aboutme.js' : './wishlist.js'));
+let aboutMod = null; // 한 번이라도 열었으면 저장할 것이 있을 수 있다
+const flushAbout = (opts) => aboutMod?.flushAbout(opts);
 
 // 할 일 카드를 달력의 날짜로 끌고 있을 때, 어떤 일정인지 (놓는 처리는 main.js)
 export const dragState = { itemId: null };
@@ -71,7 +74,6 @@ export class NotesPanel {
    * @param {HTMLElement} root      <aside id="notes">
    * @param {object} opts
    * @param {HTMLElement} opts.toggle     상단의 '메모장' 버튼
-   * @param {HTMLElement} opts.badge      '메모장' 버튼의 숫자 (안 한 할 일 수)
    * @param {HTMLElement} opts.backdrop   좁은 화면에서 뒤를 어둡게 덮는 막
    * @param {() => void} opts.onStripChanged    배너 글귀·메인·목표 기한이 바뀌었을 때 (달력 위 띠 다시 그리기)
    * @param {() => void} opts.onLayoutChanged   칸이 열리고 닫혀서 달력 너비가 바뀔 때
@@ -80,10 +82,9 @@ export class NotesPanel {
    * @param {(date: string) => void} opts.onOpenDate  알림의 '보기'
    * @param {(prefill) => void} opts.onAddEvent  프로젝트에서 '일정 추가' (일정 입력 창, 0.13.0)
    */
-  constructor(root, { toggle, badge, backdrop, onStripChanged, onLayoutChanged, onCalendarChanged, onOpenItem, onOpenDate, onAddEvent = () => {} }) {
+  constructor(root, { toggle, backdrop, onStripChanged, onLayoutChanged, onCalendarChanged, onOpenItem, onOpenDate, onAddEvent = () => {} }) {
     this.root = root;
     this.toggleBtn = toggle;
-    this.badge = badge;
     this.backdrop = backdrop;
     this.onStripChanged = onStripChanged;
     this.onLayoutChanged = onLayoutChanged;
@@ -182,7 +183,7 @@ export class NotesPanel {
   project(id) { return (this.data.projects || []).find((p) => p.id === id); }
   goal(id) { return this.data.goals.find((g) => g.id === id); }
 
-  // 메모 + 목표 + 할 일을 한 번에 받는다 (/api/inbox). 메모장이 닫혀 있어도 버튼의 숫자를 위해 부른다.
+  // 메모 + 목표 + 할 일을 한 번에 받는다 (/api/inbox). 메모장을 열 때만 받는다.
   async load() {
     try {
       this.data = await api.inbox();
@@ -194,26 +195,18 @@ export class NotesPanel {
     return this.data;
   }
 
-  updateBadge() {
-    const open = this.data.todos.filter((t) => !t.done).length;
-    for (const badge of [this.badge, this.tabsEl.querySelector('[data-tab="todo"] .count')]) {
-      if (!badge) continue;
-      badge.textContent = open;
-      badge.hidden = open === 0;
-    }
-    this.toggleBtn.setAttribute('aria-label', open ? `메모장 (안 한 할 일 ${open}개)` : '메모장');
-    const urgent = this.data.todos.some((t) => t.urgent && !t.done);
-    this.toggleBtn.classList.toggle('has-urgent', urgent); // 급한 할 일이 있으면 숫자를 주황색으로
-  }
+  // 0.15.0: 할 일 개수(빨간 숫자)와 급한 일 주황 표시는 뺐다 — 메모장은 적어 두는 곳이라 눈에 띄게 재촉할 필요가 없다.
+  // 급한 할 일은 첫 화면 띠의 '먼저' 줄에 보인다. 부르는 곳이 많아서 이름만 남겨 둔다.
+  updateBadge() {}
 
   // 다른 기기·다른 화면에서 바뀐 내용이 들어왔을 때: 쓰고 있는 칸은 건드리지 않는다
   async refresh() {
+    if (!this.isOpen) { this.loaded = false; return; } // 닫혀 있으면 받지 않는다 (열 때 새로 받는다)
     await this.load();
-    if (!this.isOpen) return;
     if (this.view === 'list' && this.tab === 'me') {
-      await refreshAbout();
+      await (await loadTab('me')).refreshAbout();
     } else if (this.view === 'list' && this.tab === 'buy') {
-      await refreshWishlist();
+      await (await loadTab('buy')).refreshWishlist();
     } else if (this.view === 'list') {
       if (!this.bodyEl.querySelector('.is-sorting')) this.showList({ keepCapture: true });
     } else if (this.view === 'memo') {
@@ -229,6 +222,7 @@ export class NotesPanel {
   }
 
   async reload() {
+    if (!this.isOpen) { this.loaded = false; return; }
     await this.load();
     this.redrawList();
   }
@@ -297,9 +291,16 @@ export class NotesPanel {
     // '나'는 쓰는 칸이 많아서, 다른 탭 때문에 다시 그릴 때(keepCapture)는 건드리지 않는다 (쓰던 글자·포커스 그대로)
     // '살 것'(0.14.2)도 자기 입력칸·목록을 스스로 그린다
     if (this.tab === 'me' || this.tab === 'buy') {
-      const [cls, render] = this.tab === 'me' ? ['.about-wrap', renderAbout] : ['.wish-wrap', renderWishlist];
-      if (!(keepCapture && this.bodyEl.querySelector(cls))) this.bodyEl.replaceChildren(...render());
+      const tab = this.tab;
+      const cls = tab === 'me' ? '.about-wrap' : '.wish-wrap';
       this.setFoot(null);
+      if (keepCapture && this.bodyEl.querySelector(cls)) return;
+      if (!this.bodyEl.querySelector(cls)) this.bodyEl.replaceChildren(el('p', { class: 'notes-empty' }, '불러오는 중…'));
+      loadTab(tab).then((m) => {
+        if (tab === 'me') aboutMod = m;
+        if (this.tab !== tab || this.view !== 'list') return; // 그 사이 다른 탭으로
+        this.bodyEl.replaceChildren(...(tab === 'me' ? m.renderAbout() : m.renderWishlist()));
+      }).catch(() => this.bodyEl.replaceChildren(el('p', { class: 'notes-empty' }, '불러오지 못했어요. 인터넷 연결을 확인해 주세요.')));
       return;
     }
     const content = {
@@ -789,9 +790,8 @@ export class NotesPanel {
     const counted = g.measure !== 'check';
     const ratio = counted ? Math.min(1, g.current / (g.target || 1)) : 0;
     const li = el('li', { class: ['goal-li is-year', g.done ? 'is-done' : '', counted ? 'is-counted' : ''].join(' ').trim(), dataset: { id: String(g.id) } },
-      counted
-        ? el('span', { class: 'goal-emoji', 'aria-hidden': 'true' }, g.done ? '🏅' : (g.routine?.emoji || '🔢'))
-        : checkbox(g.done, `'${g.title}' ${g.done ? '이룸 취소' : '이뤘어요'}`, () => this.toggleGoal(g)),
+      // 0.15.0: 체크(이뤘어요)는 뺐다 — 이룬 목표는 남겨 두지 않고 지운다 (오른쪽 클릭 → 삭제, 휴대폰은 눌러서 연 창의 삭제)
+      el('span', { class: 'goal-emoji', 'aria-hidden': 'true' }, g.done ? '🏅' : counted ? (g.routine?.emoji || '🔢') : '🎯'),
       el('button', { type: 'button', class: 'goal-main', onclick: () => this.showGoal(g.id) },
         el('span', { class: 'goal-title' }, g.title),
         counted
@@ -814,7 +814,7 @@ export class NotesPanel {
       { label: '수정', run: () => this.showGoal(g.id) },
       g.measure === 'count' ? { label: '+1', run: () => this.stepGoal(g, 1) } : null,
       g.measure === 'count' && g.current > 0 ? { label: '−1 (잘못 눌렀을 때)', run: () => this.stepGoal(g, -1) } : null,
-      g.measure === 'check' ? { label: g.done ? '이룸 취소' : '이뤘어요', run: () => this.toggleGoal(g) } : null,
+      g.measure === 'check' && g.done ? { label: '이룸 취소', run: () => this.toggleGoal(g) } : null, // 예전에 체크해 둔 것만
       { label: '이 목표를 위한 기한 목표 추가', run: () => this.showGoalForm({ kind: 'due', parentId: g.id }) },
       { label: '삭제', danger: true, run: () => this.deleteGoal(g) },
     ], { title: g.title }));
@@ -849,7 +849,7 @@ export class NotesPanel {
         `~${formatShort(g.due)}`, g.done ? null : ` · ${left < 0 ? '기한 지남' : ddayLabel(left)}`);
     }
     const li = el('li', { class: ['goal-li', g.done ? 'is-done' : '', nested ? 'is-nested' : ''].join(' ').trim(), dataset: { id: String(g.id) } },
-      checkbox(g.done, `'${g.title}' ${g.done ? '이룸 취소' : '이뤘어요'}`, () => this.toggleGoal(g)),
+      // 0.15.0: 체크(이뤘어요)는 뺐다 — 이룬 목표는 지운다. 🎯·🏅는 제목 앞에 CSS로 붙는다
       el('button', { type: 'button', class: 'goal-main', onclick: () => this.showGoal(g.id) },
         el('span', { class: 'goal-title' }, g.title),
         due || g.memo ? el('span', { class: 'goal-meta' }, due, g.memo ? el('span', { class: 'goal-memo' }, g.memo.split('\n')[0]) : null) : null,
@@ -860,7 +860,7 @@ export class NotesPanel {
     );
     li.addEventListener('contextmenu', (e) => openMenu(e, [
       { label: '수정', run: () => this.showGoal(g.id) },
-      { label: g.done ? '이룸 취소' : '이뤘어요', run: () => this.toggleGoal(g) },
+      g.done ? { label: '이룸 취소', run: () => this.toggleGoal(g) } : null, // 예전에 체크해 둔 것만
       { label: '삭제', danger: true, run: () => this.deleteGoal(g) },
     ], { title: g.title }));
     return li;
@@ -975,7 +975,7 @@ export class NotesPanel {
         el('p', { class: 'field-hint' }, `${year}년에 남긴 이 루틴의 기록 수를 알아서 세요. 루틴 버튼을 누를 때마다 목표가 채워져요.`));
       const measureHint = el('p', { class: 'field-hint' });
       const seg = el('div', { class: 'seg goal-measure', role: 'group', 'aria-label': '진행 방식' });
-      const MEASURES = [['check', '체크'], ['count', '숫자'], ['routine', '루틴 연결']];
+      const MEASURES = [['check', '적어 두기'], ['count', '숫자'], ['routine', '루틴 연결']];
       const drawMeasure = () => {
         seg.replaceChildren(...MEASURES.map(([m, label]) => el('button', {
           type: 'button', class: 'seg-btn', 'aria-pressed': String(m === measure),
@@ -987,7 +987,7 @@ export class NotesPanel {
         countBox.querySelector('.goal-current').hidden = measure !== 'count';
         routineBox.hidden = measure !== 'routine';
         measureHint.textContent = {
-          check: '이뤘을 때 체크해요.',
+          check: '숫자 없이 적어 두는 목표예요. 이루면 지우면 돼요 (오른쪽 클릭 → 삭제).',
           count: "'+1' 버튼으로 하나씩 채워요.",
           routine: '루틴 기록이 목표를 알아서 채워 줘요.',
         }[measure];

@@ -5,6 +5,8 @@
     (function () {
       var root = document.documentElement;
       root.dataset.fontBase = "{{ url_for('static', filename='vendor/fonts/') }}";
+      // 0.15.0: 윈도우면 표시 — 굵고 늘 보이는 스크롤바를 얇게, 테마 색으로 (맥은 스크롤바가 저절로 숨으니 건드리지 않는다)
+      if (/Win/i.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '')) root.dataset.os = 'win';
       try {
         var t = localStorage.getItem('my-calendar:theme');
         if (t === 'light' || t === 'dark') root.dataset.theme = t;
@@ -13,7 +15,7 @@
         var p = localStorage.getItem(dark ? 'my-calendar:theme-dark' : 'my-calendar:theme-light');
         if (dark ? /^(tokyo-night|tokyo-storm|mocha|nord|dracula)$/.test(p) : /^(latte|tokyo-day|rose-dawn|solarized-light)$/.test(p)) root.dataset.palette = p;
         var f = localStorage.getItem('my-calendar:font');
-        if (/^(gowun-dodum|gowun-batang|jua|noto-sans-kr)$/.test(f)) {
+        if (/^(gowun-dodum|gowun-batang|jua|noto-sans-kr|ibm-plex-sans-kr|hahmlet|gaegu|nanum-pen-script)$/.test(f)) {
           root.dataset.font = f;
           document.write('<link rel="stylesheet" id="font-css-' + f + '" href="' + root.dataset.fontBase + f + '/font.css">');
         }

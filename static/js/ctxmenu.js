@@ -18,6 +18,7 @@ const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 
 let menu = null;
 let returnFocus = null;
+let pendingChoice = null; // chooseAt()이 기다리는 중이면 그 resolve (메뉴가 그냥 닫히면 null로)
 
 const isOpen = () => Boolean(menu && (menu.matches?.(':popover-open') || menu.classList.contains('is-open')));
 
@@ -25,7 +26,15 @@ function hide({ restoreFocus = true } = {}) {
   if (!isOpen()) return;
   if (menu.matches?.(':popover-open')) menu.hidePopover();
   menu.classList.remove('is-open');
+  menu.classList.remove('is-choice');
   if (restoreFocus) returnFocus?.focus?.({ preventScroll: true });
+  settle(null);
+}
+
+function settle(value) {
+  const done = pendingChoice;
+  pendingChoice = null;
+  done?.(value);
 }
 
 function setup() {
@@ -40,6 +49,11 @@ function setup() {
     else if (e.key === 'Home') go(0);
     else if (e.key === 'End') go(items.length - 1);
     else if (e.key === 'Tab') { e.preventDefault(); hide(); }
+    else if (!e.metaKey && !e.ctrlKey && !e.altKey && e.code) {
+      // 고르기 메뉴의 글자 단축키 (예: 놓기 메뉴의 C = 복사). 키 자리(code)로 보니 한글 자판이어도 된다
+      const hit = menu.querySelector(`.ctx-item[data-key="${e.code}"]`);
+      if (hit) { e.preventDefault(); hit.click(); }
+    }
   });
   // Esc, 바깥 누르기, 스크롤, 창 크기 바뀜 → 닫기
   document.addEventListener('keydown', (e) => {
@@ -96,4 +110,48 @@ export function openMenu(event, items, { title = '' } = {}) {
   menu.style.top = `${Math.max(8, y + height > window.innerHeight - 8 ? y - height : y)}px`;
   menu.querySelector('.ctx-item')?.focus({ preventScroll: true });
   return true;
+}
+
+/**
+ * 그 자리에 작은 고르기 메뉴를 띄우고, 고른 값을 돌려준다 (0.15.0: 일정을 끌어다 놓은 뒤 '옮기기 / 복사 / 취소').
+ * Esc, 바깥 누르기, 스크롤, 창 크기 바뀜 → null. Enter는 맨 위(포커스된) 것을 고른다.
+ * @param {number} x
+ * @param {number} y
+ * @param {{title?: string, choices: {label: string, value: any, key?: string, hint?: string, danger?: boolean}[]}} o
+ *        key: 키 자리 이름(KeyboardEvent.code, 예: 'KeyC')
+ * @returns {Promise<any>}
+ */
+export function chooseAt(x, y, { title = '', choices }) {
+  setup();
+  hide({ restoreFocus: false });
+  returnFocus = document.activeElement;
+  return new Promise((resolve) => {
+    pendingChoice = resolve;
+    menu.replaceChildren(
+      title ? el('p', { class: 'ctx-title' }, title) : null,
+      ...choices.map((c) => el('button', {
+        type: 'button', role: 'menuitem', class: c.danger ? 'ctx-item danger' : 'ctx-item', dataset: c.key ? { key: c.key } : {},
+        onclick: () => {
+          const done = pendingChoice;
+          pendingChoice = null;
+          hide({ restoreFocus: true });
+          done?.(c.value);
+        },
+      }, c.label, c.hint ? el('span', { class: 'ctx-hint' }, c.hint) : null)),
+    );
+    const host = topLayerHost();
+    if (menu.parentElement !== host) host.append(menu);
+    menu.classList.add('is-choice');
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    if (menu.showPopover) menu.showPopover();
+    else menu.classList.add('is-open');
+    const { width, height } = menu.getBoundingClientRect();
+    // 손가락(마우스) 바로 오른쪽 아래. 화면 밖으로 나가면 반대쪽으로
+    const left = x + 6 + width > window.innerWidth - 8 ? x - width - 6 : x + 6;
+    const top = y + 6 + height > window.innerHeight - 8 ? y - height - 6 : y + 6;
+    menu.style.left = `${Math.max(8, left)}px`;
+    menu.style.top = `${Math.max(8, top)}px`;
+    menu.querySelector('.ctx-item')?.focus({ preventScroll: true });
+  });
 }

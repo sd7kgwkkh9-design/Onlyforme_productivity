@@ -11,7 +11,7 @@
 import { api } from './api.js';
 import { makeSortable } from './reorder.js';
 import { timeSelect } from './timepicker.js';
-import { ask, el, formatLong, formatShort, formatTimeRange, icon, lastDoneLabel, todayStr, toast } from './utils.js';
+import { ask, dragToCalendar, el, formatLong, formatShort, formatTimeRange, icon, lastDoneLabel, todayStr, toast } from './utils.js';
 
 // 루틴 이모지 고르기 칸에 보여 줄 것들 (이 밖의 이모지는 '직접' 칸에 키보드로 넣으면 된다)
 const EMOJI_CHOICES = [
@@ -52,13 +52,13 @@ export function routineBar({ date, routines, onPick, onEdit }) {
 }
 
 // ---------------------------------------------------------------- 하루 화면: 그날의 루틴 기록
-export function routineSection({ date, logs, onOpen, onMenu = null }) {
+export function routineSection({ date, logs, onOpen, onMenu = null, toCalendar = false }) {
   return el('section', { class: 'routine-day', 'aria-label': '루틴 기록' },
     el('h3', { class: 'routine-day-title' }, date === todayStr() ? '오늘의 루틴' : '이 날의 루틴'),
     el('ul', { class: 'routine-logs' },
       logs.map((l) => {
         const time = formatTimeRange(l.start_time, l.end_time);
-        return el('li', { oncontextmenu: onMenu ? (e) => onMenu(e, l) : null },
+        const li = el('li', { oncontextmenu: onMenu ? (e) => onMenu(e, l) : null },
           el('button', { type: 'button', class: 'routine-log', onclick: () => onOpen(l) },
             el('span', { class: 'routine-log-emoji', 'aria-hidden': 'true' }, l.routine.emoji),
             el('span', { class: 'routine-log-main' },
@@ -67,6 +67,8 @@ export function routineSection({ date, logs, onOpen, onMenu = null }) {
             ),
             time ? el('span', { class: 'routine-log-time' }, time) : null,
           ));
+        // 0.15.0: 오른쪽 칸에서는 달력의 다른 날짜로 끌어다 놓을 수 있다
+        return toCalendar ? dragToCalendar(li, { type: 'log', log: l }, `${l.routine.emoji} ${l.routine.name}`) : li;
       }),
     ),
   );
