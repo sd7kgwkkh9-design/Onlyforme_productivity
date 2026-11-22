@@ -215,7 +215,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   overflow: hidden;
 }
 .view-switch { background: var(--seg-bg); }
-.view-switch .seg-btn { height: 32px; padding: 0 calc(14px * var(--fs)); font-size: calc(14px * var(--fs)); }
+.view-switch .seg-btn { height: 32px; padding: 0 calc(14px * var(--fs)); font-size: calc(14px * var(--fs)); white-space: nowrap; }
 @media (hover: hover) { .seg-btn:hover:not([aria-pressed="true"]) { color: var(--ink); } }
 
 .sr-only {
@@ -854,14 +854,12 @@ body.gate {
 
 /* 글꼴 고르기: <html data-font="...">에 따라 --font만 바꾼다 (글꼴에 없는 글자는 Pretendard로) */
 :root { --font-fallback: 'Pretendard Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif; }
-:root[data-font="gowun-dodum"]  { --font: 'Gowun Dodum', var(--font-fallback); }
-:root[data-font="gowun-batang"] { --font: 'Gowun Batang', var(--font-fallback); }
-:root[data-font="jua"]          { --font: 'Jua', var(--font-fallback); }
-:root[data-font="noto-sans-kr"] { --font: 'Noto Sans KR Variable', var(--font-fallback); }
-:root[data-font="ibm-plex-sans-kr"] { --font: 'IBM Plex Sans KR', var(--font-fallback); }   /* 0.15.0 */
-:root[data-font="hahmlet"]          { --font: 'Hahmlet Variable', var(--font-fallback); }
-:root[data-font="gaegu"]            { --font: 'Gaegu', var(--font-fallback); }
-:root[data-font="nanum-pen-script"] { --font: 'Nanum Pen Script', var(--font-fallback); }
+:root[data-font="suit"]               { --font: 'SUIT Variable', var(--font-fallback); }   /* 0.15.1 */
+:root[data-font="wanted-sans"]        { --font: 'Wanted Sans Variable', var(--font-fallback); }
+:root[data-font="spoqa-han-sans-neo"] { --font: 'Spoqa Han Sans Neo', var(--font-fallback); }
+:root[data-font="nanum-square-round"] { --font: 'NanumSquareRound', var(--font-fallback); }
+:root[data-font="jua"]                { --font: 'Jua', var(--font-fallback); }
+:root[data-font="do-hyeon"]           { --font: 'Do Hyeon', var(--font-fallback); }
 
 /* 시연용(--demo) 안내 띠 */
 .demo-banner {
@@ -1392,7 +1390,8 @@ dialog.quick[open] { animation: sheet-in .16s ease-out; }
 /* 아주 좁은 휴대폰(360px 안팎): 상단 버튼 글자가 두 줄로 꺾이지 않게 */
 @media (max-width: 380px) {
   .actions .text-btn { font-size: calc(13px * var(--fs)); padding: 0 calc(6px * var(--fs)); gap: calc(4px * var(--fs)); }
-  .view-switch .seg-btn { padding: 0 calc(8px * var(--fs)); font-size: calc(13px * var(--fs)); }
+  /* 0.15.1: 폭이 넓은 글꼴(스포카·나눔스퀘어라운드)에서도 '이번 주'가 한 줄에 들어가게 */
+  .view-switch .seg-btn { padding: 0 calc(6px * var(--fs)); font-size: calc(13px * var(--fs)); }
 }
 
 /* ==========================================================================
@@ -2340,10 +2339,9 @@ textarea.diary-text {
   min-height: 44dvh; resize: vertical; padding: calc(12px * var(--fs)) calc(14px * var(--fs));
   font-size: calc(15px * var(--fs)); line-height: 1.75; field-sizing: content;
 }
-.diary-status { margin: 0; min-height: 1.2em; font-size: calc(12px * var(--fs)); color: var(--muted); }
+.diary-status { flex: 1; min-width: 0; margin: 0; padding: 0 calc(4px * var(--fs)); text-align: right; font-size: calc(12px * var(--fs)); color: var(--muted); font-variant-numeric: tabular-nums; }
 .diary-status.is-error { color: var(--danger); }
 .diary-foot { display: flex; align-items: center; gap: calc(6px * var(--fs)); width: 100%; }
-.diary-foot .spacer { flex: 1; }
 .diary-empty { display: grid; gap: calc(8px * var(--fs)); justify-items: center; text-align: center; padding: calc(24px * var(--fs)) 0; }
 .diary-empty .muted { margin: 0; max-width: 32em; font-size: calc(13px * var(--fs)); color: var(--muted); line-height: 1.6; }
 .diary-list { display: grid; gap: calc(18px * var(--fs)); }

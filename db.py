@@ -34,6 +34,10 @@ diaries               : 일기 — 날짜마다 하나(쓰고 싶은 날만). �
 
 meta        : 변경 번호(version) — 일정·카테고리·루틴·메모가 바뀔 때마다 1씩 커진다.
               다른 기기는 이 번호만 가끔 확인해서, 바뀌었을 때만 새로 불러온다 (기기 간 동기화).
+              그 밖의 한 번만 하는 일 표시: about_seeded('나' 기본 칸), kst_shift(예전 시각 고치기, 0.15.1)
+
+시각(created_at·updated_at·done_at …)은 모두 한국 시간 'YYYY-MM-DD HH:MM:SS' 글자로 적는다.
+SQLite의 datetime('now', 'localtime')은 '서버 컴퓨터의 시간대'를 따르므로, 서버가 켜질 때 시간대를 한국으로 맞춘다 (use_korea_time, 0.15.1).
 
 item_dates에 줄이 하나도 없는 일정 = 메모장의 "할 일"이다 (0.8까지는 '기한 미정'이라고 불렀다).
 할 일은 체크하면 done_at에 완료 시각이 들어가고, 날짜를 정해 주면 그대로 달력의 일정이 된다.
@@ -41,7 +45,9 @@ item_dates에 줄이 하나도 없는 일정 = 메모장의 "할 일"이다 (0.8
 """
 
 import json
+import os
 import sqlite3
+import time
 
 from flask import current_app, g
 
@@ -418,13 +424,68 @@ def seed_about(conn):
     conn.execute("INSERT INTO meta (key, value) VALUES ('about_seeded', 1)")
 
 
-def init_db(path):
+# ---------------------------------------------------------------- 한국 시간 (0.15.1)
+KST_OFFSET = 9 * 3600  # 한국은 UTC보다 9시간 빠르다 (서머타임 없음)
+TIME_COLUMNS = ("created_at", "updated_at", "done_at", "last_used_at")
+ALREADY_KST = {("links", "last_used_at")}  # 처음부터 파이썬에서 한국 시간을 계산해 적던 칸 (links.py)
+
+
+def use_korea_time():
+    """
+    이 서버 프로그램의 시간대를 한국 시간으로 맞춘다.
+    PythonAnywhere 서버 컴퓨터는 영국 시간(UTC)이라, datetime('now', 'localtime')으로 적은 일기 저장 시각이 9시간 늦게 보였다.
+    표를 만들 때 정해 둔 기본값(DEFAULT)도 같은 함수를 쓰므로, 표를 고치지 않고 시간대 하나만 바꾸면 모든 곳이 한 번에 고쳐진다.
+    돌려주는 값: 바꾸기 전 서버 시간대가 UTC보다 몇 초 빨랐는지 (예전 기록을 고칠 때 쓴다)
+    """
+    before = time.localtime().tm_gmtoff
+    if hasattr(time, "tzset"):  # 윈도우에는 tzset이 없다 → 윈도우 PC는 그 PC의 시간대를 그대로 쓴다
+        os.environ["TZ"] = "KST-9"  # POSIX 표기: 이름은 KST, UTC보다 9시간 빠름 (시간대 파일이 없어도 된다)
+        time.tzset()
+    return before
+
+
+def shift_times(conn, seconds, tables=None):
+    """시각 칸들을 seconds초만큼 옮긴다. 시각 모양이 아닌 값은 건드리지 않는다."""
+    if not seconds:
+        return
+    if tables is None:
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+    for table in tables:
+        for col in sorted(column_names(conn, table) & set(TIME_COLUMNS)):
+            if (table, col) in ALREADY_KST:
+                continue
+            conn.execute(
+                f"UPDATE {table} SET {col} = datetime({col}, ?) WHERE datetime({col}) IS NOT NULL",
+                (f"{seconds:+d} seconds",),
+            )
+
+
+def fix_old_times(conn, server_offset):
+    """
+    0.15.0까지 서버 시간대로 적힌 시각을 한국 시간으로 한 번만 옮긴다.
+    PythonAnywhere(UTC)면 +9시간, 맥(이미 한국 시간)이면 그대로. 옮긴 양은 meta의 kst_shift에 남긴다
+    (예전 버전에서 받은 백업 파일을 되살릴 때도 같은 만큼 옮기기 위해).
+    서버 일꾼(프로세스)이 여럿이어도 INSERT OR IGNORE가 먼저 성공한 하나만 옮긴다.
+    """
+    shift = KST_OFFSET - server_offset
+    claimed = conn.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('kst_shift', ?)", (shift,)).rowcount
+    if claimed:
+        shift_times(conn, shift)
+
+
+def kst_shift(conn):
+    row = conn.execute("SELECT value FROM meta WHERE key = 'kst_shift'").fetchone()
+    return row[0] if row else 0
+
+
+def init_db(path, server_offset=KST_OFFSET):
     """테이블이 없으면 만들고, 기본 카테고리 '미분류'가 없으면 넣는다."""
     conn = connect(path)
     try:
         conn.executescript(SCHEMA)
         migrate(conn)
         seed_about(conn)
+        fix_old_times(conn, server_offset)
         conn.execute(
             """
             INSERT INTO categories (name, color, is_default)

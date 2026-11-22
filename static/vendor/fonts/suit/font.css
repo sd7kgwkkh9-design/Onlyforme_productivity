@@ -1,0 +1,8 @@
+/* SUIT 2.0.5 (sun-typeface) — 가변 글꼴 원본 그대로 (SIL Open Font License 1.1, LICENSE 참고) */
+@font-face {
+  font-family: 'SUIT Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(./files/SUIT-Variable.woff2) format('woff2');
+}

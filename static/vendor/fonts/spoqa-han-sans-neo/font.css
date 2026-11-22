@@ -1,0 +1,22 @@
+/* 스포카 한 산스 Neo 3.3.0 (Spoqa) — 작가가 만든 Subset 판 원본 그대로 (SIL Open Font License 1.1, LICENSE 참고) */
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./files/SpoqaHanSansNeo-Regular.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(./files/SpoqaHanSansNeo-Medium.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Spoqa Han Sans Neo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./files/SpoqaHanSansNeo-Bold.woff2) format('woff2');
+}

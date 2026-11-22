@@ -30,17 +30,15 @@ const THEMES = [
 const VEILS = [['soft', '은은하게'], ['mid', '보통'], ['strong', '진하게']];
 
 // 글꼴: [키, 메뉴 이름, CSS font-family]. Pretendard 외에는 고를 때 그 글꼴 파일만 불러온다.
+// 0.15.1: 명조·손글씨·밋밋한 고딕 7개를 빼고, 요즘 앱 느낌의 고딕 3개 + 둥근 글꼴 + 주아의 형제(도현)로 바꿨다
 const FONTS = [
   ['pretendard', 'Pretendard (기본)', "'Pretendard Variable'"],
-  ['gowun-dodum', '고운돋움', "'Gowun Dodum'"],
-  ['gowun-batang', '고운바탕', "'Gowun Batang'"],
+  ['suit', 'SUIT', "'SUIT Variable'"],
+  ['wanted-sans', 'Wanted Sans', "'Wanted Sans Variable'"],
+  ['spoqa-han-sans-neo', '스포카 한 산스 Neo', "'Spoqa Han Sans Neo'"],
+  ['nanum-square-round', '나눔스퀘어라운드', "'NanumSquareRound'"],
   ['jua', '주아', "'Jua'"],
-  ['noto-sans-kr', 'Noto Sans KR', "'Noto Sans KR Variable'"],
-  // 0.15.0: 4개 더 — 또렷한 고딕, 세련된 명조, 동글동글 손글씨, 펜으로 쓴 다이어리
-  ['ibm-plex-sans-kr', 'IBM Plex Sans KR', "'IBM Plex Sans KR'"],
-  ['hahmlet', '함렛', "'Hahmlet Variable'"],
-  ['gaegu', '개구', "'Gaegu'"],
-  ['nanum-pen-script', '나눔손글씨 펜', "'Nanum Pen Script'"],
+  ['do-hyeon', '도현', "'Do Hyeon'"],
 ];
 
 // 글자 크기: [값(%), 이름]
@@ -376,6 +374,7 @@ export function initSettings({
   for (const key of ['my-calendar:color', 'my-calendar:color-custom', 'my-calendar:weekly-card', 'my-calendar:weekly-seen']) {
     try { localStorage.removeItem(key); } catch { /* 무시 */ }
   }
+  save(FONT_KEY, font, 'pretendard'); // 0.15.1에서 뺀 글꼴을 고른 기기는 기본(Pretendard)으로 돌아간다
   applyFont();
   if (size !== '100') document.documentElement.dataset.fs = size; // _head.html이 이미 적용했지만 혹시 몰라서
 

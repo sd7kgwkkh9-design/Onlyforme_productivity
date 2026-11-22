@@ -48,7 +48,7 @@ APP_SHORT_NAME = "Onlyforme"   # 휴대폰 홈 화면 아이콘 아래 이름 (�
 
 # 버전 (유의적 버전 MAJOR.MINOR.PATCH) — ⚙ 설정 메뉴 맨 아래에 보인다.
 # 새 기능을 넣으면 가운데 숫자(0.9.0 → 0.10.0), 고치기만 했으면 끝 숫자(0.9.0 → 0.9.1)를 올린다.
-APP_VERSION = "0.15.0"
+APP_VERSION = "0.15.1"
 
 KST = ZoneInfo("Asia/Seoul")  # 첫 화면에 실어 보낼 '오늘' (서버 시계는 한국이 아닐 수 있다)
 
@@ -83,7 +83,8 @@ def create_app(database_path=None, production=False, demo_mode=False):
         # 서버 앞단(프록시)을 거쳐 들어오므로, 실제 접속한 기기의 IP와 https 여부를 헤더에서 읽는다.
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
-    db.init_db(database_path)
+    # 서버 시간대를 한국으로 (0.15.1) — 바꾸기 전 시간대를 알려 줘서 예전 기록을 한 번 고치게 한다
+    db.init_db(database_path, server_offset=db.use_korea_time())
     app.teardown_appcontext(db.close_db)
     assets = Assets(app)  # 지문 붙은 주소(오래 저장) + 압축 — assets.py
     auth.init_auth(app, data_dir, production)

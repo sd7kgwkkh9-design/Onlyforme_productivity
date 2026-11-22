@@ -1,0 +1,22 @@
+/* 나눔스퀘어라운드 (NAVER, typeface-nanum-square-round 1.0.2 배포본) — 원본 그대로 (SIL Open Font License 1.1, LICENSE 참고) */
+@font-face {
+  font-family: 'NanumSquareRound';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./files/NanumSquareRoundR.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'NanumSquareRound';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./files/NanumSquareRoundB.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'NanumSquareRound';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 800;
+  src: url(./files/NanumSquareRoundEB.woff2) format('woff2');
+}

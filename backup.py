@@ -11,6 +11,7 @@
 - 들어가는 것: 일정·할 일, 카테고리, 루틴·루틴 기록, 노트, 목표, 스티커, 습관, 시간표, 기념일, 프로젝트, 일기, 메모장의 '나'·'살 것'(0.14.2)
 - 들어가지 않는 것: 비밀번호·PIN(auth.json), 패스키, 공유 링크·구독 주소(links) — 열쇠 같은 것들이라 파일로 돌아다니면 안 된다.
 - 예전 버전에서 받은 파일도 되살릴 수 있다 (파일에 없는 칸은 기본값, 없는 표는 비운다 — '나'·'살 것'만은 지금 것을 그대로 둔다). 모르는 칸은 버린다.
+- 0.15.0까지 받은 파일의 시각은 서버 시간대로 적혀 있어서, 되살릴 때 한국 시간으로 옮긴다 (0.15.1)
 """
 
 import json
@@ -27,7 +28,9 @@ from db import (
     DEFAULT_CATEGORY_NAME,
     column_names,
     get_db,
+    kst_shift,
     migrate,
+    shift_times,
 )
 
 FORMAT = 1
@@ -51,6 +54,7 @@ def export_data(db):
         "format": FORMAT,
         "version": APP_VERSION,
         "exported_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S"),
+        "times": "kst",   # 0.15.1부터: 안의 시각이 모두 한국 시간이라는 표시
         "tables": {t: [dict(r) for r in db.execute(f"SELECT * FROM {t}")] for t in TABLES},
     }
 
@@ -133,6 +137,9 @@ def restore_backup():
             "INSERT INTO categories (name, color, is_default) SELECT ?, ?, 1 WHERE NOT EXISTS (SELECT 1 FROM categories WHERE is_default = 1)",
             (DEFAULT_CATEGORY_NAME, DEFAULT_CATEGORY_COLOR),
         )
+        # 0.15.0까지 받은 파일은 시각이 서버 시간대(PythonAnywhere는 UTC)로 적혀 있다 → 이 서버가 예전 기록을 옮긴 만큼 똑같이 옮긴다
+        if data.get("times") != "kst":
+            shift_times(db, kst_shift(db), [t for t in TABLES if t in tables])
         broken = db.execute("PRAGMA foreign_key_check").fetchall()
         if broken:
             raise ApiError(f"백업 파일 안의 연결이 맞지 않아요. ({broken[0][0]}) 지금 데이터는 그대로예요.")

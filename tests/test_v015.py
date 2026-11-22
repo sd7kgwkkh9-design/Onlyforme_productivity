@@ -62,18 +62,7 @@ def test_drop_choice_menu_and_pane_drag():
     assert "if (fromHandle) { e.preventDefault(); return; }" in utils       # ≡ 손잡이(순서 바꾸기)는 끌지 않는다
 
 
-# ================================================================ 글꼴 · 띠 · 윈도우
-def test_new_fonts_are_wired():
-    settings = read("static", "js", "settings.js")
-    head = read("templates", "_head.html")
-    css = read("static", "css", "style.css")
-    for key in ("ibm-plex-sans-kr", "hahmlet", "gaegu", "nanum-pen-script"):
-        assert f"['{key}'," in settings and key in head and f':root[data-font="{key}"]' in css
-        font_css = read("static", "vendor", "fonts", key, "font.css")
-        assert ".woff)" not in font_css and "OFL" in read("static", "vendor", "fonts", key, "LICENSE") + font_css
-    assert "size-adjust: 130%" in read("static", "vendor", "fonts", "nanum-pen-script", "font.css")   # 작게 보이는 손글씨는 키운다
-
-
+# ================================================================ 띠 · 윈도우
 def test_year_goal_chip_looks_different_from_ddays():
     strip = read("static", "js", "strip.js")
     assert "`${year.year} 목표`" in strip

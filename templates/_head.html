@@ -15,7 +15,7 @@
         var p = localStorage.getItem(dark ? 'my-calendar:theme-dark' : 'my-calendar:theme-light');
         if (dark ? /^(tokyo-night|tokyo-storm|mocha|nord|dracula)$/.test(p) : /^(latte|tokyo-day|rose-dawn|solarized-light)$/.test(p)) root.dataset.palette = p;
         var f = localStorage.getItem('my-calendar:font');
-        if (/^(gowun-dodum|gowun-batang|jua|noto-sans-kr|ibm-plex-sans-kr|hahmlet|gaegu|nanum-pen-script)$/.test(f)) {
+        if (/^(suit|wanted-sans|spoqa-han-sans-neo|nanum-square-round|jua|do-hyeon)$/.test(f)) {   // 0.15.1에서 뺀 글꼴이면 Pretendard 그대로
           root.dataset.font = f;
           document.write('<link rel="stylesheet" id="font-css-' + f + '" href="' + root.dataset.fontBase + f + '/font.css">');
         }
@@ -44,7 +44,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
   <!-- 오픈소스 글꼴: Pretendard (기본, SIL OFL 1.1) — 필요한 글자 조각만 내려받는 방식이라 가볍다.
-       다른 글꼴(고운돋움·고운바탕·주아·Noto Sans KR)은 ⚙ 설정에서 고를 때만 불러온다. -->
+       다른 글꼴(SUIT·Wanted Sans·스포카 한 산스 Neo·나눔스퀘어라운드·주아·도현)은 ⚙ 설정에서 고를 때만 불러온다. -->
   <!-- asset_url: 파일 내용의 지문(?v=…)을 붙인 주소 → 브라우저가 오래 저장해 두고 다시 묻지 않는다 (assets.py) -->
   <link rel="stylesheet" href="{{ asset_url('vendor/pretendard/pretendard.css') }}">
   <link rel="stylesheet" href="{{ asset_url('css/style.css') }}">

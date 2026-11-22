@@ -116,12 +116,12 @@ export function diaryEditor({ date, onChanged, returnTo = 'day', onBack = null }
     sheet.setBody(
       el('div', { class: 'diary-editor' },
         el('div', { class: 'diary-mood-row' }, el('span', { class: 'label' }, '기분'), moods),
-        textarea,
-        statusEl));
+        textarea));
+    // 저장 상태는 아래 버튼 줄에 (0.15.1) — 글 상자 밑에 두었더니 화면이 낮으면 스크롤해야 보였다
     sheet.setFoot(
       el('div', { class: 'diary-foot' },
         had ? el('button', { type: 'button', class: 'btn ghost danger', onclick: () => remove(sheet) }, '지우기') : null,
-        el('span', { class: 'spacer' }),
+        statusEl,
         el('button', { type: 'button', class: 'btn primary', onclick: () => sheet.goBack() }, '완료')));
     document.addEventListener('visibilitychange', onHide);
     if (!entry.body) setTimeout(() => textarea?.focus());
