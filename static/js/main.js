@@ -98,7 +98,7 @@ const weekBtn = $('btn-view-week');
 const ttBtn = $('btn-view-timetable');
 const ttEl = $('timetable');
 const paneHost = $('pane-day');
-const APP_NAME = document.body.dataset.appName || '오직 나를 위한 캘린더';
+const APP_NAME = document.body.dataset.appName || '나를 위한 캘린더';
 const COPY_PLACEHOLDER = 'copy-placeholder'; // Option 끌기로 복사하는 동안 놓은 칸에 잠깐 보여 주는 일정의 id
 // 이 기기의 잠금 설정 (0.13.0, index.html의 data-lock — lock.py의 client_settings). 설정 창에서 바꾸면 'lock-config' 이벤트로 알려 준다
 const lockConfig = (() => { try { return JSON.parse(document.body.dataset.lock || '{}'); } catch { return {}; } })();
@@ -541,16 +541,39 @@ safely('주 넘기기', () => attachEdgePager(weekEl, {
 
 // ============================================================ 4. 보기 전환과 이동
 
+// 보기 버튼(월간·이번 주·시간표) 밑의 흰 받침이 누른 쪽으로 미끄러진다 (0.15.2, 아이폰 세그먼트 컨트롤처럼)
+// 받침은 버튼과 따로 있는 칸 하나다. 글꼴·글자 크기가 바뀌어 버튼 폭이 달라지면 ResizeObserver가 다시 맞춘다 (처음 한 번만 애니메이션 없이).
+const viewSwitch = document.querySelector('.view-switch');
+const viewThumb = viewSwitch && el('span', { class: 'seg-thumb', 'aria-hidden': 'true' });
+let thumbPlaced = false;
+function moveViewThumb() {
+  const on = viewSwitch?.querySelector('.seg-btn[aria-pressed="true"]');
+  if (!on || !on.offsetWidth) return;
+  viewThumb.classList.toggle('is-still', !thumbPlaced);
+  viewThumb.style.setProperty('--x', `${on.offsetLeft}px`);
+  viewThumb.style.setProperty('--y', `${on.offsetTop}px`);
+  viewThumb.style.setProperty('--w', `${on.offsetWidth}px`);
+  viewThumb.style.setProperty('--h', `${on.offsetHeight}px`);
+  thumbPlaced = true;
+}
+if (viewSwitch) {
+  viewSwitch.append(viewThumb);   // 맨 뒤에 둔다 (버튼 순서·:first-child 같은 규칙을 흐트러뜨리지 않게, 겹침 순서는 z-index로)
+  viewSwitch.classList.add('has-thumb');
+  new ResizeObserver(() => moveViewThumb()).observe(viewSwitch);
+}
+
 // 화면이 바뀌는 순간을 부드럽게 (View Transitions API: 크롬 111+, 사파리 18+. 없으면 그냥 바꾼다)
 // 바뀐 화면이 그려질 때까지 기다리되, 오래 걸리면(서버가 느리면) 0.15초만 기다리고 넘어간다
 // (전환하는 동안에는 화면이 멈춰 있으므로 오래 붙잡지 않는다)
 function smoothly(change) {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!document.startViewTransition || reduce) { change(); return; }
-  document.startViewTransition(() => Promise.race([
+  const transition = document.startViewTransition(() => Promise.race([
     Promise.resolve(change()),
     new Promise((resolve) => { setTimeout(resolve, 150); }),
   ]));
+  // 브라우저가 전환을 건너뛰면(창 크기가 바뀌는 중 등) ready가 거절된다 — 화면은 이미 바뀌었으니 조용히 넘어간다 (0.15.2)
+  transition.ready.catch(() => {});
 }
 
 function setView(view) {
@@ -635,6 +658,8 @@ function updateHeader() {
   monthBtn?.setAttribute('aria-pressed', String(state.view === 'month'));
   weekBtn?.setAttribute('aria-pressed', String(isWeek));
   ttBtn?.setAttribute('aria-pressed', String(state.view === 'timetable'));
+  // 화면 전환(View Transition) 도중에 크기를 재면 휴대폰에서 전환이 취소됐다 → 다음 프레임에 잰다
+  requestAnimationFrame(moveViewThumb);
   if (layoutBtn) layoutBtn.hidden = !isWeek;
   document.body.dataset.view = state.view;
   syncUrl();

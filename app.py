@@ -1,5 +1,5 @@
 """
-오직 나를 위한 캘린더 — 실행 파일
+나를 위한 캘린더 — 실행 파일
 
 내 컴퓨터에서 실행:
     python app.py                 # http://127.0.0.1:8000 에서 실행
@@ -43,12 +43,12 @@ from assets import Assets
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 앱 이름 (화면 곳곳에 쓰인다. 홈 화면 아이콘 아래 이름은 static/manifest.webmanifest에도 있다)
-APP_NAME = "오직 나를 위한 캘린더"
+APP_NAME = "나를 위한 캘린더"   # 0.15.2: '오직'을 뺐다 (이전: 오직 나를 위한 캘린더)
 APP_SHORT_NAME = "Onlyforme"   # 휴대폰 홈 화면 아이콘 아래 이름 (긴 이름은 잘려서 짧게)
 
 # 버전 (유의적 버전 MAJOR.MINOR.PATCH) — ⚙ 설정 메뉴 맨 아래에 보인다.
 # 새 기능을 넣으면 가운데 숫자(0.9.0 → 0.10.0), 고치기만 했으면 끝 숫자(0.9.0 → 0.9.1)를 올린다.
-APP_VERSION = "0.15.1"
+APP_VERSION = "0.15.2"
 
 KST = ZoneInfo("Asia/Seoul")  # 첫 화면에 실어 보낼 '오늘' (서버 시계는 한국이 아닐 수 있다)
 

@@ -238,6 +238,8 @@ export const api = {
   deleteDiary: (date) => request('DELETE', `/api/diaries/${date}`),
   search: (text, today) => request('GET', `/api/search?${q({ q: text, today })}`),
   restoreBackup: (data) => request('POST', '/api/backup/restore', data),
+  autoBackups: () => request('GET', '/api/backup/auto'),                       // 0.15.2: 서버가 하루 한 번 만드는 자동 백업 목록
+  autoBackup: (name) => request('GET', `/api/backup/auto/${encodeURIComponent(name)}`),
 
   // 0.14.2: 메모장의 '나' (about.py)
   about: () => request('GET', '/api/about'),

@@ -162,7 +162,7 @@ def test_app_name_version_and_settings_menu(tmp_path):
 
     c = make_client(tmp_path)
     html = c.get("/").get_data(as_text=True)
-    assert "<title>오직 나를 위한 캘린더</title>" in html
+    assert "<title>나를 위한 캘린더</title>" in html
     assert 'content="Onlyforme"' in html              # 홈 화면 아이콘 아래 이름 (아이폰은 긴 이름이 잘려서 짧게)
     assert f'data-version="{APP_VERSION}"' in html     # ⚙ 설정 메뉴 맨 아래에 보이는 버전
     assert 'id="settings-menu"' in html and 'id="btn-settings"' in html
@@ -171,14 +171,14 @@ def test_app_name_version_and_settings_menu(tmp_path):
 
     manifest = c.get("/static/manifest.webmanifest").get_json()
     assert manifest["short_name"] == "Onlyforme"
-    assert manifest["name"] == "오직 나를 위한 캘린더"
+    assert manifest["name"] == "나를 위한 캘린더"
     major, minor, patch = (int(x) for x in APP_VERSION.split("."))  # 유의적 버전 MAJOR.MINOR.PATCH
 
 
 def test_login_page_shows_app_name(tmp_path):
     c = make_client(tmp_path, password="secret1")
     html = c.get("/login").get_data(as_text=True)
-    assert "오직 나를 위한 캘린더" in html and "일정 관리의 종결" not in html
+    assert "나를 위한 캘린더" in html and "오직 나를" not in html and "일정 관리의 종결" not in html
 
 
 def test_font_files_are_served(client):

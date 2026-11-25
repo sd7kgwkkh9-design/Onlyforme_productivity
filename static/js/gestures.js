@@ -68,9 +68,9 @@ export function slideIn(element, direction) {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   element.animate(
     [
-      { transform: `translateX(${direction * 32}px)`, opacity: 0 },
+      { transform: `translateX(${direction * 28}px)`, opacity: 0 },
       { transform: 'none', opacity: 1 },
     ],
-    { duration: 220, easing: 'cubic-bezier(.2,.7,.3,1)' },
+    { duration: 300, easing: 'cubic-bezier(.22, 1, .36, 1)' },   // 0.15.2: 끝이 더 부드럽게 멈추는 곡선 (style.css의 --ease-out)
   );
 }

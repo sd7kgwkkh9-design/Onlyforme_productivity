@@ -7,6 +7,13 @@
   GET  /api/backup                파일 내려받기: my-calendar-backup-YYYY-MM-DD.json
   POST /api/backup/restore        파일 내용(JSON)으로 지금 데이터를 통째로 바꾼다.
                                   바꾸기 전에 지금 데이터를 instance/backups/에 자동으로 한 벌 남겨 둔다 (최근 5개).
+  GET  /api/backup/auto           서버에 남아 있는 자동 백업 목록 + 마지막으로 내려받은 때 (0.15.2)
+  GET  /api/backup/auto/<이름>    그 자동 백업 파일 내려받기
+
+자동 백업 (0.15.2): 그날 처음 캘린더를 쓸 때(성공한 /api 요청 뒤) 서버가 스스로 instance/backups/auto-YYYY-MM-DD.json을 만든다.
+  PythonAnywhere 무료 계정에는 '매일 몇 시에 실행' 같은 예약 작업을 마음대로 쓰기 어려워서, '그날 첫 사용'을 신호로 삼았다.
+  최근 KEEP_DAILY개는 날마다, 그보다 오래된 것은 주마다 가장 늦은 것 하나씩 KEEP_WEEKLY주까지 남긴다 (대략 두 달 반).
+  서버 일꾼이 여럿이어도 같은 날 파일은 하나만 생긴다 (O_EXCL: 이미 있으면 만들지 않는다).
 
 - 들어가는 것: 일정·할 일, 카테고리, 루틴·루틴 기록, 노트, 목표, 스티커, 습관, 시간표, 기념일, 프로젝트, 일기, 메모장의 '나'·'살 것'(0.14.2)
 - 들어가지 않는 것: 비밀번호·PIN(auth.json), 패스키, 공유 링크·구독 주소(links) — 열쇠 같은 것들이라 파일로 돌아다니면 안 된다.
@@ -16,10 +23,11 @@
 
 import json
 import os
+import re
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 
-from flask import Response, current_app, jsonify, request
+from flask import Response, current_app, jsonify, request, send_file
 
 from api import ApiError, bp
 from api_plans import KST
@@ -45,6 +53,11 @@ TABLES = [
 KEEP_IF_MISSING = {"about_sections", "wishlist"}
 MAX_BYTES = 20 * 1024 * 1024   # 20MB (일기·노트를 아주 많이 써도 넉넉하다)
 KEEP_SAFETY = 5
+KEEP_DAILY = 14    # 자동 백업: 최근 14개는 날마다
+KEEP_WEEKLY = 8    #            그 전은 주마다 하나씩 8주
+AUTO_NAME = re.compile(r"^auto-(\d{4}-\d{2}-\d{2})\.json$")
+SAFETY_NAME = re.compile(r"^before-restore-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}\.json$")
+_checked = {}      # 이 서버 일꾼이 오늘 자동 백업을 이미 확인했는지 (DB 경로 → 날짜). 하루 한 번만 폴더를 본다
 
 
 def export_data(db):
@@ -70,9 +83,103 @@ def counts_of(tables):
     }
 
 
+def backup_folder():
+    return os.path.join(os.path.dirname(os.path.abspath(current_app.config["DATABASE"])), "backups")
+
+
+def auto_backup(db, today):
+    """오늘 날짜 자동 백업이 없으면 만들고 오래된 것을 정리한다. 만들었으면 파일 이름, 이미 있으면 None"""
+    folder = backup_folder()
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, f"auto-{today:%Y-%m-%d}.json")
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return None
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(export_data(db), f, ensure_ascii=False)
+    except BaseException:
+        os.remove(path)
+        raise
+    prune_auto(folder)
+    return os.path.basename(path)
+
+
+def prune_auto(folder):
+    """최근 KEEP_DAILY개 + 그 전은 주(월~일)마다 가장 늦은 것 하나씩 KEEP_WEEKLY주. 나머지는 지운다"""
+    names = sorted((n for n in os.listdir(folder) if AUTO_NAME.match(n)), reverse=True)   # 새것부터
+    keep = set(names[:KEEP_DAILY])
+    weeks = set()
+    for name in names[KEEP_DAILY:]:
+        week = date.fromisoformat(AUTO_NAME.match(name).group(1)).isocalendar()[:2]
+        if week not in weeks and len(weeks) < KEEP_WEEKLY:
+            weeks.add(week)
+            keep.add(name)
+    for name in names:
+        if name not in keep:
+            os.remove(os.path.join(folder, name))
+
+
+@bp.after_request
+def daily_backup(response):
+    """그날 처음 성공한 /api 요청 뒤에 자동 백업 (로그인해서 쓰고 있다는 뜻). 실패해도 응답에는 영향이 없다"""
+    if response.status_code >= 400 or not current_app.config.get("AUTO_BACKUP", True):
+        return response
+    key = current_app.config["DATABASE"]
+    today = datetime.now(KST).date()
+    if _checked.get(key) != today:
+        _checked[key] = today
+        try:
+            auto_backup(get_db(), today)
+        except (OSError, sqlite3.Error, ValueError, TypeError):
+            current_app.logger.exception("자동 백업을 만들지 못했어요")
+    return response
+
+
+def describe(name, folder):
+    """목록에 보여 줄 한 줄: 종류·날짜·크기"""
+    size = os.path.getsize(os.path.join(folder, name))
+    m = AUTO_NAME.match(name)
+    if m:
+        return {"name": name, "kind": "auto", "date": m.group(1), "time": None, "size": size}
+    m = SAFETY_NAME.match(name)
+    return {"name": name, "kind": "before-restore", "date": f"{m.group(1)}-{m.group(2)}-{m.group(3)}", "time": f"{m.group(4)}:{m.group(5)}", "size": size}
+
+
+@bp.get("/backup/auto")
+def list_auto_backups():
+    folder = backup_folder()
+    names = [n for n in os.listdir(folder) if AUTO_NAME.match(n) or SAFETY_NAME.match(n)] if os.path.isdir(folder) else []
+    files = sorted((describe(n, folder) for n in names), key=lambda f: (f["date"], f["time"] or "99:99"), reverse=True)
+    row = get_db().execute("SELECT value FROM meta WHERE key = 'last_download'").fetchone()
+    last = datetime.fromtimestamp(row[0], KST).strftime("%Y-%m-%d %H:%M:%S") if row else None
+    return jsonify(files=files, last_download=last, keep={"daily": KEEP_DAILY, "weekly": KEEP_WEEKLY})
+
+
+@bp.get("/backup/auto/<name>")
+def download_auto_backup(name):
+    # 이름 모양을 정확히 검사해서 backups 폴더 밖의 파일은 절대 열지 않는다
+    if not (AUTO_NAME.match(name) or SAFETY_NAME.match(name)):
+        raise ApiError("없는 백업이에요.", 404)
+    path = os.path.join(backup_folder(), name)
+    if not os.path.isfile(path):
+        raise ApiError("없는 백업이에요.", 404)
+    response = send_file(path, mimetype="application/json", as_attachment=True, download_name=f"my-calendar-{name}")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @bp.get("/backup")
 def download_backup():
-    data = export_data(get_db())
+    db = get_db()
+    data = export_data(db)
+    # 마지막으로 내 컴퓨터에 받은 때를 기억한다 (자동 백업은 같은 서버에 있어서, 가끔은 밖으로 받아 둬야 한다)
+    db.execute(
+        "INSERT INTO meta (key, value) VALUES ('last_download', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (int(datetime.now(KST).timestamp()),),
+    )
+    db.commit()
     name = f"my-calendar-backup-{datetime.now(KST):%Y-%m-%d}.json"
     return Response(
         json.dumps(data, ensure_ascii=False, indent=1),
@@ -83,7 +190,7 @@ def download_backup():
 
 def save_safety_copy(db):
     """되살리기 전의 데이터를 instance/backups/에 한 벌 남긴다 (최근 KEEP_SAFETY개만)"""
-    folder = os.path.join(os.path.dirname(os.path.abspath(current_app.config["DATABASE"])), "backups")
+    folder = backup_folder()
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, f"before-restore-{datetime.now(KST):%Y%m%d-%H%M%S}.json")
     with open(path, "w", encoding="utf-8") as f:

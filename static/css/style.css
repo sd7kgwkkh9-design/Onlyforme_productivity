@@ -1,5 +1,5 @@
 /* ==========================================================================
-   오직 나를 위한 캘린더 — 스타일
+   나를 위한 캘린더 — 스타일
    색은 아래 변수(토큰)만 바꾸면 전체에 반영된다.
    ========================================================================== */
 
@@ -541,7 +541,7 @@ dialog.ask p { margin: 0 0 calc(18px * var(--fs)); font-size: calc(15px * var(--
   background: var(--toast-bg); color: var(--toast-fg); font-size: calc(14px * var(--fs));
   opacity: 0; pointer-events: none;
 }
-.toast.show { opacity: 1; animation: toast-in .18s ease-out; }
+.toast.show { opacity: 1; animation: toast-in .4s var(--spring); }   /* 0.15.2: 스프링으로 톡 */
 .toast[data-kind="error"] { background: var(--danger); }
 @keyframes toast-in {
   from { opacity: 0; transform: translate(-50%, 12px); }
@@ -1021,7 +1021,7 @@ body.notes-open .notes { display: flex; }
     border-width: 0 1px 0 0; border-radius: 0 16px 16px 0;
     padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
     box-shadow: 0 0 60px -12px var(--shadow);
-    animation: notes-in .2s ease-out;
+    animation: notes-in .36s var(--ease-out);   /* 0.15.2 */
   }
 }
 @keyframes notes-in { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -2602,15 +2602,57 @@ dialog.shortcuts::backdrop { background: var(--backdrop); }
 
 /* 0.15.0 끝 */
 
+/* ========== 0.15.2 ========== */
+/* 자동 백업 목록 */
+.backup-auto { display: grid; gap: calc(6px * var(--fs)); }
+.backup-auto > .text-btn { justify-self: start; }
+.backup-item { gap: calc(8px * var(--fs)); padding: calc(8px * var(--fs)) calc(10px * var(--fs)); }
+.backup-item .sec-icon { font-size: calc(17px * var(--fs)); }
+.backup-item .btn.sm { flex: none; }
+.backup-item a.btn { color: var(--ink); }   /* 링크(a)로 만든 '받기'도 옆의 '되살리기' 버튼과 같은 색 */
+.backup-remind { color: var(--ink); }
+
+/* 보기 버튼의 미끄러지는 받침 (main.js의 moveViewThumb) — 받침이 있으면 눌린 버튼 자체의 흰 바탕은 끈다 */
+.view-switch.has-thumb { position: relative; isolation: isolate; }
+.view-switch.has-thumb .seg-btn[aria-pressed="true"] { background: transparent; box-shadow: none; }
+/* 눌린 버튼만 굵게 하면 글자 폭이 달라져서 버튼 줄 전체가 옆으로 밀렸다 → 굵기는 모두 같게, 눌린 쪽은 색과 받침으로 */
+.view-switch.has-thumb .seg-btn { font-weight: 500; }
+.seg-thumb {
+  position: absolute; z-index: -1; left: 0; top: 0;
+  width: var(--w, 0); height: var(--h, 0); translate: var(--x, 0) var(--y, 0);
+  border-radius: 6px; background: var(--surface); box-shadow: 0 1px 2px var(--shadow-soft), 0 0 0 .5px color-mix(in srgb, var(--line) 60%, transparent);
+  transition: translate .42s var(--spring), width .42s var(--spring);
+  pointer-events: none;
+}
+.seg-thumb.is-still { transition: none; }
+/* 월간 ⇄ 주간 전환(View Transition)이 화면 전체를 겹쳐 바꾸는 동안에도 받침이 미끄러지는 게 보이게: 보기 버튼 줄은 따로 떼어 '새 모습'만 보여 준다 */
+.view-switch { view-transition-name: view-switch; }
+::view-transition-old(view-switch) { display: none; }
+::view-transition-new(view-switch) { animation: none; }
+/* 0.15.2 끝 */
+
 /* ==========================================================================
-   0.12.1 — 부드럽게 (점검 패치)
+   0.12.1 — 부드럽게 (점검 패치)  ·  0.15.2 — 애플 앱 느낌으로 한 번 더 (곡선·스프링·시트·반투명 메뉴)
    ========================================================================== */
+
+/* ---------- 움직임 곡선 (0.15.2) ----------
+   ease-out  : 빨리 출발해서 천천히 멈춘다 (애플 앱의 기본 느낌). 기본 ease-out보다 끝이 훨씬 부드럽다
+   ease-in   : 닫힐 때 — 천천히 출발해서 빨리 사라진다
+   ease-sheet: 아이폰에서 아래 시트가 올라오는 곡선
+   spring    : 살짝(4%) 지나쳤다가 돌아오는 스프링. 감쇠 0.72인 용수철 식을 점 16개로 찍어 linear()로 옮겼다
+               (linear()를 모르는 브라우저는 이 값을 버리고 기본 곡선을 쓴다) */
+:root {
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+  --ease-sheet: cubic-bezier(.32, .72, 0, 1);
+  --spring: linear(0, .024 2%, .124 5%, .267 8%, .473 12%, .659 16%, .807 20%, .933 25%, 1.002 30%, 1.032 35%, 1.038 40%, 1.029 47%, 1.014 55%, 1.002 65%, .999 78%, 1 100%);
+}
 
 /* ---------- 처음 열 때 ----------
    달력·띠·하루 칸은 화면 코드(main.js)가 첫 내용을 다 그린 다음 한 번에 보여 준다 (덜컹거림 없이 살짝 나타남).
    그 전에는 자리만 차지하고 보이지 않는다(visibility). 화면 코드를 못 불러오면 대신 안내(#boot-error)가 뜬다. */
 body.is-booting .layout, body.is-booting .top-strip { visibility: hidden; opacity: 0; }
-.layout, .top-strip { transition: opacity .16s ease-out; }
+.layout, .top-strip { transition: opacity .2s var(--ease-out); }
 
 /* ---------- 누르는 느낌 ----------
    - 아이폰은 누를 때 회색 사각형이 번쩍인다(-webkit-tap-highlight-color) → 끄고, 대신 살짝 눌리는 느낌(scale)을 준다.
@@ -2620,38 +2662,80 @@ html { -webkit-tap-highlight-color: transparent; }
 .btn, .icon-btn, .text-btn, .seg-btn, .dday-chip, .menu-choice, .routine-chip, .goal-step, .decor-sticker,
 .notes-tab, .share-choice, .lk-cat, .theme-card {
   transition-property: background-color, border-color, color, box-shadow, opacity, scale;
-  transition-duration: .12s;
+  transition-duration: .12s, .12s, .12s, .12s, .12s, .36s;
+  transition-timing-function: ease, ease, ease, ease, ease, var(--spring);   /* 0.15.2: 손을 떼면 스프링으로 톡 돌아온다 */
 }
-:is(.btn, .icon-btn, .text-btn, .seg-btn, .dday-chip, .routine-chip, .goal-step, .decor-sticker, .theme-card):active:not(:disabled) { scale: .96; }
-:is(.menu-choice, .share-choice, .notes-tab):active { scale: .985; }
+:is(.btn, .icon-btn, .text-btn, .seg-btn, .dday-chip, .routine-chip, .goal-step, .decor-sticker, .theme-card):active:not(:disabled) { scale: .96; transition-duration: .12s, .12s, .12s, .12s, .12s, .08s; }
+:is(.menu-choice, .share-choice, .notes-tab):active { scale: .985; transition-duration: .12s, .12s, .12s, .12s, .12s, .08s; }
 
 /* ---------- 창(dialog)과 메뉴(popover)가 부드럽게 열리고 닫히기 ----------
    @starting-style(열릴 때의 시작 모습) + transition-behavior: allow-discrete(닫힐 때 display가 바로 꺼지지 않게).
    크롬 117+, 사파리 17.5+. 지원하지 않는 브라우저에서는 예전처럼 바로 열리고 닫힌다. */
+/* 0.15.2: 열릴 때는 살짝 작은 데서 스프링으로 커지며(맥의 창처럼), 닫힐 때는 짧고 빠르게 */
 dialog {
-  transition: opacity .16s ease-out, translate .16s ease-out, display .16s allow-discrete, overlay .16s allow-discrete;
+  transition: opacity .2s var(--ease-out), translate .34s var(--spring), scale .34s var(--spring),
+              display .34s allow-discrete, overlay .34s allow-discrete;
 }
-dialog:not([open]) { opacity: 0; translate: 0 6px; }
+dialog:not([open]) {
+  opacity: 0; translate: 0 4px; scale: .98;
+  transition-duration: .14s; transition-timing-function: var(--ease-in);
+}
 @starting-style {
-  dialog[open] { opacity: 0; translate: 0 8px; }
+  dialog[open] { opacity: 0; translate: 0 10px; scale: .965; }
 }
-dialog::backdrop { transition: opacity .16s ease-out, display .16s allow-discrete, overlay .16s allow-discrete; }
+dialog::backdrop { transition: opacity .22s var(--ease-out), display .22s allow-discrete, overlay .22s allow-discrete; }
+dialog:not([open])::backdrop { transition-duration: .14s; }
 @starting-style {
   dialog[open]::backdrop { opacity: 0; }
+}
+/* 휴대폰에서 아래에 붙는 편집 시트는 아이폰처럼 화면 아래에서 끝까지 올라온다 (닫을 때는 아래로 내려간다) */
+@media (max-width: 640px) {
+  dialog.sheet {
+    transition: translate .44s var(--ease-sheet), display .44s allow-discrete, overlay .44s allow-discrete;
+  }
+  dialog.sheet:not([open]) { opacity: 1; scale: 1; translate: 0 100%; transition-duration: .26s; transition-timing-function: var(--ease-in); }
+  @starting-style {
+    dialog.sheet[open] { opacity: 1; scale: 1; translate: 0 100%; }
+  }
 }
 /* 예전 '열릴 때만' 애니메이션은 위 전환과 겹치지 않게 끈다 */
 dialog.sheet[open], dialog.datepop[open], dialog.quick[open] { animation: none; }
 
 .settings-menu, .jump-menu, .ctx-menu[popover] {
-  transition: opacity .13s ease-out, translate .13s ease-out, display .13s allow-discrete, overlay .13s allow-discrete;
+  transition: opacity .16s var(--ease-out), translate .24s var(--ease-out), scale .24s var(--ease-out),
+              display .24s allow-discrete, overlay .24s allow-discrete;
 }
-.settings-menu:not(:popover-open), .jump-menu:not(:popover-open), .ctx-menu[popover]:not(:popover-open) { opacity: 0; translate: 0 -4px; }
+.settings-menu { transform-origin: top right; }   /* 0.15.2: 누른 버튼 쪽에서 펼쳐진다 */
+.jump-menu, .ctx-menu[popover] { transform-origin: top left; }
+.settings-menu:not(:popover-open), .jump-menu:not(:popover-open), .ctx-menu[popover]:not(:popover-open) {
+  opacity: 0; translate: 0 -2px; scale: .98; transition-duration: .1s;
+}
 @starting-style {
-  .settings-menu:popover-open, .jump-menu:popover-open, .ctx-menu[popover]:popover-open { opacity: 0; translate: 0 -4px; }
+  .settings-menu:popover-open, .jump-menu:popover-open, .ctx-menu[popover]:popover-open { opacity: 0; translate: 0 -4px; scale: .96; }
+}
+
+/* ---------- 반투명 메뉴 (0.15.2) ----------
+   맥·아이폰의 메뉴처럼 뒤가 흐리게 비친다. 바탕을 88%(어두운 테마는 90% + 뒤를 어둡게) 칠해서,
+   뒤에 밝은 배경 사진이 있어도 보조 글자 대비가 4.5:1 아래로 떨어지지 않게 했다 (흐림을 못 쓰는 브라우저는 예전처럼 불투명) */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .settings-menu, .jump-menu, .ctx-menu {
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(24px) saturate(1.7); -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  }
+  :root[data-theme="dark"] :is(.settings-menu, .jump-menu, .ctx-menu) {
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    backdrop-filter: blur(24px) saturate(1.5) brightness(.65); -webkit-backdrop-filter: blur(24px) saturate(1.5) brightness(.65);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) :is(.settings-menu, .jump-menu, .ctx-menu) {
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      backdrop-filter: blur(24px) saturate(1.5) brightness(.65); -webkit-backdrop-filter: blur(24px) saturate(1.5) brightness(.65);
+    }
+  }
 }
 
 /* ---------- 월간 ⇄ 주간 바꿀 때 (View Transitions API, main.js의 smoothly) ---------- */
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; animation-timing-function: ease-out; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .24s; animation-timing-function: var(--ease-out); }
 
 /* ---------- 다른 날짜로 바꾸는 동안: 보던 목록을 잠깐 흐리게 (0.12초 넘게 걸릴 때만 보인다) ---------- */
 .sheet-body > * { transition: opacity .15s; }

@@ -1,4 +1,4 @@
-// 오직 나를 위한 캘린더 — 아이폰 홈 화면·잠금 화면 위젯 (Scriptable 스크립트, 0.12.0 · 0.13.0에서 다음 수업을 더함)
+// 나를 위한 캘린더 — 아이폰 홈 화면·잠금 화면 위젯 (Scriptable 스크립트, 0.12.0 · 0.13.0에서 다음 수업을 더함)
 //
 // 쓰는 방법
 //   1. App Store에서 무료 앱 'Scriptable'을 설치한다.
@@ -295,7 +295,7 @@ function circular(w, data) {
 }
 
 function problem(w, message) {
-  text(w, "오직 나를 위한 캘린더", 12, { weight: "bold", color: accent });
+  text(w, "나를 위한 캘린더", 12, { weight: "bold", color: accent });
   w.addSpacer(6);
   text(w, message, 12, { color: muted, lines: 4 });
 }
