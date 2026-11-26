@@ -219,6 +219,22 @@ CREATE TABLE IF NOT EXISTS anniversaries (
     created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS repeats (            -- 0.15.3: 반복하는 일 (repeats.py) — 날짜가 아니라 규칙만 저장한다
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    emoji       TEXT    NOT NULL DEFAULT '🔁',
+    freq        TEXT    NOT NULL DEFAULT 'weekly', -- 'weekly'(매주·격주) | 'monthly'(매달)
+    weekdays    TEXT    NOT NULL DEFAULT '',       -- 매주: '1,3' (0 = 일요일)
+    interval    INTEGER NOT NULL DEFAULT 1,        -- 매주: 1 = 매주, 2 = 격주
+    month_day   INTEGER NOT NULL DEFAULT 1,        -- 매달: 1~31 (없는 날이면 그달 마지막 날), 0 = 마지막 날
+    time        TEXT,                              -- 'HH:MM' 또는 NULL
+    start_date  TEXT    NOT NULL,
+    end_date    TEXT,                              -- NULL이면 계속
+    memo        TEXT    NOT NULL DEFAULT '',
+    position    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     title       TEXT    NOT NULL,

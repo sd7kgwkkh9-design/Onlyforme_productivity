@@ -581,7 +581,7 @@ def parse(text, today, categories=(), routines=(), projects=()):
     else:
         undated = not dates and not rule  # 날짜를 안 쓰면 할 일 (8차)
         if dday and undated:
-            warnings.append("할 일(날짜 없음)은 D-day가 보이지 않아요.")
+            warnings.append("날짜 없이 '나중에'로 넣으면 D-day가 보이지 않아요.")
         kind = "schedule" if dates or rule else "todo"
 
     urgent = prefix == "urgent" and kind != "routine"

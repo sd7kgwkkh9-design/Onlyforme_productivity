@@ -204,6 +204,11 @@ export const api = {
   createAnniversary: (payload) => request('POST', '/api/anniversaries', payload),
   updateAnniversary: (id, payload) => request('PUT', `/api/anniversaries/${id}`, payload),
   deleteAnniversary: (id) => request('DELETE', `/api/anniversaries/${id}`),
+  // 반복하는 일 (0.15.3): 매주·매달 돌아오는 일 — 달력에는 calendar/day의 repeats로 실린다
+  repeats: (today) => cachedGet(`/api/repeats?${q({ today })}`),
+  createRepeat: (payload) => request('POST', '/api/repeats', payload),
+  updateRepeat: (id, payload) => request('PUT', `/api/repeats/${id}`, payload),
+  deleteRepeat: (id) => request('DELETE', `/api/repeats/${id}`),
 
   // 시간표 (0.13.0) — 달력에 보이는 수업은 calendar / day로 함께 받는다
   timetables: () => cachedGet('/api/timetables'),

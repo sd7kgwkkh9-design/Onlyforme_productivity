@@ -15,13 +15,13 @@ import { api } from './api.js';
 import { ddayLabel, daysBetween, el, formatShort, formatTimeRange, todayStr, toast } from './utils.js';
 import { periodText } from './projects.js';
 
-const KIND_LABEL = { date: '날짜', time: '시간', category: '카테고리', dday: 'D-day', undated: '할 일', repeat: '반복', kind: '종류', project: '프로젝트' };
+const KIND_LABEL = { date: '날짜', time: '시간', category: '카테고리', dday: 'D-day', undated: '나중에', repeat: '반복', kind: '종류', project: '프로젝트' };
 
 // 입력칸 위의 종류 버튼: 누르면 맨 앞 기호를 넣었다 뺐다 한다
 const KINDS = [
   { kind: 'memo', label: '노트', prefix: '- ', re: /^-\s+/ },
   { kind: 'goal', label: '목표', prefix: '* ', re: /^\*\s+/ },
-  { kind: 'todo', label: '할 일', prefix: '[] ', re: /^\[\s*\]\s*/ },
+  { kind: 'todo', label: '나중에', prefix: '[] ', re: /^\[\s*\]\s*/ },   // 0.15.3: 메모장 탭 이름을 따라
   { kind: 'urgent', label: '⚡ 급한 일', prefix: '! ', re: /^!\s*/ },
   { kind: 'project', label: '프로젝트', prefix: '# ', re: /^#\s+/ },
 ];
@@ -272,7 +272,7 @@ export class QuickAdd {
       } else if (item.project) {
         toast(`'${item.project.title}'에 할 일을 넣었어요`, 'info', { action: { label: '보기', run: () => this.onOpenNotes({ projectId: item.project.id }) } });
       } else {
-        toast(`${item.urgent ? '⚡ 급한 ' : ''}할 일에 '${item.title}'을(를) 넣었어요`, 'info', { action: { label: '보기', run: () => this.onOpenNotes({ tab: 'todo' }) } });
+        toast(item.urgent ? `⚡ 급한 일로 '${item.title}'을(를) 넣었어요` : `나중에 목록에 '${item.title}'을(를) 넣었어요`, 'info', { action: { label: '보기', run: () => this.onOpenNotes({ tab: 'todo' }) } });
       }
     } catch (e) {
       toast(e.message, 'error');

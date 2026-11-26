@@ -2,7 +2,7 @@
 // 0.13.0: '기록지' → '메모장', 그 안의 '메모' → '노트'로 이름을 바꾸고, 급한 할 일(⚡)과 프로젝트 탭을 더했다.
 //         (코드 안의 이름은 예전 그대로 notes·memo를 쓴다 — 서버 주소·표 이름과 맞추려고)
 //
-//   [전체 | 노트 | 나 | 목표 | 할 일 | 살 것 | 프로젝트]
+//   [전체 | 나중에 | 노트 | 나 | 목표 | 살 것 | 프로젝트]   (0.15.3: '할 일' → '나중에', 전체 바로 옆으로)
 //   전체  : 한눈에 — 안 한 할 일(급한 것 먼저), 아직인 목표, 진행 중인 프로젝트, 최근 노트
 //   노트  : 다시 보고 싶은 글, 그때그때 드는 생각. 위 칸에 한 줄로 바로 적거나 '새 노트'로 길게 쓴다.
 //           ★메인 노트의 '배너 글귀'는 달력 위 배너에 늘 보인다. 쓰는 대로 자동 저장.
@@ -10,7 +10,7 @@
 //   나    : 자기소개 (0.14.2) — 기본 정보, 좋아하는 것·싫어하는 것·요즘 빠진 것(칩), 자유롭게(글). aboutme.js
 //   목표  : 세 단계(0.11.0) — 인생 목표 → 올해 목표(적어 두기·숫자·루틴 연결로 진행도) → 기한 목표(기한이 있으면 달력 위 D-day 띠에).
 //           0.15.0: 체크(이뤘어요)는 없다. 이룬 목표는 지운다. 숫자·루틴 목표가 다 차면 🏅로 '이룬 목표'에 접힌다.
-//   할 일 : 날짜를 아직 안 정한 일정 (0.8까지의 '기한 미정'). 다 하면 ×로 지운다(0.14.3, 그전에는 체크하면 '완료'로 접혔다),
+//   나중에: 날짜를 아직 안 정한 일정 — 기한 없이 일단 적어 두는 할 일이라 0.15.3에서 '할 일' 대신 '나중에'로 불렀다 (0.8까지의 '기한 미정'). 다 하면 ×로 지운다(0.14.3, 그전에는 체크하면 '완료'로 접혔다),
 //           날짜를 정하면(📅 버튼, 또는 달력으로 끌어다 놓기) 그날의 일정이 된다.
 //           ⚡ 급한 할 일(0.13.0): 맨 앞에 !를 붙여 적거나 ⚡를 누르면 맨 위로 올라오고, 첫 화면 '오늘 챙길 것'에도 보인다.
 //   살 것 (0.14.2): 구매 예정 목록 — 가격·언제쯤·링크, ⭐ 꼭 살 것, 합계. wishlist.js
@@ -38,8 +38,8 @@ export const dragState = { itemId: null };
 
 const OPEN_KEY = 'my-calendar:notes-open';
 const TAB_KEY = 'my-calendar:notes-tab';
-const TABS = ['all', 'memo', 'me', 'goal', 'todo', 'buy', 'project'];
-const TAB_NAME = { all: '전체', memo: '노트', me: '나', goal: '목표', todo: '할 일', buy: '살 것', project: '프로젝트' };
+const TABS = ['all', 'todo', 'memo', 'me', 'goal', 'buy', 'project'];
+const TAB_NAME = { all: '전체', memo: '노트', me: '나', goal: '목표', todo: '나중에', buy: '살 것', project: '프로젝트' };
 const SAVE_DELAY_MS = 600;
 const ALL_LIMIT = 5;         // '전체' 탭에서 종류마다 보여 줄 개수
 const pushQuery = window.matchMedia('(min-width: 1100px)'); // style.css의 같은 값과 맞춰야 한다
@@ -47,8 +47,8 @@ const canDrag = window.matchMedia('(hover: hover) and (pointer: fine)');
 
 const CAPTURE = {
   memo: { label: '노트', max: 300, placeholder: '생각난 것을 적고 Enter' },
+  todo: { label: '나중에', max: 100, placeholder: '예: 교수님께 메일 보내기 (급하면 맨 앞에 !)' },
   goal: { label: '목표', max: 100, placeholder: '예: 12월까지 풀업 15개' },
-  todo: { label: '할 일', max: 100, placeholder: '예: 교수님께 메일 보내기 (급하면 맨 앞에 !)' },
   project: { label: '프로젝트', max: 100, placeholder: '예: 텀프로젝트 ~12/6, 자취방 구하기 1~2월' },
 };
 // 목표 탭의 입력칸: 어느 단계에 넣을지 (0.11.0)
@@ -408,7 +408,7 @@ export class NotesPanel {
       await api.createItem({ title: text, dates: [], urgent });
       await this.reload();
       if (urgent) this.onStripChanged(); // 첫 화면 '오늘 챙길 것'
-      toast(urgent ? '⚡ 급한 할 일로 넣었어요' : '할 일에 넣었어요');
+      toast(urgent ? '⚡ 급한 일로 넣었어요' : '나중에 목록에 넣었어요');
     }
   }
 
@@ -465,7 +465,7 @@ export class NotesPanel {
     return [
       section('todo', todos.length,
         todos.length ? el('ul', { class: 'todo-list' }, todos.slice(0, ALL_LIMIT).map((t) => this.todoRow(t))) : null,
-        '할 일이 없어요.'),
+        '나중에 할 일을 적어 두세요.'),
       section('goal', goals.length,
         goals.length ? el('ul', { class: 'goal-list' }, goals.slice(0, ALL_LIMIT).map((g) => this.goalRow(g, false))) : null,
         '이루고 싶은 것을 적어 두세요.'),
@@ -1192,7 +1192,7 @@ export class NotesPanel {
         : el('button', { type: 'button', class: 'btn sm ghost', title: '이 노트의 배너 글귀가 달력 위에 보이게 돼요', onclick: () => this.makeMain(n.id) }, '★ 메인으로'),
       n.is_main
         ? null
-        : el('button', { type: 'button', class: 'btn sm ghost', title: '할 일 목록으로 옮겨요 (날짜를 정하면 일정이 돼요)', onclick: () => this.memoToTodo(n.id) }, '할 일로'),
+        : el('button', { type: 'button', class: 'btn sm ghost', title: '나중에 목록으로 옮겨요 (날짜를 정하면 일정이 돼요)', onclick: () => this.memoToTodo(n.id) }, '나중에로'),
       el('button', { type: 'button', class: 'btn sm ghost danger', onclick: () => this.removeMemo(this.note(n.id) || n) }, '삭제'),
     );
   }
@@ -1255,7 +1255,7 @@ export class NotesPanel {
       this.tab = 'todo';
       await this.load();
       this.showList();
-      toast('할 일로 옮겼어요', 'info', {
+      toast('나중에 목록으로 옮겼어요', 'info', {
         action: {
           label: '되돌리기',
           run: async () => {

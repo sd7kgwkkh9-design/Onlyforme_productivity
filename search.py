@@ -99,7 +99,7 @@ def search():
     upcoming = sorted((e for e in events if e["upcoming"]), key=lambda e: e["date"])
     past = sorted((e for e in events if not e["upcoming"]), key=lambda e: e["date"], reverse=True)
     add("event", "일정", upcoming + past)
-    add("todo", "할 일", sorted(todos, key=lambda t: (t["done"], not t["urgent"])))
+    add("todo", "나중에", sorted(todos, key=lambda t: (t["done"], not t["urgent"])))   # 0.15.3: 메모장 탭 이름을 따라 '할 일' → '나중에'
 
     # ---- 일기 (최근 순)
     sql, args = where(["body"], pats)
@@ -166,5 +166,11 @@ def search():
     sql, args = where(["title"], pats)
     rows = db.execute(f"SELECT id, title, emoji, kind FROM anniversaries WHERE {sql} ORDER BY id", args).fetchall()
     add("anniv", "기념일", [{"id": r["id"], "title": f"{r['emoji']} {r['title']}"} for r in rows])
+
+    # ---- 반복하는 일 (0.15.3)
+    from repeats import rule_label
+    sql, args = where(["title", "memo"], pats)
+    rows = db.execute(f"SELECT * FROM repeats WHERE {sql} ORDER BY position, id", args).fetchall()
+    add("repeat", "반복", [{"id": r["id"], "title": f"{r['emoji']} {r['title']}", "sub": rule_label(r)} for r in rows])
 
     return jsonify(q=q, terms=terms, total=sum(len(g["results"]) + g["more"] for g in groups), groups=groups)

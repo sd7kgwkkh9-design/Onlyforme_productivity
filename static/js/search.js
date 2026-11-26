@@ -129,7 +129,7 @@ function draw(box, data) {
       sub: [formatShort(r.date), r.start_time ? formatTimeRange(r.start_time, null) : '', r.date_count > 1 ? `${r.date_count}개 날짜` : '', r.upcoming ? '' : '지난 일정'].filter(Boolean).join(' · '),
       snippet: r.snippet, onOpen: () => hooks.onOpenDate?.(r.date),
     }),
-    todo: (r) => row({ lead: r.done ? '✓' : r.urgent ? '⚡' : '○', title: r.title, sub: r.done ? '끝낸 할 일' : '할 일', snippet: r.snippet, done: r.done, onOpen: () => hooks.onOpenNotes?.({ tab: 'todo' }) }),
+    todo: (r) => row({ lead: r.done ? '✓' : r.urgent ? '⚡' : '○', title: r.title, sub: r.done ? '끝낸 일' : '나중에', snippet: r.snippet, done: r.done, onOpen: () => hooks.onOpenNotes?.({ tab: 'todo' }) }),
     diary: (r) => row({ lead: r.mood || '📔', title: `${formatShort(r.date)} 일기`, snippet: r.snippet, onOpen: () => hooks.onOpenDiary?.(r.date) }),
     note: (r) => row({ lead: '📝', title: r.title || '(제목 없음)', snippet: r.snippet, onOpen: () => hooks.onOpenNotes?.({ noteId: r.id }) }),
     goal: (r) => row({ lead: '🎯', title: r.title, sub: [r.sub, r.due ? `${formatShort(r.due)}까지` : '', r.done ? '이룸' : ''].filter(Boolean).join(' · '), snippet: r.snippet, done: r.done, onOpen: () => hooks.onOpenNotes?.({ goalId: r.id }) }),
@@ -146,6 +146,7 @@ function draw(box, data) {
     about: (r) => row({ lead: '🙋', title: r.title, sub: '나', snippet: r.snippet, onOpen: () => hooks.onOpenNotes?.({ tab: 'me' }) }),
     wish: (r) => row({ lead: r.starred ? '⭐' : '🛍️', title: r.title, sub: ['살 것', r.price != null ? `${r.price.toLocaleString('ko-KR')}원` : '', r.when].filter(Boolean).join(' · '), onOpen: () => hooks.onOpenNotes?.({ tab: 'buy' }) }),
     anniv: (r) => row({ lead: r.title.split(' ')[0], title: r.title.split(' ').slice(1).join(' '), sub: '기념일', onOpen: () => hooks.onOpenAnnivs?.() }),
+    repeat: (r) => row({ lead: r.title.split(' ')[0], title: r.title.split(' ').slice(1).join(' '), sub: r.sub, onOpen: () => hooks.onOpenRepeats?.(r.id) }),   // 0.15.3
   };
 
   box.replaceChildren(

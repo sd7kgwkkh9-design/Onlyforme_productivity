@@ -162,9 +162,9 @@ def test_restore_keeps_about_when_old_file_has_none(client):
 def test_notes_have_me_tab():
     html = read("templates", "index.html")
     tabs = re.findall(r'data-tab="(\w+)"', html)
-    assert tabs[:7] == ["all", "memo", "me", "goal", "todo", "buy", "project"]
+    assert tabs[:7] == ["all", "todo", "memo", "me", "goal", "buy", "project"]   # 0.15.3: 할 일(→ 나중에)을 전체 옆으로
     notes = read("static", "js", "notes.js")
-    assert "const TABS = ['all', 'memo', 'me', 'goal', 'todo', 'buy', 'project'];" in notes
+    assert "const TABS = ['all', 'todo', 'memo', 'me', 'goal', 'buy', 'project'];" in notes
     assert "renderAbout" in notes and "flushAbout" in notes
 
 

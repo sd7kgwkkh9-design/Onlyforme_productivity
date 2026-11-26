@@ -10,7 +10,14 @@
 import { api } from './api.js';
 import { ask, el, formatLong, formatShort, icon, parseDateStr, toast, todayStr } from './utils.js';
 
-export const MOODS = ['😊', '😆', '🥰', '😌', '😐', '😔', '😢', '😡', '😴', '🤒'];
+// 기분 18가지 (0.15.3: 10 → 18). 9개씩 두 줄 — 윗줄은 좋은 쪽, 아랫줄은 복잡하거나 힘든 쪽. 마우스를 올리면 이름이 보인다.
+// 일기에는 이모지 글자만 저장하므로 예전에 고른 기분도 그대로 보인다.
+const MOOD_LIST = [
+  ['😊', '좋음'], ['😆', '신남'], ['🥰', '행복'], ['🤩', '설렘'], ['🥳', '축하할 일'], ['😎', '뿌듯'], ['😤', '의욕'], ['😌', '평온'], ['😐', '그저 그럼'],
+  ['🥲', '웃픈 날'], ['😮‍💨', '후련·한숨'], ['😔', '우울'], ['😢', '슬픔'], ['😰', '불안·긴장'], ['🤯', '멘붕'], ['😡', '화남'], ['😴', '피곤'], ['🤒', '아픔'],
+];
+export const MOODS = MOOD_LIST.map(([m]) => m);
+const MOOD_NAME = Object.fromEntries(MOOD_LIST);
 const BOOK = 'M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6M9 11h4';
 const SAVE_DELAY = 700;
 
@@ -108,7 +115,7 @@ export function diaryEditor({ date, onChanged, returnTo = 'day', onBack = null }
 
     const moods = el('div', { class: 'diary-moods', role: 'group', 'aria-label': '기분 (골라도 되고 안 골라도 돼요)' });
     const drawMoods = () => moods.replaceChildren(...MOODS.map((m) => el('button', {
-      type: 'button', class: 'diary-mood-btn', 'aria-pressed': String(m === mood), 'aria-label': `기분 ${m}`,
+      type: 'button', class: 'diary-mood-btn', 'aria-pressed': String(m === mood), 'aria-label': `기분: ${MOOD_NAME[m]}`, title: MOOD_NAME[m],
       onclick: () => { mood = mood === m ? '' : m; drawMoods(); dirty = true; flush(); }, // 다시 누르면 뺀다
     }, m)));
     drawMoods();

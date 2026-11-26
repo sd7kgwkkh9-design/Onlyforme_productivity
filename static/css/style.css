@@ -252,10 +252,10 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .fc .fc-daygrid-event.fc-h-event {
   margin: 1px calc(5px * var(--fs)) 0;
   border: 0; border-radius: 4px;
-  background: color-mix(in srgb, var(--cat, #9AA0AA) 15%, var(--surface));
-  box-shadow: inset 3px 0 0 var(--cat, #9AA0AA);
+  background: color-mix(in srgb, var(--cat, #9AA0AA) 19%, var(--surface));   /* 0.15.3: 15% → 19%, 띠 3 → 4px (카테고리가 한눈에 구분되게) */
+  box-shadow: inset 4px 0 0 var(--cat, #9AA0AA);
 }
-@media (hover: hover) { .fc .fc-daygrid-event.fc-h-event:hover { background: color-mix(in srgb, var(--cat, #9AA0AA) 26%, var(--surface)); } }
+@media (hover: hover) { .fc .fc-daygrid-event.fc-h-event:hover { background: color-mix(in srgb, var(--cat, #9AA0AA) 30%, var(--surface)); } }
 .ev {
   display: flex; gap: calc(5px * var(--fs)); align-items: baseline;
   padding: 1px calc(6px * var(--fs)) 1px calc(8px * var(--fs)); overflow: hidden;
@@ -683,8 +683,8 @@ dialog.ask p { margin: 0 0 calc(18px * var(--fs)); font-size: calc(15px * var(--
 .wk-chip {
   display: grid; gap: 1px;
   padding: calc(5px * var(--fs)) calc(7px * var(--fs)) calc(5px * var(--fs)) calc(9px * var(--fs)); border-radius: 6px;
-  background: color-mix(in srgb, var(--cat) 12%, var(--surface));
-  box-shadow: inset 3px 0 0 var(--cat);
+  background: color-mix(in srgb, var(--cat) 16%, var(--surface));   /* 0.15.3: 12% → 16%, 띠 3 → 4px */
+  box-shadow: inset 4px 0 0 var(--cat);
   font-size: calc(13px * var(--fs)); line-height: 1.35;
 }
 .wk-chip .wk-time { font-size: calc(11.5px * var(--fs)); font-weight: 600; color: var(--muted); }
@@ -2328,9 +2328,9 @@ dialog.themes::backdrop { background: var(--backdrop); }
 }
 .diary-editor { display: grid; gap: calc(10px * var(--fs)); }
 .diary-mood-row { display: grid; gap: calc(4px * var(--fs)); }
-.diary-moods { display: flex; flex-wrap: wrap; gap: 4px; }
+.diary-moods { display: grid; grid-template-columns: repeat(9, minmax(0, 38px)); gap: 4px; }   /* 0.15.3: 18가지 → 9개씩 두 줄 */
 .diary-mood-btn {
-  width: 38px; height: 38px; padding: 0; border: 1px solid transparent; border-radius: 10px; background: none;
+  width: 100%; height: auto; aspect-ratio: 1; padding: 0; border: 1px solid transparent; border-radius: 10px; background: none;
   font-size: calc(20px * var(--fs)); line-height: 1; filter: grayscale(.35); opacity: .75;
 }
 @media (hover: hover) { .diary-mood-btn:hover { background: var(--hover); opacity: 1; } }
@@ -2630,6 +2630,59 @@ dialog.shortcuts::backdrop { background: var(--backdrop); }
 ::view-transition-old(view-switch) { display: none; }
 ::view-transition-new(view-switch) { animation: none; }
 /* 0.15.2 끝 */
+
+/* ========== 0.15.3 ========== */
+.swatches { gap: calc(7px * var(--fs)); max-width: calc(7 * 35px * var(--fs)); }   /* 12색 + 직접 고르기 = 7개씩 두 줄 */
+.cat-tools { display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--fs)); flex-wrap: wrap; margin-top: calc(10px * var(--fs)); }
+.cat-tools .list-hint { margin: 0; text-align: left; flex: 1 1 220px; }
+.cat-spread { flex: none; }
+/* 일정 창의 메모: 제목 바로 밑으로 옮기면서 두 줄로 시작하고, 쓰는 만큼 늘어난다 (지원하는 브라우저에서) */
+.item-form .f-memo { min-height: calc(2 * 1.5em + 20px); max-height: 40vh; field-sizing: content; resize: vertical; }
+/* 달 이동 메뉴: '2026년'을 누르면 연도 12칸 */
+.jump-label.is-btn {
+  display: inline-flex; align-items: center; gap: calc(4px * var(--fs));
+  padding: calc(4px * var(--fs)) calc(8px * var(--fs)); border: 0; border-radius: 8px; background: none;
+  color: inherit; font: inherit; font-size: calc(15px * var(--fs)); font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+@media (hover: hover) { .jump-label.is-btn:hover { background: var(--hover); } }
+.jump-caret { font-size: calc(10px * var(--fs)); color: var(--muted); }
+.jump-years .jump-year { font-variant-numeric: tabular-nums; }
+/* 반복하는 일 (repeats.js): 보라색 — 기념일(분홍)·루틴(초록)·일정(카테고리 색)과 겹치지 않게 */
+:root { --rep: #7C5CD6; }
+.fc .fc-daygrid-event.fc-h-event.is-repeat {
+  background: color-mix(in srgb, var(--rep) 12%, var(--surface));
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--rep) 70%, var(--surface));
+  cursor: pointer;
+}
+.ev-repeat .ev-title { color: color-mix(in srgb, var(--rep) 45%, var(--ink)); font-weight: 500; }
+.wk-anniv.wk-repeat { background: color-mix(in srgb, var(--rep) 12%, var(--surface)); color: color-mix(in srgb, var(--rep) 45%, var(--ink)); font-weight: 500; }
+.repeat-line { display: flex; flex-wrap: wrap; gap: calc(6px * var(--fs)); margin: calc(2px * var(--fs)) 0 calc(8px * var(--fs)); }
+.repeat-chip {
+  display: inline-flex; align-items: center; gap: calc(6px * var(--fs));
+  height: 28px; padding: 0 calc(12px * var(--fs)); border: 0; border-radius: 999px;
+  background: color-mix(in srgb, var(--rep) 12%, var(--surface));
+  font-size: calc(13px * var(--fs)); font-weight: 600; color: color-mix(in srgb, var(--rep) 45%, var(--ink));
+}
+@media (hover: hover) { .repeat-chip:hover { background: color-mix(in srgb, var(--rep) 20%, var(--surface)); } }
+.repeat-time { font-weight: 500; font-variant-numeric: tabular-nums; opacity: .85; }
+.repeat-days { display: grid; grid-template-columns: repeat(7, minmax(0, 44px)); gap: calc(6px * var(--fs)); }
+.repeat-day {
+  height: 38px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  font: inherit; font-weight: 600; color: var(--ink);
+}
+.repeat-day.wd-0 { color: var(--sun); }
+.repeat-day.wd-6 { color: var(--sat); }
+.repeat-day[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.repeat-monthday { max-width: 160px; }
+.repeat-time-input { max-width: 160px; }
+.repeat-range-row { display: flex; align-items: center; gap: calc(8px * var(--fs)); }
+.repeat-range-row .input { flex: 1; min-width: 0; }
+@media (max-width: 480px) {   /* 좁은 휴대폰: 날짜 칸 두 개가 한 줄에 안 들어가서 위아래로 */
+  .repeat-range-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(4px * var(--fs)); }
+  .repeat-range-row > span { justify-self: center; color: var(--muted); }
+}
+.repeat-empty p { margin: 0; }
+/* 0.15.3 끝 */
 
 /* ==========================================================================
    0.12.1 — 부드럽게 (점검 패치)  ·  0.15.2 — 애플 앱 느낌으로 한 번 더 (곡선·스프링·시트·반투명 메뉴)

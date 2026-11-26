@@ -91,7 +91,7 @@ export class WeekView {
     const token = ++this.token;
     const keepLeft = this.root.scrollLeft;
 
-    const [{ items, logs, marks, classes = [], annivs = [], diaries = [] }, holidays] = await Promise.all([
+    const [{ items, logs, marks, classes = [], annivs = [], diaries = [], repeats = [] }, holidays] = await Promise.all([
       api.calendar(start, end), // 일정 + 루틴 기록을 한 번에
       holidaysBetween(start, end),
     ]);
@@ -121,7 +121,8 @@ export class WeekView {
     const group = (list) => list.reduce((m, x) => m.set(x.date, [...(m.get(x.date) || []), x]), new Map());
     const classesOf = group(mode === 'only' ? [] : classes);
     const annivsOf = group(annivs);
-    this.extra = { mode, classesOf, annivsOf };
+    const repeatsOf = group(repeats);   // 0.15.3
+    this.extra = { mode, classesOf, annivsOf, repeatsOf };
 
     const today = todayStr();
     const render = this.layout === 'row' ? this.renderColumn : this.renderRow;
@@ -194,7 +195,12 @@ export class WeekView {
   // 기념일 이름표 (0.13.0)
   annivNodes(date) {
     const list = this.extra?.annivsOf.get(date);
-    return list ? list.map((a) => el('span', { class: 'wk-anniv' }, `${a.emoji} ${a.title}${a.label ? ` ${a.label}` : ''}`)) : null;
+    const repeats = this.extra?.repeatsOf?.get(date);
+    return [
+      ...(list ? list.map((a) => el('span', { class: 'wk-anniv' }, `${a.emoji} ${a.title}${a.label ? ` ${a.label}` : ''}`)) : []),
+      // 0.15.3: 반복하는 일도 같은 자리에 (시간이 있으면 앞에)
+      ...(repeats ? repeats.map((r) => el('span', { class: 'wk-anniv wk-repeat' }, `${r.time ? `${r.time} ` : ''}${r.emoji} ${r.title}`)) : []),
+    ];
   }
 
   // 시간표의 수업 (0.13.0): '같이'면 일정과 같은 모양, '아래'면 일정 아래에 흐리게

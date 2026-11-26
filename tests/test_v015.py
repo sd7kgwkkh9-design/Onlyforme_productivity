@@ -15,7 +15,7 @@ def read(*parts):
 def test_no_todo_badge(client):
     html = client.get("/").get_data(as_text=True)
     assert 'id="todo-count"' not in html and "tool-count" not in html
-    assert 'data-tab="todo" aria-selected="false">할 일</button>' in html
+    assert 'data-tab="todo" aria-selected="false" title="나중에 — 날짜 없이 일단 적어 두는 할 일">나중에</button>' in html   # 0.15.3: 이름 '나중에', 숫자 없음
     notes = read("static", "js", "notes.js")
     assert "updateBadge() {}" in notes and "has-urgent" not in notes
     assert "has-urgent" not in read("static", "css", "style.css")

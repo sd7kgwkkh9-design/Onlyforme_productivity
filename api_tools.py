@@ -338,6 +338,7 @@ def calendar_data(db, start, end):
     # 0.14.0: 일기를 쓴 날(diaries: 날짜와 기분만, 내용은 싣지 않는다)
     from api_plans import anniv_occurrences
     from diary import diary_days
+    from repeats import repeat_occurrences
     from timetable import class_occurrences
     return {
         "items": occurrence_list(db, start, end),
@@ -346,12 +347,14 @@ def calendar_data(db, start, end):
         "classes": class_occurrences(db, start, end, include_skipped=False),
         "annivs": anniv_occurrences(db, start, end),
         "diaries": diary_days(db, start, end),
+        "repeats": repeat_occurrences(db, start, end),   # 0.15.3: 매주·매달 돌아오는 일
     }
 
 
 def day_data(db, day):
     from api_plans import anniv_occurrences
     from diary import diary_on
+    from repeats import repeat_occurrences
     from timetable import class_occurrences
     nxt = (Date.fromisoformat(day) + timedelta(days=1)).isoformat()
     return {
@@ -362,6 +365,7 @@ def day_data(db, day):
         "classes": class_occurrences(db, day, nxt),     # 하루 화면은 쉬는 수업도 보여 준다 ('다시 하기'를 누를 수 있게)
         "annivs": anniv_occurrences(db, day, nxt),
         "diary": diary_on(db, day),                      # 0.14.0: 그날 일기 (없으면 None)
+        "repeats": repeat_occurrences(db, day, nxt),     # 0.15.3
     }
 
 

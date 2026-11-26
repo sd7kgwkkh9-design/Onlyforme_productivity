@@ -52,6 +52,7 @@ const later = {
   search: () => import('./search.js'),   // 검색 (0.14.0)
   backup: () => import('./backup.js'),   // 백업 · 되살리기 (0.14.0)
   shortcuts: () => import('./shortcuts.js'), // 단축키 목록 (0.15.0)
+  repeats: () => import('./repeats.js'), // 반복하는 일 창 (0.15.3)
 };
 const openShortcuts = () => later.shortcuts().then((m) => m.openShortcuts()).catch(loadFailed);
 const openLinks = (tab) => later.links().then((m) => m.openLinks(tab)).catch(loadFailed);
@@ -177,6 +178,19 @@ function toAnnivEvent(a) {
   };
 }
 
+// 반복하는 일 → FullCalendar 이벤트 (0.15.3): 기념일 바로 아래, 일정보다 위에 '🗑️ 분리수거'
+function toRepeatEvent(r, index) {
+  return {
+    id: `p${r.id}@${r.date}`,
+    title: `${r.emoji} ${r.title}`,
+    start: r.date,
+    allDay: true,
+    editable: false,
+    classNames: ['is-repeat'],
+    extendedProps: { kind: 'repeat', date: r.date, time: r.time, order: -2500 + index },
+  };
+}
+
 // 루틴 기록 → FullCalendar 이벤트. 같은 날의 일정들 아래에 '🏃 운동'처럼 보인다.
 function toRoutineEvent(log, index) {
   return {
@@ -259,11 +273,12 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
         try {
           const start = info.startStr.slice(0, 10);
           const end = info.endStr.slice(0, 10);
-          const { items, logs, marks, classes = [], annivs = [], diaries = [] } = await api.calendar(start, end);
+          const { items, logs, marks, classes = [], annivs = [], diaries = [], repeats = [] } = await api.calendar(start, end);
           setMarks(marks, start, end, diaries);    // 날짜 스티커, 일기 쓴 날 (decor.js)
           decorateMarks(calendarEl);
           success([
             ...annivs.map(toAnnivEvent),
+            ...repeats.map(toRepeatEvent),
             ...(displayMode() === 'with' ? classes.map(toClassEvent) : []),
             ...items.map(toEvent), ...logs.map(toRoutineEvent),
           ]);
@@ -303,6 +318,9 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
     if (holiday) return { domNodes: [el('span', { class: 'holiday-name' }, arg.event.title)] };
     if (kind === 'routine') return { domNodes: [el('span', { class: 'ev ev-routine' }, el('span', { class: 'ev-title' }, arg.event.title))] };
     if (kind === 'anniv') return { domNodes: [el('span', { class: 'ev ev-anniv' }, el('span', { class: 'ev-title' }, arg.event.title))] };
+    if (kind === 'repeat') {
+      return { domNodes: [el('span', { class: 'ev ev-repeat' }, time ? el('span', { class: 'ev-time' }, time) : null, el('span', { class: 'ev-title' }, arg.event.title))] };
+    }
     return {
       domNodes: [
         el('span', { class: 'ev' },
@@ -315,7 +333,7 @@ const calendar = new FullCalendar.Calendar(calendarEl, {
   eventDidMount: (arg) => {
     const { color, holiday, kind, occ, log } = arg.event.extendedProps;
     if (color) arg.el.style.setProperty('--cat', color);
-    if (holiday || kind === 'anniv' || kind === 'class' || arg.event.id === COPY_PLACEHOLDER) return;
+    if (holiday || kind === 'anniv' || kind === 'repeat' || kind === 'class' || arg.event.id === COPY_PLACEHOLDER) return;
     // 시작 시간이 있는 일정: 그 시간에 비 올 확률이 높으면 ☂ (weather.js)
     if (occ?.start_time) {
       Object.assign(arg.el.dataset, { wxDate: occ.date, wxTime: occ.start_time, wxCompact: '' });
@@ -446,8 +464,12 @@ function openAnnivs(date = null) {
 function openRoutines() {
   modalSheet?.showView('routines', routineManager({ onChanged: refreshAll, returnTo: null }));
 }
+// 반복하는 일 (0.15.3): editId를 주면 그 반복을 고치는 창으로 바로
+function openRepeats(editId = null) {
+  later.repeats().then(({ repeatManager }) => modalSheet?.showView('repeats', repeatManager({ onChanged: refreshAll, editId }))).catch(loadFailed);
+}
 
-// 챙기기 (0.14.0): 상단 버튼 → [🏃 루틴 / 💧 습관 / 🎂 기념일]
+// 챙기기 (0.14.0): 상단 버튼 → [🏃 루틴 / 💧 습관 / 🎂 기념일 / 🔁 반복(0.15.3)]
 // 반복해서 챙기는 것을 한곳에 모았다. 0.13.0까지 습관·기념일은 ⚙ 설정 안에 있었다 ('설정은 설정만').
 safely('챙기기', () => {
   // 버튼이 두 개다 (0.14.2): 넓은 화면은 '빠른 입력' 오른쪽(#btn-care), 휴대폰은 위 줄(#btn-care-m). 보이는 쪽에 메뉴를 붙인다.
@@ -465,6 +487,7 @@ safely('챙기기', () => {
     item('🏃', '루틴', '할 때마다 시간·메모를 남기는 활동', openRoutines),
     item('💧', '습관', '하루에 몇 번 했는지만 세기 (물 8잔)', openHabits),
     item('🎂', '기념일', '생일·기념일·만난 날 세기 (음력도)', () => openAnnivs()),
+    item('🔁', '반복', '매주·매달 돌아오는 일 (분리수거, 월세)', () => openRepeats()),
   );
   if (typeof menu.showPopover === 'function') {
     menu.addEventListener('beforetoggle', (e) => {
@@ -736,6 +759,7 @@ function openSearchBox() {
     onOpenDiary: (date) => modalSheet?.showView('diary', diaryEditor({ date, onChanged: refreshAll, returnTo: null })),
     onOpenBlock: (id) => editClassBlock(id),
     onOpenAnnivs: () => openAnnivs(),
+    onOpenRepeats: (id) => openRepeats(id),
   })).catch(loadFailed);
 }
 on($('btn-search'), 'click', openSearchBox);
@@ -1209,6 +1233,7 @@ configureSheets({
   onLogMenu: (e, log, sheet) => logMenu(e, log, sheet),
   onEditClass: (blockId) => editClassBlock(blockId),   // 0.13.0: 하루 화면의 수업 → 시간표에서 고치기
   onOpenAnnivs: () => openAnnivs(),
+  onOpenRepeats: (id) => openRepeats(id),   // 0.15.3: 하루 화면의 반복 이름표
 });
 
 // 시간표를 달력에 어떻게 보일지(같이 / 아래 / 따로) 바꾸면 보이는 화면을 다시 그린다 (받은 내용은 그대로라 바로 바뀐다)

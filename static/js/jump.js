@@ -2,6 +2,7 @@
 //
 //   월간 화면: 연도 ‹ › 와 1~12월 버튼 → 그 달로
 //   주간 화면: 작은 달력에서 아무 날짜나 → 그 날짜가 속한 주로 (« » 연도, ‹ › 달 이동)
+//   0.15.3: 위의 '2026년'(주간은 '2026년 11월') 글자를 누르면 연도 12칸이 나온다 → 고르면 그 해로 돌아온다 (‹ › 는 12년씩)
 
 import { WEEKDAYS, addDays, el, icon, todayStr, toDateStr } from './utils.js';
 
@@ -18,12 +19,50 @@ export function initJump({ button, menu, current, gotoMonth, gotoWeekOf }) {
   let viewYear;
   let viewMonth;
   let mode;
+  let pickingYear = false;   // 0.15.3: 연도 고르기 중인지
+  let yearsFrom = 0;         // 연도 칸의 첫 해 (12칸)
 
   function close() { menu.hidePopover?.(); }
 
   function render() {
-    if (mode === 'month') renderMonths();
+    if (pickingYear) renderYears();
+    else if (mode === 'month') renderMonths();
     else renderDays();
+  }
+
+  // 연도 칸 ⇄ 달 칸을 오갈 때 키보드 위치를 잃지 않게 (연도 칸을 열면 고른 해에, 돌아오면 제목에)
+  const focusIn = (selector) => menu.querySelector(selector)?.focus({ preventScroll: true });
+
+  function openYears() {
+    pickingYear = true;
+    yearsFrom = viewYear - 5;  // 지금 해가 가운데쯤 오게
+    render();
+    focusIn('.jump-year.is-current');
+  }
+
+  // ---------------------------------------------------------------- 0.15.3: 연도 고르기 (12칸)
+  function renderYears() {
+    const now = new Date().getFullYear();
+    const back = (year) => { viewYear = year; pickingYear = false; render(); focusIn('.jump-label'); };
+    menu.replaceChildren(
+      header(`${yearsFrom} – ${yearsFrom + 11}`, [
+        ['이전 12년', 'M15 6l-6 6 6 6', () => { yearsFrom -= 12; render(); }],
+      ], [
+        ['다음 12년', 'M9 6l6 6-6 6', () => { yearsFrom += 12; render(); }],
+      ], false),
+      el('div', { class: 'jump-months jump-years' },
+        Array.from({ length: 12 }, (_, i) => {
+          const year = yearsFrom + i;
+          return el('button', {
+            type: 'button',
+            class: ['jump-month', 'jump-year', year === viewYear ? 'is-current' : '', year === now ? 'is-now' : ''].join(' '),
+            'aria-current': year === viewYear ? 'date' : null,
+            onclick: () => back(year),
+          }, `${year}`);
+        }),
+      ),
+      footer('올해로', () => back(now)),
+    );
   }
 
   // ---------------------------------------------------------------- 월간: 12개월 고르기
@@ -97,12 +136,16 @@ export function initJump({ button, menu, current, gotoMonth, gotoWeekOf }) {
     );
   }
 
-  function header(label, left, right) {
+  // pickable=true면 가운데 글자('2026년')가 버튼이 되어 연도 고르기를 연다 (0.15.3)
+  function header(label, left, right, pickable = true) {
     const btn = ([name, path, fn]) =>
       el('button', { type: 'button', class: 'icon-btn sm', 'aria-label': name, title: name, onclick: fn }, icon(path));
     return el('div', { class: 'jump-head' },
       el('div', { class: 'jump-nav' }, left.map(btn)),
-      el('strong', { class: 'jump-label', 'aria-live': 'polite' }, label),
+      pickable
+        ? el('button', { type: 'button', class: 'jump-label is-btn', 'aria-live': 'polite', title: '연도 고르기', 'aria-label': `${label} — 눌러서 연도 고르기`, onclick: openYears },
+            label, el('span', { class: 'jump-caret', 'aria-hidden': 'true' }, '▾'))
+        : el('strong', { class: 'jump-label', 'aria-live': 'polite' }, label),
       el('div', { class: 'jump-nav' }, right.map(btn)),
     );
   }
@@ -131,6 +174,7 @@ export function initJump({ button, menu, current, gotoMonth, gotoWeekOf }) {
     if (!open) return;
     const cur = current();
     mode = cur.view;
+    pickingYear = false;
     if (mode === 'month') {
       viewYear = cur.year;
     } else {

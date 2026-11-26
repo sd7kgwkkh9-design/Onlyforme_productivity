@@ -29,7 +29,13 @@ import { diaryEditor, diarySection } from './diary.js';
 import { decorateTimed, weatherLine } from './weather.js';
 import { classSection, displayMode } from './timetable.js';
 
-const PALETTE = ['#E5534B', '#F08C2E', '#D9A514', '#3FA66B', '#2BA5B5', '#3D6FD9', '#7C5CD6', '#D45A9A'];
+// 카테고리 색 12가지 (0.15.3, 예전 8가지): 색상환을 고르게 돌되, 이웃한 색끼리는 밝기도 다르게 해서 한눈에 구분되게 했다.
+// 고른 방법: OKLab(사람 눈에 고르게 느껴지는 색 공간)에서 두 색 사이 거리가 가장 가까운 쌍도 0.108 — 예전 8색의 0.074보다 멀다.
+// 적록색약 눈으로 흉내 내 봐도 예전보다 덜 겹친다. 순서: 빨강 주황 노랑 연두 초록 청록 하늘 파랑 보라 자홍 분홍 갈색
+const PALETTE = ['#E23439', '#F7791A', '#E8B616', '#94CD2B', '#258D48', '#12A7A7', '#4EB8E9', '#3969D9', '#9F5CED', '#BF2DA9', '#F68DC1', '#A87346'];
+const COLOR_NAMES = ['빨강', '주황', '노랑', '연두', '초록', '청록', '하늘', '파랑', '보라', '자홍', '분홍', '갈색'];
+// '골고루 나누기'와 새 카테고리의 기본 색 순서: 앞에서부터 몇 개를 써도 서로 가장 멀다 (파랑 → 빨강 → 연두 → 초록 → …)
+const SPREAD = ['#3969D9', '#E23439', '#94CD2B', '#258D48', '#BF2DA9', '#F68DC1', '#A87346', '#F7791A', '#9F5CED', '#E8B616', '#12A7A7', '#4EB8E9'];
 
 // 두 곳이 함께 쓰는 값
 const shared = {
@@ -40,14 +46,16 @@ const shared = {
   onLogMenu: null,      // (event, log, sheet)        — 루틴 기록을 오른쪽 클릭했을 때
   onEditClass: () => {}, // (blockId) — 하루 화면의 수업 → 시간표에서 고치기 (0.13.0)
   onOpenAnnivs: () => {}, // 기념일 창 (0.13.0)
+  onOpenRepeats: () => {}, // 반복하는 일 창 (0.15.3)
 };
 
-export function configureSheets({ onDataChanged, onItemMenu = null, onLogMenu = null, onEditClass = () => {}, onOpenAnnivs = () => {} }) {
+export function configureSheets({ onDataChanged, onItemMenu = null, onLogMenu = null, onEditClass = () => {}, onOpenAnnivs = () => {}, onOpenRepeats = () => {} }) {
   shared.onDataChanged = onDataChanged;
   shared.onItemMenu = onItemMenu;
   shared.onLogMenu = onLogMenu;
   shared.onEditClass = onEditClass;
   shared.onOpenAnnivs = onOpenAnnivs;
+  shared.onOpenRepeats = onOpenRepeats;
 }
 
 async function loadCategories() {
@@ -204,10 +212,11 @@ export class Sheet {
     let mark;
     let classes;
     let annivs;
+    let repeats;
     let diary;
     try {
       // 일정 + 루틴 기록 + 루틴 버튼 + 꾸밈 + (0.13.0) 수업 + 기념일 + (0.14.0) 일기를 한 번에
-      ({ items: list, logs, routines, mark, classes = [], annivs = [], diary = null } = await api.day(date));
+      ({ items: list, logs, routines, mark, classes = [], annivs = [], diary = null, repeats = [] } = await api.day(date));
       setMarks(mark ? [mark] : [], date, addDays(date, 1), diary ? [diary] : []);
     } catch (e) {
       this.bodyEl.classList.remove('is-busy');
@@ -223,6 +232,12 @@ export class Sheet {
       ? el('div', { class: 'anniv-line' }, annivs.map((a) => el('button', {
           type: 'button', class: 'anniv-chip', title: '기념일 — 눌러서 기념일 창 열기', onclick: () => shared.onOpenAnnivs(),
         }, `${a.emoji} ${a.title}${a.label ? ` ${a.label}` : ''}`)))
+      : null;
+    // 0.15.3: 반복하는 일 — 기념일 줄 아래에 '🗑️ 분리수거 · 9:00' 이름표, 누르면 반복 창에서 고친다
+    const repeatLine = repeats.length
+      ? el('div', { class: 'repeat-line' }, repeats.map((r) => el('button', {
+          type: 'button', class: 'repeat-chip', title: `${r.label}${r.memo ? ` · ${r.memo}` : ''} — 눌러서 고치기`, onclick: () => shared.onOpenRepeats(r.id),
+        }, `${r.emoji} ${r.title}`, r.time ? el('span', { class: 'repeat-time' }, r.time) : null)))
       : null;
     const classDay = classSection({ date, classes: shownClasses, onChanged: dataChanged, onOpenTimetable: (id) => shared.onEditClass(id) });
 
@@ -256,7 +271,7 @@ export class Sheet {
         })
       : null;
     // 맨 위: 그날 서울 날씨(오늘부터 일주일만) + 스티커 / 맨 아래: 일기 (0.14.0)
-    this.setBody(this.dayTop(date, mark), annivLine,
+    this.setBody(this.dayTop(date, mark), annivLine, repeatLine,
       mode === 'with' ? classDay : null, ...schedule, mode === 'below' ? classDay : null, routineDay,
       diarySection({ date, diary, onOpen: () => this.showDiary(date) }));
     decorateTimed(this.bodyEl); // 일정 옆에 그 시간의 날씨
@@ -404,7 +419,7 @@ export class Sheet {
 
     // --- 메모
     const memoInput = el('textarea', {
-      id: ids.memo, class: 'input f-memo', rows: '3', maxlength: '2000', placeholder: '메모 (선택)', value: src?.memo ?? '',
+      id: ids.memo, class: 'input f-memo', rows: '2', maxlength: '2000', placeholder: '메모 (선택)', value: src?.memo ?? '',
     });
 
     // --- D-day 표시: 켜 두면 달력 위 띠에 'D-3 기말고사'처럼 남은 날이 보인다
@@ -425,6 +440,7 @@ export class Sheet {
 
     const form = el('form', { id: ids.form, class: 'form item-form', novalidate: true },
       field('제목', titleInput, ids.title),
+      field('메모', memoInput, ids.memo),   // 0.15.3: 맨 아래 있어서 놓치기 쉬웠다 → 제목 바로 밑으로
       fieldset('카테고리', catGroup),
       el('div', { class: 'field' },
         el('div', { class: 'time-row' },
@@ -442,7 +458,6 @@ export class Sheet {
         el('p', { class: 'field-hint' }, '날짜를 비워 둔 할 일이면 맨 위로 올라오고 첫 화면 \'오늘 챙길 것\'에 보여요.'),
       ),
       projectSelect ? field('프로젝트', projectSelect, `${uid}-f-project`) : null,
-      field('메모', memoInput, ids.memo),
       errorEl,
     );
 
@@ -550,7 +565,7 @@ export class Sheet {
 
     // 새 카테고리 추가 폼
     const nameInput = el('input', { type: 'text', class: 'input', maxlength: '20', placeholder: '예: 수업, 알바, 운동', 'aria-label': '새 카테고리 이름' });
-    const unused = PALETTE.find((p) => !shared.categories.some((c) => c.color === p)) || PALETTE[0];
+    const unused = SPREAD.find((p) => !shared.categories.some((c) => c.color.toUpperCase() === p)) || SPREAD[0];
     const colors = colorPicker(unused, 'new');
     const errorEl = el('p', { class: 'form-error', role: 'alert', hidden: true });
     const addForm = el('form', { class: 'cat-add', novalidate: true },
@@ -584,7 +599,12 @@ export class Sheet {
         },
       });
     }
-    this.setBody(top, list, movable.length > 1 ? el('p', { class: 'list-hint' }, '≡를 끌어서 순서를 바꿔요. 일정 입력 창의 카테고리도 이 순서로 보여요.') : null, addForm);
+    const spread = movable.length > 1 && editingId === null
+      ? el('button', { type: 'button', class: 'btn sm ghost cat-spread', onclick: () => this.spreadColors() }, '🎨 색 골고루 나누기')
+      : null;
+    this.setBody(top, list,
+      movable.length > 1 ? el('div', { class: 'cat-tools' }, el('p', { class: 'list-hint' }, '≡를 끌어서 순서를 바꿔요. 일정 입력 창의 카테고리도 이 순서로 보여요.'), spread) : null,
+      addForm);
     this.setFoot();
   }
 
@@ -630,6 +650,32 @@ export class Sheet {
     });
     setTimeout(() => nameInput.focus());
     return el('li', { class: 'cat-row editing', dataset: { id: String(c.id) } }, form);
+  }
+
+  // 0.15.3: 카테고리들에 서로 가장 잘 구분되는 색을 순서대로 한 번에 나눠 준다 (되돌리기 가능)
+  async spreadColors() {
+    const movable = shared.categories.filter((c) => !c.is_default);
+    const ok = await ask(`카테고리 ${movable.length}개에 서로 잘 구분되는 색을 위에서부터 차례로 나눠 줄까요? 지금 색은 바뀌어요.`, [
+      { label: '나누기', value: true, kind: 'primary' },
+      { label: '취소', value: null, kind: 'ghost' },
+    ]);
+    if (!ok) return;
+    const before = movable.map((c) => ({ id: c.id, name: c.name, color: c.color }));
+    try {
+      await Promise.all(movable.map((c, i) => api.updateCategory(c.id, { name: c.name, color: SPREAD[i % SPREAD.length] })));
+      await dataChanged();
+      await this.renderCategories();
+      toast('색을 골고루 나눴어요', 'info', {
+        action: {
+          label: '되돌리기',
+          run: async () => {
+            await Promise.all(before.map((c) => api.updateCategory(c.id, { name: c.name, color: c.color })));
+            await dataChanged();
+            if (this.view === 'categories') await this.renderCategories();
+          },
+        },
+      });
+    } catch (e) { toast(e.message, 'error'); await this.renderCategories(); }
   }
 
   async deleteCategory(c) {
@@ -706,13 +752,13 @@ function showError(errorEl, message, focusEl) {
   focusEl?.focus();
 }
 
-// 색 고르기: 미리 정한 8색 + 직접 고르기(컬러 피커)
+// 색 고르기: 미리 정한 12색 + 직접 고르기(컬러 피커)
 function colorPicker(initial, name) {
   let value = initial.toUpperCase();
   const custom = el('input', { type: 'color', class: 'swatch-custom', value: value.toLowerCase(), title: '직접 고르기', 'aria-label': '직접 고르기' });
-  const radios = PALETTE.map((color) =>
-    el('label', { class: 'swatch', style: { '--cat': color }, title: color },
-      el('input', { type: 'radio', name: `color-${name}`, value: color, checked: color === value, 'aria-label': color }),
+  const radios = PALETTE.map((color, i) =>
+    el('label', { class: 'swatch', style: { '--cat': color }, title: COLOR_NAMES[i] },
+      el('input', { type: 'radio', name: `color-${name}`, value: color, checked: color === value, 'aria-label': COLOR_NAMES[i] }),
     ));
   const node = el('div', { class: 'swatches', role: 'radiogroup', 'aria-label': '색상' }, radios, custom);
 

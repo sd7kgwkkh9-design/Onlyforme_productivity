@@ -48,9 +48,9 @@ TABLES = [
     "categories", "routines", "projects", "timetables",
     "items", "item_dates", "routine_logs", "notes", "goals", "day_marks",
     "habits", "habit_logs", "timetable_blocks", "timetable_skips", "anniversaries", "diaries",
-    "about_sections", "wishlist",
+    "about_sections", "wishlist", "repeats",
 ]
-KEEP_IF_MISSING = {"about_sections", "wishlist"}
+KEEP_IF_MISSING = {"about_sections", "wishlist", "repeats"}   # 이 표가 없던 예전 파일을 되살려도 지금 것은 그대로 둔다
 MAX_BYTES = 20 * 1024 * 1024   # 20MB (일기·노트를 아주 많이 써도 넉넉하다)
 KEEP_SAFETY = 5
 KEEP_DAILY = 14    # 자동 백업: 최근 14개는 날마다
